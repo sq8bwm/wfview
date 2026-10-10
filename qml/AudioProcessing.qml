@@ -507,11 +507,15 @@ ApplicationWindow {
         id: meter
         property string label: ""
         property real value: 0
+        // Fill from the right instead of the left.
+        property bool reversed: false
         spacing: 1
         Layout.fillWidth: true
         Label { text: meter.label; font.pixelSize: 11; Layout.alignment: Qt.AlignHCenter }
         ProgressBar {
+            id: meterBar
             Layout.fillWidth: true
+            transform: Scale { origin.x: meterBar.width / 2; xScale: meter.reversed ? -1 : 1 }
             Layout.preferredWidth: 80
             Layout.preferredHeight: 12
             from: 0
@@ -1015,7 +1019,14 @@ ApplicationWindow {
                     spacing: 12
                     LevelMeter { label: qsTr("Input"); value: win.txInputLevel }
                     LevelMeter { label: qsTr("Output"); value: win.txOutputLevel }
-                    LevelMeter { label: qsTr("Gain Reduction"); value: win.txGainReduction }
+                    LevelMeter {
+                        label: qsTr("Gain Reduction")
+                        value: win.txGainReduction
+                        reversed: {
+                            var v = MainController.settings ? MainController.settings.options["Interface.CompMeterReverse"] : false
+                            return v === true || v === "true"
+                        }
+                    }
                 }
             }
         }
