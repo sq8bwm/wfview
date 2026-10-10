@@ -1605,6 +1605,18 @@ ApplicationWindow {
                                     }
                                     Item { Layout.fillWidth: true }
                                 }
+                                RowLayout {
+                                    spacing: 12
+                                    CheckBox {
+                                        id: largeFreqDisplayChk
+                                        text: qsTr("Larger digits and primary meter")
+                                        checked: optBool("Interface.LargeFreqDisplay", false)
+                                        onClicked: if (controller) controller.setOption("Interface.LargeFreqDisplay", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Make the frequency display and the S/power meter 50% larger")
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
                             }
                         }
 

@@ -21,6 +21,9 @@ Control {
         MainController.settings ? MainController.settings.options["Interface.MiniRxButtons"] : undefined, true)
     readonly property bool sMeterOnTop: boolReceiverSettingValue(
         MainController.settings ? MainController.settings.options["Interface.SMeterOnTop"] : undefined, false)
+    // "Larger digits and primary meter": scales the frequency displays and the S/power meter.
+    readonly property real displayScale: boolReceiverSettingValue(
+        MainController.settings ? MainController.settings.options["Interface.LargeFreqDisplay"] : undefined, false) ? 1.5 : 1.0
 
     signal requestDetach(var globalPos)
     signal fullScreenRequested(bool enabled)
@@ -157,7 +160,7 @@ Control {
             Item {
                 id: header
                 Layout.fillWidth: true
-                Layout.preferredHeight: 28
+                Layout.preferredHeight: root.sMeterOnTop ? Math.round(26 * root.displayScale) + 2 : 28
 
                 Meter {
                     id: smeter
@@ -166,8 +169,8 @@ Control {
                     parent: root.sMeterOnTop ? header : smeterSlot
                     x: root.sMeterOnTop ? bandDrawerButton.x + bandDrawerButton.width + 5 : 0
                     y: root.sMeterOnTop ? 2 : 0
-                    width: root.sMeterOnTop ? 300 : smeterSlot.width
-                    height: root.sMeterOnTop ? 26 : smeterSlot.height
+                    width: root.sMeterOnTop ? Math.round(300 * root.displayScale) : smeterSlot.width
+                    height: root.sMeterOnTop ? Math.round(26 * root.displayScale) : smeterSlot.height
                     meterType: root.controller ? root.controller.meterType : 0
                     // only set the "current" level; MeterItem does peak/avg itself
                     current: root.controller ? root.controller.meter : 0
@@ -399,8 +402,13 @@ Control {
             Item {
                 id: freqPane
                 Layout.fillWidth: true
-                // enough height for both rows
-                height: freqColumn.implicitHeight
+                // Enough height for both rows plus freqColumn's margins. Use
+                // layout hints (not height) so contentLayout re-lays out when
+                // the "Larger digits" setting changes the row height.
+                readonly property int paneHeight: freqColumn.implicitHeight + freqColumn.anchors.margins * 2
+                Layout.preferredHeight: paneHeight
+                Layout.minimumHeight: paneHeight
+                Layout.maximumHeight: paneHeight
 
                 Rectangle {
                     color: "transparent"
@@ -415,13 +423,15 @@ Control {
                         RowLayout {
                             id: freqRow
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 36    // <— give it some height
+                            Layout.preferredHeight: Math.round(36 * root.displayScale)
+                            Layout.minimumHeight: Layout.preferredHeight
+                            Layout.maximumHeight: Layout.preferredHeight
 
                             // Left freq control
                             FreqCtrlQuick {
                                 id: leftFreq
                                 objectName: "leftFreq"
-                                Layout.preferredWidth: 260
+                                Layout.preferredWidth: Math.round(260 * root.displayScale)
                                 Layout.fillHeight: true
                                 Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
 
@@ -466,8 +476,8 @@ Control {
                             Item {
                                 id: smeterSlot
                                 visible: !root.sMeterOnTop
-                                Layout.preferredWidth: 300
-                                Layout.minimumWidth: 150
+                                Layout.preferredWidth: Math.round(300 * root.displayScale)
+                                Layout.minimumWidth: Math.round(150 * root.displayScale)
                                 Layout.fillHeight: true
                                 Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
                             }
@@ -541,7 +551,7 @@ Control {
                             FreqCtrlQuick {
                                 id: rightFreq
                                 objectName: "rightFreq"
-                                Layout.preferredWidth: 260
+                                Layout.preferredWidth: Math.round(260 * root.displayScale)
                                 Layout.fillHeight: true
                                 Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
 

@@ -71,7 +71,7 @@ void MeterItem::paint(QPainter *p)
     p->setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     // Pixel-space layout (Qt Quick item pixels)
-    m_mXstart = m_drawLabels ? 32 : 0;
+    m_mXstart = labelColumnWidth();
     const int rightPad = 15;
 
     const int pxW = int(width());
@@ -85,7 +85,18 @@ void MeterItem::paint(QPainter *p)
 
     // IMPORTANT: no setWindow. Draw in real pixels.
     // p->setWindow(...)  <-- DELETE THIS
-    m_barHeight = pxH / 2;
+
+    // Stack the scale text, scale line and bar from the font height, keeping
+    // the spacing the original 6pt layout used (baseline, +2 line, +4 bar).
+    const QFontMetrics fm(p->font());
+    m_scaleTextYstart = qMax(10, fm.ascent() + 1);
+    m_scaleLineYstart = m_scaleTextYstart + 2;
+    m_mYstart = m_scaleTextYstart + 4;
+
+    // Fill down to the bottom of the item (less a small pad) so taller meters,
+    // e.g. with "Larger digits and primary meter", don't leave an empty band
+    // below the bar.
+    m_barHeight = qMax(4, pxH - m_mYstart - 2);
 
     // Cache now depends on real pixel size, not the old fake window
     const QRect cacheRect(0, 0, pxW, pxH);
@@ -367,7 +378,7 @@ void MeterItem::setDrawLabels(bool d)
     if (m_drawLabels == d) return;
     m_drawLabels = d;
 
-    m_mXstart = m_drawLabels ? 32 : 0;
+    m_mXstart = labelColumnWidth();
     setImplicitWidth(m_scalePixelWidth + m_mXstart + 15);
 
     emit drawLabelsChanged();
@@ -1114,7 +1125,7 @@ void MeterItem::drawValue_Linear(QPainter *qp, bool reverse) {
         uchar prec=1;
         if (m_current >= 100.0 || m_current <= -100.0)
             prec=0;
-        qp->drawText(0,m_scaleTextYstart+20, QString("%0").arg(m_current,0,'f',prec,'0'));
+        qp->drawText(0,m_mYstart+m_barHeight, QString("%0").arg(m_current,0,'f',prec,'0'));
 
     }
     // And then, we can just plot them, since we already scaled

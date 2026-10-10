@@ -131,14 +131,20 @@ private:
     bool m_drawLabels = true;
     QString m_warningText;
 
-    int m_fontSize = 6;
+    int m_fontSize = 9;
     int m_labelWidth = 0;
 
-    int m_mXstart = 32;
-    int m_mYstart = 14;
+    // Vertical positions are recalculated from the font in paint(); these
+    // are only starting values.
+    int m_mXstart = 48;
+    int m_mYstart = 16;
     int m_barHeight = 10;
-    int m_scaleLineYstart = 12;
-    int m_scaleTextYstart = 10;
+    int m_scaleLineYstart = 14;
+    int m_scaleTextYstart = 12;
+
+    // Width of the left-hand label column ("S", "PWR", ...), scaled with the
+    // font so labels don't run into the scale.
+    int labelColumnWidth() const { return m_drawLabels ? qRound(32.0 * m_fontSize / 6.0) : 0; }
 
     int m_currentRect = 0;
     int m_averageRect = 0;

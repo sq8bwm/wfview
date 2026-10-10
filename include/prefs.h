@@ -312,6 +312,7 @@ struct preferences {
     bool miniRxButtons = true;
     bool reverseWheel = false;   // invert mouse-wheel direction on sliders and dials
     bool sMeterOnTop = false;
+    bool largeFreqDisplay = false; // 50% larger frequency digits and S/power meter
 
     // Radio:
     manufacturersType_t manufacturer;

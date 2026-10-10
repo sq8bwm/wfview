@@ -1008,6 +1008,7 @@ void SettingsController::load()
     prefs.miniRxButtons = settings->value("MiniRxButtons",defPrefs.miniRxButtons).toBool();
     prefs.reverseWheel = settings->value("ReverseWheel",defPrefs.reverseWheel).toBool();
     prefs.sMeterOnTop = settings->value("SMeterOnTop",defPrefs.sMeterOnTop).toBool();
+    prefs.largeFreqDisplay = settings->value("LargeFreqDisplay",defPrefs.largeFreqDisplay).toBool();
 
     //ui->rigCreatorBtn->setEnabled(prefs.rigCreatorEnable);
 
@@ -1811,6 +1812,7 @@ void SettingsController::save()
     settings->setValue("MiniRxButtons",prefs.miniRxButtons);
     settings->setValue("ReverseWheel",prefs.reverseWheel);
     settings->setValue("SMeterOnTop",prefs.sMeterOnTop);
+    settings->setValue("LargeFreqDisplay",prefs.largeFreqDisplay);
     settings->setValue("GroupSeparator",prefs.groupSeparator);
     settings->setValue("DecimalSeparator",prefs.decimalSeparator);
     settings->setValue("ForceVfoMode",prefs.forceVfoMode);
@@ -2325,6 +2327,7 @@ void SettingsController::setDefPrefs()
     defPrefs.miniRxButtons = true;
     defPrefs.reverseWheel = false;
     defPrefs.sMeterOnTop = false;
+    defPrefs.largeFreqDisplay = false;
     defPrefs.manufacturer = manufIcom;
     defPrefs.useUTC = false;
     defPrefs.setRadioTime = false;
@@ -3320,6 +3323,7 @@ void SettingsController::buildBindings()
     WF_BOOL("Interface.MiniRxButtons", prefs.miniRxButtons, [](){});
     WF_BOOL("Interface.ReverseWheel", prefs.reverseWheel, [](){});
     WF_BOOL("Interface.SMeterOnTop", prefs.sMeterOnTop, [](){});
+    WF_BOOL("Interface.LargeFreqDisplay", prefs.largeFreqDisplay, [](){});
 
     WF_ENUM_I32("Interface.Meter2Type", prefs.meter2Type, meter_t,
                 [this](){ emit ifChanged(prefIfItems(prefIfItem::if_meter2Type)); });
