@@ -1252,6 +1252,49 @@ ApplicationWindow {
             }
         }
 
+        // -------- 1b) disconnected logo (replaces scopeVFOGroup) --------
+        Item {
+            id: disconnectedLogo
+            visible: !win.radioConnected
+            Layout.fillWidth: true
+            Layout.topMargin: 12
+            Layout.bottomMargin: 12
+            implicitWidth: disconnectedLogoColumn.implicitWidth
+            implicitHeight: disconnectedLogoColumn.implicitHeight
+
+            Column {
+                id: disconnectedLogoColumn
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 8
+
+                Image {
+                    id: disconnectedLogoImage
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 256
+                    height: 256
+                    sourceSize.width: 512
+                    sourceSize.height: 512
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    mipmap: true
+                    source: "qrc:/resources/wfview.svg"
+                    // Fall back to the bitmap logo if the SVG image plugin is unavailable
+                    onStatusChanged: {
+                        if (status === Image.Error && source != "qrc:/resources/wfview.png")
+                            source = "qrc:/resources/wfview.png"
+                    }
+                }
+
+                Label {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("Disconnected")
+                    font.pixelSize: 28
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+        }
+
         // -------- 2) mainGroup (middle, fixed-ish) --------
         Frame {
             id: mainGroup

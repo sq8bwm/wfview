@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/resources">
         <file>wfview.png</file>
+        <file alias="wfview.svg">icons/scalable/wfview.svg</file>
         <file>shuttlexpress.png</file>
         <file>shuttlepro.png</file>
         <file>rc28.png</file>
