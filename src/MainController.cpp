@@ -404,6 +404,13 @@ void MainController::ensureAudioProcessors()
                         emit anrProfileStateChanged();
                     }
                 });
+        connect(rxProc, &RxAudioProcessor::anrNoiseProfileBins,
+                this, [this](QVector<double> bins, double sampleRate, int windowSize) {
+                    m_anrNoiseProfileBins = spectrumToVariantList(bins);
+                    m_anrNoiseProfileSampleRate = sampleRate;
+                    m_anrNoiseProfileWindowSize = windowSize;
+                    emit anrNoiseProfileChanged();
+                });
         m_anrProfileTimer.setInterval(1000);
         connect(&m_anrProfileTimer, &QTimer::timeout, this, [this]() {
             if (--m_anrProfileSecondsLeft <= 0)

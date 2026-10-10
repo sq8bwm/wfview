@@ -520,6 +520,140 @@ ApplicationWindow {
         }
     }
 
+    // Static plot of the ANR noise profile (dB per linear FFT bin) on the
+    // same log frequency axis as the spectrum views. Auto-scales vertically
+    // to the profile and repaints only when a new profile arrives.
+    component NoiseProfilePlot: Canvas {
+        id: plot
+        property var bins: []
+        property real sampleRate: 0
+        property int windowSize: 0
+        property string lineColor: "#5aa9ff"
+        readonly property bool hasData: bins && bins.length > 1 && sampleRate > 0 && windowSize > 0
+
+        Layout.fillWidth: true
+        Layout.preferredWidth: 240
+        Layout.preferredHeight: 110
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+        onBinsChanged: requestPaint()
+
+        onPaint: {
+            var ctx = getContext("2d")
+            ctx.reset()
+            var left = 34, right = 6, top = 6, bottom = 18
+            var plotX = left, plotY = top
+            var plotW = Math.max(1, width - left - right)
+            var plotH = Math.max(1, height - top - bottom)
+            var bgColor = win.canvasColor(MainController.settings.options["Color.PlotBackground"], 1)
+            var gridColor = win.canvasColor(MainController.settings.options["Color.Grid"], 1)
+            var textColor = win.canvasColor(win.palette.text, 1)
+            var subtleTextColor = win.canvasColor(win.palette.text, 0.75)
+
+            ctx.fillStyle = bgColor
+            ctx.fillRect(0, 0, width, height)
+            if (!plot.hasData)
+                return
+
+            var fMin = 50
+            var fMax = Math.max(fMin * 2, Math.min(8000, plot.sampleRate / 2))
+            var binHz = plot.sampleRate / plot.windowSize
+
+            // Auto-scale to the profile range, padded and snapped to 6 dB.
+            var lo = Infinity, hi = -Infinity
+            for (var i = 0; i < bins.length; ++i) {
+                var f = i * binHz
+                if (f < fMin || f > fMax) continue
+                var v = Number(bins[i])
+                if (v < lo) lo = v
+                if (v > hi) hi = v
+            }
+            if (!isFinite(lo) || !isFinite(hi))
+                return
+            var range = Math.max(6, hi - lo)
+            var margin = range * 0.1
+            var minDb = Math.floor((lo - margin) / 6) * 6
+            var maxDb = Math.ceil((hi + margin) / 6) * 6
+
+            function dbToY(db) {
+                return plotY + plotH - ((db - minDb) / (maxDb - minDb)) * plotH
+            }
+            function freqToX(freq) {
+                var logMin = Math.log(fMin), logMax = Math.log(fMax)
+                return plotX + ((Math.log(Math.max(fMin, freq)) - logMin) / (logMax - logMin)) * plotW
+            }
+            function freqLabel(freq) {
+                if (freq >= 1000)
+                    return (freq / 1000).toFixed(freq % 1000 === 0 ? 0 : 1) + "k"
+                return String(freq)
+            }
+
+            // Grid
+            ctx.font = "10px sans-serif"
+            ctx.textBaseline = "middle"
+            ctx.lineWidth = 1
+            ctx.strokeStyle = gridColor
+            ctx.fillStyle = subtleTextColor
+            var dbStep = 6
+            while (plotH * dbStep / (maxDb - minDb) < 14 && dbStep < (maxDb - minDb))
+                dbStep += 6
+            ctx.setLineDash([3, 3])
+            for (var db = minDb; db <= maxDb; db += dbStep) {
+                var y = dbToY(db)
+                ctx.beginPath()
+                ctx.moveTo(plotX, y)
+                ctx.lineTo(plotX + plotW, y)
+                ctx.stroke()
+                ctx.textAlign = "right"
+                ctx.fillText(String(db), plotX - 4, y)
+            }
+            var freqs = plotW < 260 ? [50, 200, 800, 3200, 8000]
+                                    : [50, 100, 200, 400, 800, 1600, 3200, 6400, 8000]
+            ctx.textAlign = "center"
+            for (var k = 0; k < freqs.length; ++k) {
+                if (freqs[k] > fMax) continue
+                var x = freqToX(freqs[k])
+                ctx.beginPath()
+                ctx.moveTo(x, plotY)
+                ctx.lineTo(x, plotY + plotH)
+                ctx.stroke()
+                ctx.fillText(freqLabel(freqs[k]), x, plotY + plotH + 10)
+            }
+            ctx.setLineDash([])
+
+            // Profile curve
+            ctx.save()
+            ctx.beginPath()
+            ctx.rect(plotX, plotY, plotW, plotH)
+            ctx.clip()
+            ctx.strokeStyle = plot.lineColor
+            ctx.lineWidth = 1.5
+            ctx.beginPath()
+            var started = false
+            for (var n = 1; n < bins.length; ++n) {
+                var fn = n * binHz
+                if (fn < fMin * 0.9) continue
+                var px = freqToX(fn)
+                var py = dbToY(Number(bins[n]))
+                if (!started) { ctx.moveTo(px, py); started = true }
+                else ctx.lineTo(px, py)
+                if (fn > fMax) break
+            }
+            ctx.stroke()
+            ctx.restore()
+
+            ctx.strokeStyle = textColor
+            ctx.beginPath()
+            ctx.rect(plotX, plotY, plotW, plotH)
+            ctx.stroke()
+
+            ctx.fillStyle = plot.lineColor
+            ctx.textAlign = "right"
+            ctx.textBaseline = "top"
+            ctx.fillText(qsTr("Noise floor"), plotX + plotW - 4, plotY + 3)
+        }
+    }
+
     component SpectrumBox: CollapsibleSection {
         id: box
         property var inputBins: []
@@ -965,12 +1099,27 @@ ApplicationWindow {
                         onClicked: MainController.stopAnrNoiseProfile()
                     }
                     Label {
+                        id: anrStatusLabel
                         Layout.leftMargin: 4
+                        // Reserve the widest of the possible messages so the
+                        // window doesn't change width as the status changes.
+                        Layout.minimumWidth: Math.ceil(Math.max(anrStatusW1.advanceWidth,
+                                                                anrStatusW2.advanceWidth,
+                                                                anrStatusW3.advanceWidth))
+                        TextMetrics { id: anrStatusW1; font: anrStatusLabel.font; text: qsTr("Sample in progress (%1)").arg(5) }
+                        TextMetrics { id: anrStatusW2; font: anrStatusLabel.font; text: qsTr("Sample available") }
+                        TextMetrics { id: anrStatusW3; font: anrStatusLabel.font; text: qsTr("No sample available") }
                         text: MainController.anrProfiling
                               ? qsTr("Sample in progress (%1)").arg(MainController.anrProfileSecondsLeft)
                               : MainController.anrHasProfile ? qsTr("Sample available")
                                                              : qsTr("No sample available")
                     }
+                }
+                NoiseProfilePlot {
+                    visible: MainController.anrHasProfile && hasData
+                    bins: MainController.anrNoiseProfileBins
+                    sampleRate: MainController.anrNoiseProfileSampleRate
+                    windowSize: MainController.anrNoiseProfileWindowSize
                 }
             }
 

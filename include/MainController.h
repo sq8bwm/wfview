@@ -83,6 +83,10 @@ public:
     Q_PROPERTY(bool anrProfiling READ anrProfiling NOTIFY anrProfileStateChanged)
     Q_PROPERTY(bool anrHasProfile READ anrHasProfile NOTIFY anrProfileStateChanged)
     Q_PROPERTY(int anrProfileSecondsLeft READ anrProfileSecondsLeft NOTIFY anrProfileStateChanged)
+    // ANR noise profile as dB per linear FFT bin; bin i is at i * sampleRate / windowSize Hz.
+    Q_PROPERTY(QVariantList anrNoiseProfileBins READ anrNoiseProfileBins NOTIFY anrNoiseProfileChanged)
+    Q_PROPERTY(double anrNoiseProfileSampleRate READ anrNoiseProfileSampleRate NOTIFY anrNoiseProfileChanged)
+    Q_PROPERTY(int anrNoiseProfileWindowSize READ anrNoiseProfileWindowSize NOTIFY anrNoiseProfileChanged)
     Q_PROPERTY(bool tunerEnabled READ tunerEnabled WRITE setTunerEnabled NOTIFY tunerEnabledChanged)
     Q_PROPERTY(bool ritEnabled READ ritEnabled WRITE setRitEnabled NOTIFY ritEnabledChanged)
     Q_PROPERTY(bool dualScope READ dualScope WRITE setDualScope NOTIFY dualScopeChanged)
@@ -198,6 +202,9 @@ public:
     bool anrProfiling() const { return m_anrProfiling; }
     bool anrHasProfile() const { return m_anrHasProfile; }
     int anrProfileSecondsLeft() const { return m_anrProfileSecondsLeft; }
+    QVariantList anrNoiseProfileBins() const { return m_anrNoiseProfileBins; }
+    double anrNoiseProfileSampleRate() const { return m_anrNoiseProfileSampleRate; }
+    int anrNoiseProfileWindowSize() const { return m_anrNoiseProfileWindowSize; }
     bool tunerEnabled() const { return m_tunerEnabled; }
     bool ritEnabled() const { return m_ritEnabled; }
     bool dualScope() const { return m_dualScope; }
@@ -354,6 +361,7 @@ signals:
     void transmittingChanged();
     void rxMutedChanged();
     void anrProfileStateChanged();
+    void anrNoiseProfileChanged();
     void tunerEnabledChanged();
     void ritEnabledChanged();
     void dualScopeChanged();
@@ -555,6 +563,9 @@ private:
     bool m_anrProfiling = false;
     bool m_anrHasProfile = false;
     int m_anrProfileSecondsLeft = 0;
+    QVariantList m_anrNoiseProfileBins;
+    double m_anrNoiseProfileSampleRate = 0.0;
+    int m_anrNoiseProfileWindowSize = 0;
     bool m_tunerEnabled = false;
     bool m_ritEnabled = false;
     bool m_dualScope = false;
