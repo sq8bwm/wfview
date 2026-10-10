@@ -128,7 +128,7 @@ ApplicationWindow {
     }
 
     function showAudioProcessing() {
-        settingsStack.currentIndex = 9
+        settingsStack.currentIndex = 10
         showOnScreen()
     }
 
@@ -420,6 +420,7 @@ ApplicationWindow {
                 model: [
                     { title: qsTr("Radio Access") },
                     { title: qsTr("User Interface") },
+                    { title: qsTr("UI Colors") },
                     { title: qsTr("Radio Settings") },
                     { title: qsTr("Radio Server") },
                     { title: qsTr("External Control") },
@@ -1580,6 +1581,22 @@ ApplicationWindow {
                             Item { Layout.fillWidth: true }
                         }
 
+                        Item { Layout.fillHeight: true }
+                    }
+                }
+
+                // =========================
+                // Page 2: UI Colors
+                // =========================
+                Item {
+                    id: uiColors
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: 10
+
                         // Color scheme / preset controls
                         RowLayout {
                             spacing: 8
@@ -1739,7 +1756,7 @@ ApplicationWindow {
                 }
 
                 // =========================
-                // Page 2: Radio Settings
+                // Page 3: Radio Settings
                 // =========================
                 Item {
                     id: radioSettings
@@ -1876,7 +1893,7 @@ ApplicationWindow {
                 }
 
                 // =========================
-                // Page 3: Radio Server
+                // Page 4: Radio Server
                 // =========================
                 Item {
                     id: radioServer
@@ -2191,7 +2208,7 @@ ApplicationWindow {
                 }
 
                 // =========================
-                // Page 4: External Control
+                // Page 5: External Control
                 // =========================
                 Item {
                     id: externalControl
@@ -2317,7 +2334,7 @@ ApplicationWindow {
                 }
 
                 // =========================
-                // Page 5: Controllers
+                // Page 6: Controllers
                 // =========================
                 Item {
                     id: controllers
@@ -2362,7 +2379,7 @@ ApplicationWindow {
                     }
                 }
                 // =========================
-                // Page 6: DX Cluster
+                // Page 7: DX Cluster
                 // =========================
                 Item {
                     id: clusterPage
@@ -2676,13 +2693,13 @@ ApplicationWindow {
                 }
 
                 // =========================
-                // Page 7: Shortcuts
+                // Page 8: Shortcuts
                 // =========================
                 Loader {
                     id: shortcutsPageLoader
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    active: settingsStack.currentIndex === 7
+                    active: settingsStack.currentIndex === 8
                     sourceComponent: shortcutsPageComponent
                 }
 
@@ -2872,7 +2889,7 @@ ApplicationWindow {
                 }
 
                 // =========================
-                // Page 8: Experimental
+                // Page 9: Experimental
                 // =========================
                 Item {
                     id: experimental
@@ -3012,7 +3029,7 @@ ApplicationWindow {
                 }
 
                 // =========================
-                // Page 9: Audio Processing
+                // Page 10: Audio Processing
                 // =========================
                 ScrollView {
                     id: audioProcessing
@@ -3278,11 +3295,11 @@ ApplicationWindow {
     // ---- Keyboard shortcuts from the .ui accessibleDescription ----
     Shortcut { sequence: "Shift+F1"; onActivated: settingsStack.currentIndex = 0 }
     Shortcut { sequence: "Shift+F2"; onActivated: settingsStack.currentIndex = 1 }
-    Shortcut { sequence: "Shift+F3"; onActivated: settingsStack.currentIndex = 2 }
-    Shortcut { sequence: "Shift+F4"; onActivated: settingsStack.currentIndex = 3 }
-    Shortcut { sequence: "Shift+F5"; onActivated: settingsStack.currentIndex = 4 }
-    Shortcut { sequence: "Shift+F6"; onActivated: settingsStack.currentIndex = 5 }
-    Shortcut { sequence: "Shift+F7"; onActivated: settingsStack.currentIndex = 6 }
-    Shortcut { sequence: "Shift+F8"; onActivated: settingsStack.currentIndex = 7 }
-    Shortcut { sequence: "Shift+F9"; onActivated: settingsStack.currentIndex = 8 }
+    Shortcut { sequence: "Shift+F3"; onActivated: settingsStack.currentIndex = 3 }
+    Shortcut { sequence: "Shift+F4"; onActivated: settingsStack.currentIndex = 4 }
+    Shortcut { sequence: "Shift+F5"; onActivated: settingsStack.currentIndex = 5 }
+    Shortcut { sequence: "Shift+F6"; onActivated: settingsStack.currentIndex = 6 }
+    Shortcut { sequence: "Shift+F7"; onActivated: settingsStack.currentIndex = 7 }
+    Shortcut { sequence: "Shift+F8"; onActivated: settingsStack.currentIndex = 8 }
+    Shortcut { sequence: "Shift+F9"; onActivated: settingsStack.currentIndex = 9 }
 }
