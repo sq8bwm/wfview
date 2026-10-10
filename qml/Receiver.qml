@@ -429,6 +429,10 @@ Control {
                                 maxFrequency: controller ? controller.freqDisplay["max"] : 4000000000
                                 freqMinStep: controller ? controller.freqDisplay["minStep"] : 1
                                 freqDigits: controller ? controller.freqDisplay["digits"] : 10
+                                invertScrolling: {
+                                    var v = MainController.settings ? MainController.settings.options["Interface.ReverseWheel"] : false
+                                    return v === true || v === "true"
+                                }
 
                                 unit: (controller && MainController.settings && MainController.settings.options)
                                       ? MainController.settings.options["Interface.FrequencyUnits"]
@@ -545,6 +549,10 @@ Control {
                                 minFrequency: controller ? controller.freqDisplay["min"] : 0
                                 maxFrequency: controller ? controller.freqDisplay["max"] : 0
                                 freqMinStep: controller ? controller.freqDisplay["minStep"] : 0
+                                invertScrolling: {
+                                    var v = MainController.settings ? MainController.settings.options["Interface.ReverseWheel"] : false
+                                    return v === true || v === "true"
+                                }
 
                                 unit: (controller && MainController.settings && MainController.settings.options)
                                       ? MainController.settings.options["Interface.FrequencyUnits"]
