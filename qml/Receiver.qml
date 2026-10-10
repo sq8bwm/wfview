@@ -1195,6 +1195,7 @@ Control {
                         visible: refSlider.spec ? refSlider.spec.visible : false
                     }
                     Slider {
+                        WheelArea {}
                         id: refSlider
                         readonly property var spec: controller ? controller.uiSpecs["refSlider"] : null
                         objectName: "ref"
@@ -1223,6 +1224,7 @@ Control {
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                     }
                     Slider {
+                        WheelArea {}
                         id: lengthSlider
                         from: 10
                         to: 1024
@@ -1255,6 +1257,7 @@ Control {
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                     }
                     Slider {
+                        WheelArea {}
                         id: ceilingSlider
                         from: 0
                         to: 255
@@ -1285,6 +1288,7 @@ Control {
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                     }
                     Slider {
+                        WheelArea {}
                         id: floorSlider
                         from: 0
                         to: 255
@@ -1359,6 +1363,7 @@ Control {
                         visible: pbtInnerSlider.visible
                     }
                     Slider {
+                        WheelArea {}
                         id: pbtInnerSlider
                         readonly property var spec: controller ? controller.uiSpecs["pbtInnerSlider"] : null
                         //Layout.preferredWidth: 120
@@ -1387,6 +1392,7 @@ Control {
                         visible: pbtOuterSlider.visible
                     }
                     Slider {
+                        WheelArea {}
                         id: pbtOuterSlider
                         readonly property var spec: controller ? controller.uiSpecs["pbtOuterSlider"] : null
                         //Layout.preferredWidth: 120
@@ -1419,6 +1425,7 @@ Control {
                         spacing: 2
 
                         Slider {
+                            WheelArea {}
                             id: ifShiftSlider
                             objectName: "ifShift"
                             value: controller ? controller.ifShift : 0
@@ -1442,6 +1449,7 @@ Control {
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                     }
                     Slider {
+                        WheelArea {}
                         id: filterWidthSlider
                         objectName: "filterWidth"
                         value: controller ? controller.filterWidth : 0
@@ -1472,6 +1480,7 @@ Control {
                     }
 
                     Slider {
+                        WheelArea {}
                         id: nbSlider
                         readonly property var spec: controller ? controller.uiSpecs["nbSlider"] : null
                         value: controller ? controller.nbLevel : 0
@@ -1513,6 +1522,7 @@ Control {
                     }
 
                     Slider {
+                        WheelArea {}
                         id: nrSlider
                         readonly property var spec: controller ? controller.uiSpecs["nrSlider"] : null
                         value: controller ? controller.nrLevel : 0
@@ -1588,6 +1598,7 @@ Control {
                         visible: rfGainSlider.visible
                     }
                     Slider {
+                        WheelArea {}
                         id: rfGainSlider
                         readonly property var spec: controller ? controller.uiSpecs["rfGainSlider"] : null
                         value: controller ? controller.rfGain : 0
@@ -1614,6 +1625,7 @@ Control {
                         visible: afGainSlider.visible
                     }
                     Slider {
+                        WheelArea {}
                         id: afGainSlider
                         readonly property var spec: controller ? controller.uiSpecs["afGainSlider"] : null
                         value: controller ? controller.afGain : 0
@@ -1640,6 +1652,7 @@ Control {
                         visible: squelchSlider.visible
                     }
                     Slider {
+                        WheelArea {}
                         id: squelchSlider
                         readonly property var spec: controller ? controller.uiSpecs["squelchSlider"] : null
                         value: controller ? controller.squelch : 0
@@ -1714,6 +1727,7 @@ Control {
                             spacing: 2
 
                             Slider {
+                                WheelArea {}
                                 id: attSlider
                                 width: parent.width
 
@@ -1871,6 +1885,7 @@ Control {
                             spacing: 2
 
                             Slider {
+                                WheelArea {}
                                 id: preSlider
                                 width: parent.width
 

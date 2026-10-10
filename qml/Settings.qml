@@ -379,6 +379,7 @@ ApplicationWindow {
             elide: Text.ElideRight
         }
         Slider {
+            WheelArea {}
             id: slider
             Layout.fillWidth: true
             from: parent.from
@@ -1219,6 +1220,7 @@ ApplicationWindow {
 
                                     Label { text: qsTr("RX Latency (ms)") }
                                     Slider {
+                                        WheelArea {}
                                         id: rxLatencySlider
                                         from: 30
                                         to: 500
@@ -1232,6 +1234,7 @@ ApplicationWindow {
 
                                     Label { text: qsTr("TX Latency (ms)") }
                                     Slider {
+                                        WheelArea {}
                                         id: txLatencySlider
                                         from: 30
                                         to: 500
@@ -1315,6 +1318,7 @@ ApplicationWindow {
                                         visible: parent.currentMode !== 0
                                     }
                                     Slider {
+                                        WheelArea {}
                                         id: underlaySlider
                                         visible: parent.currentMode !== 0
                                         enabled: parent.currentMode !== 0
@@ -1590,6 +1594,15 @@ ApplicationWindow {
                                         onValueModified: if (controller && manualPollBtn.checked) controller.setOption("Radio.PollingMS", value)
                                     }
                                     Label { text: qsTr("ms") }
+                                    CheckBox {
+                                        Layout.leftMargin: 16
+                                        id: reverseWheelChk
+                                        text: qsTr("Reverse scroll wheel")
+                                        checked: optBool("Interface.ReverseWheel", false)
+                                        onClicked: if (controller) controller.setOption("Interface.ReverseWheel", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Reverse the mouse-wheel direction when adjusting sliders and dials")
+                                    }
                                     Item { Layout.fillWidth: true }
                                 }
                             }

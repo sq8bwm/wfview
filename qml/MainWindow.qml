@@ -1358,6 +1358,15 @@ ApplicationWindow {
                     visible: win.radioConnected
 
                     Dial {
+                        // Wheel tunes like the spectrum does, rather than stepping the
+                        // wrapping knob value.
+                        WheelArea {
+                            customHandler: true
+                            onWheeled: function(angleDelta, modifiers) {
+                                if (firstReceiver)
+                                    firstReceiver.onWheelTune(angleDelta, modifiers)
+                            }
+                        }
                         id: freqDial
                         property real lastValue: value
                         property bool syncing: false
@@ -1465,6 +1474,7 @@ ApplicationWindow {
                                 border.color: win.palette.mid
 
                                 Dial {
+                                    WheelArea { stepsPerRange: Math.max(1, (parent.to - parent.from) / Math.max(1, parent.stepSize)) }
                                     id: ritTuneDial
                                     anchors.centerIn: parent
                                     width: win.ritDialSize
@@ -1517,6 +1527,7 @@ ApplicationWindow {
                                 spacing: 4
 
                                 Slider {
+                                    WheelArea {}
                                     id: volumeSlider
                                     from: 0
                                     to: 255
@@ -1543,6 +1554,7 @@ ApplicationWindow {
                         ColumnLayout {
                             visible: rangeControlVisible("txPower")
                             Slider {
+                                WheelArea {}
                                 id: txPowerSlider
                                 readonly property var spec: controlSpec("txPower", 0, 255)
                                 from: spec.min
@@ -1563,6 +1575,7 @@ ApplicationWindow {
                         ColumnLayout {
                             visible: rangeControlVisible("monitorGain") || (mainControlSpecs.canMonitor ?? false)
                             Slider {
+                                WheelArea {}
                                 id: monitorSlider
                                 readonly property var spec: controlSpec("monitorGain", 0, 255)
                                 from: spec.min
@@ -1602,6 +1615,7 @@ ApplicationWindow {
                                 spacing: 4
 
                                 Slider {
+                                    WheelArea {}
                                     id: micGainSlider
                                     readonly property var spec: controlSpec("micGain", 0, 255)
                                     from: MainController.modGainMin

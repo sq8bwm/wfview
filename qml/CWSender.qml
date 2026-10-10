@@ -332,6 +332,7 @@ ApplicationWindow {
             }
             
             Slider {
+                WheelArea {}
                 Layout.fillWidth: true
                 from: 0
                 to: 100

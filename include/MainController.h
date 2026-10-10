@@ -79,6 +79,7 @@ public:
     Q_PROPERTY(int modSourceRevision READ modSourceRevision NOTIFY modSourcesChanged)
     Q_PROPERTY(int ritFrequency READ ritFrequency WRITE setRitFrequency NOTIFY ritFrequencyChanged)
     Q_PROPERTY(bool transmitting READ transmitting WRITE setTransmit NOTIFY transmittingChanged)
+    Q_PROPERTY(bool rxMuted READ rxMuted WRITE setRxMuted NOTIFY rxMutedChanged)
     Q_PROPERTY(bool tunerEnabled READ tunerEnabled WRITE setTunerEnabled NOTIFY tunerEnabledChanged)
     Q_PROPERTY(bool ritEnabled READ ritEnabled WRITE setRitEnabled NOTIFY ritEnabledChanged)
     Q_PROPERTY(bool dualScope READ dualScope WRITE setDualScope NOTIFY dualScopeChanged)
@@ -190,6 +191,7 @@ public:
     int modSourceRevision() const { return m_modSourceRevision; }
     int ritFrequency() const { return m_ritFrequency; }
     bool transmitting() const { return m_transmitting; }
+    bool rxMuted() const { return m_rxMuted; }
     bool tunerEnabled() const { return m_tunerEnabled; }
     bool ritEnabled() const { return m_ritEnabled; }
     bool dualScope() const { return m_dualScope; }
@@ -344,6 +346,7 @@ signals:
     void modSourcesChanged();
     void ritFrequencyChanged();
     void transmittingChanged();
+    void rxMutedChanged();
     void tunerEnabledChanged();
     void ritEnabledChanged();
     void dualScopeChanged();
@@ -538,6 +541,7 @@ private:
     rigInput m_currentModSrc[4];
     int m_ritFrequency = 0;
     bool m_transmitting = false;
+    bool m_rxMuted = false;   // runtime-only RX mute used with TX self-monitor
     bool m_tunerEnabled = false;
     bool m_ritEnabled = false;
     bool m_dualScope = false;

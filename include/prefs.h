@@ -310,6 +310,7 @@ struct preferences {
     QString region;
     bool showBands;
     bool miniRxButtons = true;
+    bool reverseWheel = false;   // invert mouse-wheel direction on sliders and dials
     bool sMeterOnTop = false;
 
     // Radio:

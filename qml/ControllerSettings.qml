@@ -226,6 +226,7 @@ Item {
                     }
 
                     Slider {
+                        WheelArea {}
                         Layout.preferredWidth: 110
                         visible: deviceTab.showSensitivity
                         from: 0

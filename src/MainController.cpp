@@ -320,6 +320,7 @@ void MainController::ensureAudioProcessors()
 
     if (!rxProc) {
         rxProc = new RxAudioProcessor(this);
+        rxProc->setMuted(m_rxMuted);
         QString appData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
         if (appData.isEmpty())
             appData = QDir::homePath();
@@ -333,6 +334,8 @@ void MainController::ensureAudioProcessors()
                 Qt::DirectConnection);
         connect(txProc, &TxAudioProcessor::txSpectrumBins,
                 this, [this](QVector<double> inBins, QVector<double> outBins, float rawSR) {
+                    if (prefs->txAudioProc.specInhibitDuringRx && !m_transmitting)
+                        return;
                     emit txAudioSpectrumChanged(spectrumToVariantList(inBins),
                                                 spectrumToVariantList(outBins),
                                                 rawSR);
@@ -357,6 +360,8 @@ void MainController::ensureAudioProcessors()
                 });
         connect(rxProc, &RxAudioProcessor::rxSpectrumBins,
                 this, [this](QVector<double> inBins, QVector<double> outBins, float rawSR) {
+                    if (prefs->rxAudioProc.specInhibitDuringTx && m_transmitting)
+                        return;
                     emit rxAudioSpectrumChanged(spectrumToVariantList(inBins),
                                                 spectrumToVariantList(outBins),
                                                 rawSR);
@@ -406,6 +411,10 @@ void MainController::applyTxAudioProcPrefs(const txAudioProcessingPrefs& p)
     txProc->setCompSlowRatio(p.compSlowRatio);
     txProc->setSidetoneEnabled(p.sidetoneEnabled);
     txProc->setSidetoneLevel(p.sidetoneLevel);
+    // The RX mute only makes sense while self-monitoring; never leave RX
+    // audio muted by a control that is no longer active.
+    if (!p.sidetoneEnabled && m_rxMuted)
+        setRxMuted(false);
     txProc->setSpectrumEnabled(p.spectrumEnabled);
     m_txSpectrumEnabled = p.spectrumEnabled;
     emit audioProcessingSpectrumStateChanged(m_txSpectrumEnabled, m_rxSpectrumEnabled);
@@ -474,6 +483,10 @@ void MainController::setRxMuted(bool muted)
 {
     if (rxProc)
         rxProc->setMuted(muted);
+    if (m_rxMuted != muted) {
+        m_rxMuted = muted;
+        emit rxMutedChanged();
+    }
 }
 
 void MainController::setReceiverDetached(int i, bool v)
@@ -4777,6 +4790,7 @@ void MainController::setDefPrefs()
     defprefs->region = "1";
     defprefs->showBands = true;
     defprefs->miniRxButtons = true;
+    defprefs->reverseWheel = false;
     defprefs->sMeterOnTop = false;
     defprefs->manufacturer = manufIcom;
     defprefs->useUTC = false;
@@ -5062,6 +5076,7 @@ void MainController::loadSettings(QString settingsFile)
     //bandbtns->setRegion(prefs->region);
     prefs->showBands = settings->value("ShowBands",defprefs->showBands).toBool();
     prefs->miniRxButtons = settings->value("MiniRxButtons",defprefs->miniRxButtons).toBool();
+    prefs->reverseWheel = settings->value("ReverseWheel",defprefs->reverseWheel).toBool();
     prefs->sMeterOnTop = settings->value("SMeterOnTop",defprefs->sMeterOnTop).toBool();
 
     //ui->rigCreatorBtn->setEnabled(prefs->rigCreatorEnable);
