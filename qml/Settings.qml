@@ -82,7 +82,7 @@ ApplicationWindow {
     Component.onCompleted: applyDisabledPalette()
 
     Connections {
-        target: MainController
+        target: MainController.settings
         function onColChanged(items) {
             window.applyDisabledPalette()
         }
@@ -1263,322 +1263,336 @@ ApplicationWindow {
                         anchors.fill: parent
                         spacing: 10
 
-                        RowLayout {
-                            spacing: 12
+                        GroupBox {
+                            title: qsTr("Waterfall and Spectrum")
+                            Layout.fillWidth: true
 
-                            CheckBox {
-                                id: tuningFloorZerosChk
-                                checked: optBool("Controls.NiceTS", true)
-                                onClicked: if (controller) controller.setOption("Controls.NiceTS", checked)
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 6
 
-                                text: qsTr("When tuning, set lower digits to zero")
-                            }
-                            CheckBox {
-                                id: autoSSBchk
-                                text: qsTr("Auto SSB")
-                                checked: optBool("Controls.AutomaticSidebandSwitching", false)
-                                onClicked: if (controller) controller.setOption("Controls.AutomaticSidebandSwitching", checked)
-                                Accessible.name: "Auto SSB Switching"
-                                Accessible.description: "When using SSB, automatically switch to the standard sideband for a given band."
-                                ToolTip.visible: hovered
-                                ToolTip.text: qsTr("When using SSB, automatically switch to the standard sideband for a given band.")
-                            }
-                            CheckBox {
-                                id: pttEnableChk;
-                                text: qsTr("Enable PTT Controls")
-                                checked: optBool("Controls.EnablePTT", false)
-                                onClicked: if (controller) controller.setOption("Controls.EnablePTT", checked)
-                            }
-                            CheckBox {
-                                id: rigCreatorChk
-                                text: qsTr("Enable Rig Creator Feature (use with care)")
-                                ToolTip.visible: hovered
-                                ToolTip.text: qsTr("Rig creator allows changing of all rig features and adding new rig profiles")
-                                checked: optBool("Interface.RigCreatorEnable", false)
-                                onClicked: if (controller) controller.setOption("Interface.RigCreatorEnable", checked)
-                            }
+                                RowLayout {
+                                    spacing: 12
+                                    CheckBox {
+                                        id: wfInterpolateChk
+                                        text: qsTr("Interpolate Waterfall")
+                                        checked: optBool("Interface.WFInterpolate", false)
+                                        onClicked: if (controller) controller.setOption("Interface.WFInterpolate", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Enables interpolation between pixels. Note that this will increase CPU usage.")
+                                    }
+                                    CheckBox {
+                                        id: wfAntiAliasChk;
+                                        checked: optBool("Interface.WFAntiAlias", false)
+                                        onClicked: if (controller) controller.setOption("Interface.WFAntiAlias", checked)
+                                        text: qsTr("Anti-Alias Waterfall")
+                                    }
+                                    CheckBox {
+                                        id: clickDragTuningEnableChk;
+                                        checked: optBool("Interface.ClickDragTuningEnable", false)
+                                        onClicked: if (controller) controller.setOption("Interface.ClickDragTuningEnable", checked)
+                                        text: qsTr("Allow tuning via click and drag (experimental)")
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
+                                RowLayout {
+                                    spacing: 8
+                                    Label { id: underlayLabel; text: qsTr("Underlay Mode") }
+                                    ButtonGroup { id: underlayGroup }
 
-                            Item { Layout.fillWidth: true }
+                                    property int currentMode: {
+                                        if (!controller) return 2
+                                        var v = Number(controller.options["Interface.UnderlayMode"])
+                                        return (v >= 0 && v <= 2) ? v : 2
+                                    }
 
-                            Label {
-                                text: qsTr("Region:")
-                            }
-                            TextField {
-                                id: regionTxt
-                                Layout.preferredWidth: 35
-                                Layout.maximumWidth: 35
-                                inputMethodHints: Qt.ImhDigitsOnly
-                                placeholderText: "1"
-                                ToolTip.visible: hovered
-                                ToolTip.text: qsTr("ITU Region. Used to display band limits. (See the QWidget tooltip text in your .ui.)")
-                                text: (controller && controller.options && controller.options["Interface.Region"] !== undefined)
-                                      ? controller.options["Interface.Region"]
-                                      : ""
+                                    RadioButton { id: underlayNoneBtn; text: qsTr("None"); checked: parent.currentMode === 0; ButtonGroup.group: underlayGroup; ToolTip.visible: hovered; ToolTip.text: qsTr("No underlay graphics"); onClicked: if (controller) controller.setOption("Interface.UnderlayMode", 0) }
+                                    RadioButton { id: underlayPeakBtn; text: qsTr("Peak"); checked: parent.currentMode === 1; ButtonGroup.group: underlayGroup; ToolTip.visible: hovered; ToolTip.text: qsTr("Peak hold with configurable decay"); onClicked: if (controller) controller.setOption("Interface.UnderlayMode", 1) }
+                                    RadioButton { id: underlayAverageBtn; text: qsTr("Average"); checked: parent.currentMode === 2; ButtonGroup.group: underlayGroup; ToolTip.visible: hovered; ToolTip.text: qsTr("Average of recent spectrum data"); onClicked: if (controller) controller.setOption("Interface.UnderlayMode", 2) }
 
-                                onEditingFinished: {
-                                    if (text !== controller.options["Interface.Region"])
-                                        controller.setOption("Interface.Region", text)
+                                    Label {
+                                        text: parent.currentMode === 1 ? qsTr("Peak Lifetime") : qsTr("Average Count")
+                                        visible: parent.currentMode !== 0
+                                    }
+                                    Slider {
+                                        id: underlaySlider
+                                        visible: parent.currentMode !== 0
+                                        enabled: parent.currentMode !== 0
+                                        from: parent.currentMode === 1 ? 0 : 2
+                                        to: parent.currentMode === 1 ? 100 : 160
+                                        value: parent.currentMode === 1
+                                            ? (controller ? Number(controller.options["Interface.PeakDecay"]) : 50)
+                                            : (controller ? Number(controller.options["Interface.UnderlayBufferSize"]) : 80)
+                                        stepSize: 1
+                                        Layout.preferredWidth: 100
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: parent.currentMode === 1
+                                            ? qsTr("Lower values decay rapidly; Higher values decay slowly. Maximum setting does not decay.")
+                                            : qsTr("Number of spectral frames to average (2-160)")
+                                        onMoved: {
+                                            if (!controller) return
+                                            if (parent.currentMode === 1)
+                                                controller.setOption("Interface.PeakDecay", Math.round(value))
+                                            else
+                                                controller.setOption("Interface.UnderlayBufferSize", Math.round(value))
+                                        }
+                                    }
+                                    CheckBox {
+                                        id: showBandsChk
+                                        text: qsTr("Show band limits")
+                                        checked: optBool("Interface.ShowBands", true)
+                                        onClicked: if (controller) controller.setOption("Interface.ShowBands", checked)
+                                    }
+                                    Item { Layout.fillWidth: true }
                                 }
                             }
                         }
 
-                        RowLayout {
-                            spacing: 12
-                            CheckBox {
-                                id: wfInterpolateChk
-                                text: qsTr("Interpolate Waterfall")
-                                checked: optBool("Interface.WFInterpolate", false)
-                                onClicked: if (controller) controller.setOption("Interface.WFInterpolate", checked)
-                                ToolTip.visible: hovered
-                                ToolTip.text: qsTr("Enables interpolation between pixels. Note that this will increase CPU usage.")
-                            }
-                            CheckBox {
-                                id: wfAntiAliasChk;
-                                checked: optBool("Interface.WFAntiAlias", false)
-                                onClicked: if (controller) controller.setOption("Interface.WFAntiAlias", checked)
-                                text: qsTr("Anti-Alias Waterfall")
-                            }
-                            CheckBox {
-                                id: clickDragTuningEnableChk;
-                                checked: optBool("Interface.ClickDragTuningEnable", false)
-                                onClicked: if (controller) controller.setOption("Interface.ClickDragTuningEnable", checked)
-                                text: qsTr("Allow tuning via click and drag (experimental)")
-                            }
-                            CheckBox {
-                                id: useSystemThemeChk;
-                                checked: optBool("Interface.UseSystemTheme", false)
-                                onClicked: if (controller) controller.setOption("Interface.UseSystemTheme", checked)
-                                text: qsTr("Use System Theme")
-                            }
-                            CheckBox {
-                                id: fullScreenChk;
-                                checked: optBool("Interface.UseFullScreen", false)
-                                onClicked: if (controller) controller.setOption("Interface.UseFullScreen", checked)
-                                text: qsTr("Show full screen (F11)")
-                            }
-                            Item { Layout.fillWidth: true }
-                        }
+                        GroupBox {
+                            title: qsTr("Metering")
+                            Layout.fillWidth: true
 
-                        // Frequency display separators
-                        RowLayout {
-                            spacing: 8
-                            Label { text: qsTr("Frequency Display:") }
-                            Label { text: qsTr("Units") }
-                            ComboBox {
-                                id: frequencyUnitsCombo
-                                textRole: "text"
-                                valueRole: "value"
-                                model: [
-                                    { text: qsTr("None"), value: 0 },
-                                    { text: qsTr("Hz"), value: 1 },
-                                    { text: qsTr("kHz"), value: 2 },
-                                    { text: qsTr("MHz"), value: 3 },
-                                    { text: qsTr("GHz"), value: 4 }
-                                ]
-                                currentIndex: (controller && controller.options)
-                                              ? indexFromValue(frequencyUnitsCombo,controller.options["Interface.FrequencyUnits"])
-                                              : -1
-                                onActivated: controller.setOption("Interface.FrequencyUnits",currentValue)
-                            }
-                            Label { text: qsTr("Separators:") }
-                            Label { text: qsTr("Decimal") }
-                            ComboBox {
-                                id: decimalSeparatorsCombo;
-                                textRole: "text"
-                                valueRole: "value"
-                                model: [
-                                    { text: "\",\"", value: "," },
-                                    { text: "\".\"", value: "." },
-                                    { text: "\":\"", value: ":" },
-                                    { text: "\" \"", value: " " }
-                                ]
-                                currentIndex: (controller && controller.options)
-                                              ? indexFromValue(decimalSeparatorsCombo,controller.options["Interface.DecimalSeparator"])
-                                              : -1
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 6
 
-                                onActivated: controller.setOption("Interface.DecimalSeparator",currentValue)
-                            }
-                            Label { text: qsTr("Groups") }
-                            ComboBox {
-                                id: groupSeparatorsCombo;
-                                textRole: "text"
-                                valueRole: "value"
-                                model: [
-                                    { text: "\",\"", value: "," },
-                                    { text: "\".\"", value: "." },
-                                    { text: "\":\"", value: ":" },
-                                    { text: "\" \"", value: " " }
-                                ]
-                                currentIndex: (controller && controller.options)
-                                              ? indexFromValue(groupSeparatorsCombo,controller.options["Interface.GroupSeparator"])
-                                              : -1
-
-                                onActivated: controller.setOption("Interface.GroupSeparator",currentValue)
-                            }
-                            CheckBox {
-                                id: forceVfoModeChk;
-                                text: qsTr("Force VFO Mode");
-                                checked: optBool("Interface.ForceVfoMode", true)
-                                onClicked: if (controller) controller.setOption("Interface.ForceVfoMode", checked)
-                            }
-                            CheckBox {
-                                id: autoPowerOnChk;
-                                text: qsTr("Auto Power-on radio");
-                                checked: optBool("Interface.AutoPowerOn", true)
-                                onClicked: if (controller) controller.setOption("Interface.AutoPowerOn", checked)
-                            }
-                            Item { Layout.fillWidth: true }
-                        }
-
-                        // Underlay controls
-                        RowLayout {
-                            spacing: 8
-                            Label { id: underlayLabel; text: qsTr("Underlay Mode") }
-                            ButtonGroup { id: underlayGroup }
-
-                            property int currentMode: {
-                                if (!controller) return 2
-                                var v = Number(controller.options["Interface.UnderlayMode"])
-                                return (v >= 0 && v <= 2) ? v : 2
-                            }
-
-                            RadioButton { id: underlayNoneBtn; text: qsTr("None"); checked: parent.currentMode === 0; ButtonGroup.group: underlayGroup; ToolTip.visible: hovered; ToolTip.text: qsTr("No underlay graphics"); onClicked: if (controller) controller.setOption("Interface.UnderlayMode", 0) }
-                            RadioButton { id: underlayPeakBtn; text: qsTr("Peak"); checked: parent.currentMode === 1; ButtonGroup.group: underlayGroup; ToolTip.visible: hovered; ToolTip.text: qsTr("Peak hold with configurable decay"); onClicked: if (controller) controller.setOption("Interface.UnderlayMode", 1) }
-                            RadioButton { id: underlayAverageBtn; text: qsTr("Average"); checked: parent.currentMode === 2; ButtonGroup.group: underlayGroup; ToolTip.visible: hovered; ToolTip.text: qsTr("Average of recent spectrum data"); onClicked: if (controller) controller.setOption("Interface.UnderlayMode", 2) }
-
-                            Label {
-                                text: parent.currentMode === 1 ? qsTr("Peak Lifetime") : qsTr("Average Count")
-                                visible: parent.currentMode !== 0
-                            }
-                            Slider {
-                                id: underlaySlider
-                                visible: parent.currentMode !== 0
-                                enabled: parent.currentMode !== 0
-                                from: parent.currentMode === 1 ? 0 : 2
-                                to: parent.currentMode === 1 ? 100 : 160
-                                value: parent.currentMode === 1
-                                    ? (controller ? Number(controller.options["Interface.PeakDecay"]) : 50)
-                                    : (controller ? Number(controller.options["Interface.UnderlayBufferSize"]) : 80)
-                                stepSize: 1
-                                Layout.preferredWidth: 100
-                                ToolTip.visible: hovered
-                                ToolTip.text: parent.currentMode === 1
-                                    ? qsTr("Lower values decay rapidly; Higher values decay slowly. Maximum setting does not decay.")
-                                    : qsTr("Number of spectral frames to average (2-160)")
-                                onMoved: {
-                                    if (!controller) return
-                                    if (parent.currentMode === 1)
-                                        controller.setOption("Interface.PeakDecay", Math.round(value))
-                                    else
-                                        controller.setOption("Interface.UnderlayBufferSize", Math.round(value))
+                                RowLayout {
+                                    spacing: 8
+                                    Label { id: secondaryMeterSelectionLabel; text: qsTr("Additional Meter Selection:") }
+                                    ComboBox {
+                                        id: meter2selectionCombo;
+                                        textRole: "text"
+                                        valueRole: "value"
+                                        model: [
+                                            { text: qsTr("None"), value: 0 },
+                                            { text: qsTr("SWR"), value: 3 },
+                                            { text: qsTr("ALC"), value: 5 },
+                                            { text: qsTr("Compression"), value: 6 },
+                                            { text: qsTr("Voltage"), value: 7 },
+                                            { text: qsTr("Current"), value: 8 },
+                                            { text: qsTr("Center"), value: 2 },
+                                            { text: qsTr("Tx/Rx Audio"), value: 12 },
+                                            { text: qsTr("Tx Audio"), value: 10 },
+                                            { text: qsTr("Rx Audio"), value: 11 }
+                                        ]
+                                        currentIndex: controller ? indexFromValue(meter2selectionCombo, controller.options["Interface.Meter2Type"]) : -1
+                                        onActivated: if (controller) controller.setOption("Interface.Meter2Type", currentValue)
+                                    }
+                                    ComboBox {
+                                        id: meter3selectionCombo;
+                                        textRole: "text"
+                                        valueRole: "value"
+                                        model: [
+                                            { text: qsTr("None"), value: 0 },
+                                            { text: qsTr("SWR"), value: 3 },
+                                            { text: qsTr("ALC"), value: 5 },
+                                            { text: qsTr("Compression"), value: 6 },
+                                            { text: qsTr("Voltage"), value: 7 },
+                                            { text: qsTr("Current"), value: 8 },
+                                            { text: qsTr("Center"), value: 2 },
+                                            { text: qsTr("Tx/Rx Audio"), value: 12 },
+                                            { text: qsTr("Tx Audio"), value: 10 },
+                                            { text: qsTr("Rx Audio"), value: 11 }
+                                        ]
+                                        currentIndex: controller ? indexFromValue(meter3selectionCombo, controller.options["Interface.Meter3Type"]) : -1
+                                        onActivated: if (controller) controller.setOption("Interface.Meter3Type", currentValue)
+                                    }
+                                    CheckBox {
+                                        id: revCompMeterBtn
+                                        text: qsTr("Reverse Comp Meter")
+                                        checked: optBool("Interface.CompMeterReverse", false)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Broadcast-style reduction meter")
+                                        onClicked: if (controller) controller.setOption("Interface.CompMeterReverse", checked)
+                                    }
+                                    CheckBox {
+                                        id: sMeterOnTopChk
+                                        text: qsTr("S-Meter on top")
+                                        checked: optBool("Interface.SMeterOnTop", false)
+                                        onClicked: if (controller) controller.setOption("Interface.SMeterOnTop", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Show the S-meter in the receiver title bar instead of beside the frequency display")
+                                    }
+                                    Item { Layout.fillWidth: true }
                                 }
                             }
-
-                            CheckBox {
-                                id: showBandsChk
-                                text: qsTr("Show Bands")
-                                checked: optBool("Interface.ShowBands", true)
-                                onClicked: if (controller) controller.setOption("Interface.ShowBands", checked)
-                            }
-
-                            CheckBox {
-                                id: miniRxButtonsChk
-                                text: qsTr("Mini RX Buttons")
-                                checked: optBool("Interface.MiniRxButtons", true)
-                                onClicked: if (controller) controller.setOption("Interface.MiniRxButtons", checked)
-                                ToolTip.visible: hovered
-                                ToolTip.text: qsTr("Use compact menu buttons to open the Bands and RX Settings panels")
-                            }
-                            Item { Layout.fillWidth: true }
                         }
 
-                        // Additional meter selection + polling
-                        RowLayout {
-                            spacing: 8
+                        GroupBox {
+                            title: qsTr("Frequency and Region")
+                            Layout.fillWidth: true
 
-                            Item { width: 20 } // fixed spacer
-                            Label { id: secondaryMeterSelectionLabel; text: qsTr("Additional Meter Selection:") }
-                            ComboBox {
-                                id: meter2selectionCombo;
-                                textRole: "text"
-                                valueRole: "value"
-                                model: [
-                                    { text: qsTr("None"), value: 0 },
-                                    { text: qsTr("SWR"), value: 3 },
-                                    { text: qsTr("ALC"), value: 5 },
-                                    { text: qsTr("Compression"), value: 6 },
-                                    { text: qsTr("Voltage"), value: 7 },
-                                    { text: qsTr("Current"), value: 8 },
-                                    { text: qsTr("Center"), value: 2 },
-                                    { text: qsTr("Tx/Rx Audio"), value: 12 },
-                                    { text: qsTr("Tx Audio"), value: 10 },
-                                    { text: qsTr("Rx Audio"), value: 11 }
-                                ]
-                                currentIndex: controller ? indexFromValue(meter2selectionCombo, controller.options["Interface.Meter2Type"]) : -1
-                                onActivated: if (controller) controller.setOption("Interface.Meter2Type", currentValue)
-                            }
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 6
 
-                            ComboBox {
-                                id: meter3selectionCombo;
-                                textRole: "text"
-                                valueRole: "value"
-                                model: [
-                                    { text: qsTr("None"), value: 0 },
-                                    { text: qsTr("SWR"), value: 3 },
-                                    { text: qsTr("ALC"), value: 5 },
-                                    { text: qsTr("Compression"), value: 6 },
-                                    { text: qsTr("Voltage"), value: 7 },
-                                    { text: qsTr("Current"), value: 8 },
-                                    { text: qsTr("Center"), value: 2 },
-                                    { text: qsTr("Tx/Rx Audio"), value: 12 },
-                                    { text: qsTr("Tx Audio"), value: 10 },
-                                    { text: qsTr("Rx Audio"), value: 11 }
-                                ]
-                                currentIndex: controller ? indexFromValue(meter3selectionCombo, controller.options["Interface.Meter3Type"]) : -1
-                                onActivated: if (controller) controller.setOption("Interface.Meter3Type", currentValue)
-                            }
-                            CheckBox {
-                                id: revCompMeterBtn
-                                text: qsTr("Reverse Comp Meter")
-                                checked: optBool("Interface.CompMeterReverse", false)
-                                ToolTip.visible: hovered
-                                ToolTip.text: qsTr("Broadcast-style reduction meter")
-                                onClicked: if (controller) controller.setOption("Interface.CompMeterReverse", checked)
-                            }
+                                RowLayout {
+                                    spacing: 8
+                                    Label { text: qsTr("Frequency Display:") }
+                                    Label { text: qsTr("Units") }
+                                    ComboBox {
+                                        id: frequencyUnitsCombo
+                                        textRole: "text"
+                                        valueRole: "value"
+                                        model: [
+                                            { text: qsTr("None"), value: 0 },
+                                            { text: qsTr("Hz"), value: 1 },
+                                            { text: qsTr("kHz"), value: 2 },
+                                            { text: qsTr("MHz"), value: 3 },
+                                            { text: qsTr("GHz"), value: 4 }
+                                        ]
+                                        currentIndex: (controller && controller.options)
+                                                      ? indexFromValue(frequencyUnitsCombo,controller.options["Interface.FrequencyUnits"])
+                                                      : -1
+                                        onActivated: controller.setOption("Interface.FrequencyUnits",currentValue)
+                                    }
+                                    Label { text: qsTr("Separators:") }
+                                    Label { text: qsTr("Decimal") }
+                                    ComboBox {
+                                        id: decimalSeparatorsCombo;
+                                        textRole: "text"
+                                        valueRole: "value"
+                                        model: [
+                                            { text: "\",\"", value: "," },
+                                            { text: "\".\"", value: "." },
+                                            { text: "\":\"", value: ":" },
+                                            { text: "\" \"", value: " " }
+                                        ]
+                                        currentIndex: (controller && controller.options)
+                                                      ? indexFromValue(decimalSeparatorsCombo,controller.options["Interface.DecimalSeparator"])
+                                                      : -1
 
-                            ButtonGroup { id: pollingButtonGroup }
-                            RadioButton {
-                                id: autoPollBtn
-                                text: qsTr("AutoPolling")
-                                checked: controller ? Number(controller.options["Radio.PollingMS"]) === 0 : true
-                                ButtonGroup.group: pollingButtonGroup
-                                ToolTip.visible: hovered
-                                ToolTip.text: qsTr("wfview will automatically calculate command polling. Recommended.")
-                                onClicked: if (controller) controller.setOption("Radio.PollingMS", 0)
-                            }
-                            RadioButton {
-                                id: manualPollBtn
-                                text: qsTr("Manual Polling Interval:")
-                                checked: controller ? Number(controller.options["Radio.PollingMS"]) !== 0 : false
-                                ButtonGroup.group: pollingButtonGroup
-                                ToolTip.visible: hovered
-                                ToolTip.text: qsTr("Manual (user-defined) command polling")
-                                onClicked: if (controller && Number(controller.options["Radio.PollingMS"]) === 0) controller.setOption("Radio.PollingMS", pollTimeMsSpin.value)
-                            }
-                            SpinBox {
-                                id: pollTimeMsSpin
-                                from: 1
-                                to: 250
-                                value: controller ? Math.max(1, Number(controller.options["Radio.PollingMS"]) || 25) : 25
-                                editable: true
-                                ToolTip.visible: hovered
-                                ToolTip.text: qsTr("Sets the polling interval, in ms. Automatic polling is recommended. Serial/USB radios should not poll quicker than about 75ms.")
-                                enabled: manualPollBtn.checked
-                                onValueModified: if (controller && manualPollBtn.checked) controller.setOption("Radio.PollingMS", value)
-                            }
-                            Label { text: qsTr("ms") }
+                                        onActivated: controller.setOption("Interface.DecimalSeparator",currentValue)
+                                    }
+                                    Label { text: qsTr("Groups") }
+                                    ComboBox {
+                                        id: groupSeparatorsCombo;
+                                        textRole: "text"
+                                        valueRole: "value"
+                                        model: [
+                                            { text: "\",\"", value: "," },
+                                            { text: "\".\"", value: "." },
+                                            { text: "\":\"", value: ":" },
+                                            { text: "\" \"", value: " " }
+                                        ]
+                                        currentIndex: (controller && controller.options)
+                                                      ? indexFromValue(groupSeparatorsCombo,controller.options["Interface.GroupSeparator"])
+                                                      : -1
 
-                            Item { Layout.fillWidth: true }
+                                        onActivated: controller.setOption("Interface.GroupSeparator",currentValue)
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
+                                RowLayout {
+                                    spacing: 8
+                                    Label { text: qsTr("Region:") }
+                                    TextField {
+                                        id: regionTxt
+                                        Layout.preferredWidth: 35
+                                        Layout.maximumWidth: 35
+                                        inputMethodHints: Qt.ImhDigitsOnly
+                                        placeholderText: "1"
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("ITU Region. Used to display band limits. (See the QWidget tooltip text in your .ui.)")
+                                        text: (controller && controller.options && controller.options["Interface.Region"] !== undefined)
+                                              ? controller.options["Interface.Region"]
+                                              : ""
+
+                                        onEditingFinished: {
+                                            if (text !== controller.options["Interface.Region"])
+                                                controller.setOption("Interface.Region", text)
+                                        }
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
+                            }
+                        }
+
+                        GroupBox {
+                            title: qsTr("Other")
+                            Layout.fillWidth: true
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 6
+
+                                RowLayout {
+                                    spacing: 12
+                                    CheckBox {
+                                        id: fullScreenChk;
+                                        checked: optBool("Interface.UseFullScreen", false)
+                                        onClicked: if (controller) controller.setOption("Interface.UseFullScreen", checked)
+                                        text: qsTr("Show full screen (F11)")
+                                    }
+                                    CheckBox {
+                                        id: tuningFloorZerosChk
+                                        checked: optBool("Controls.NiceTS", true)
+                                        onClicked: if (controller) controller.setOption("Controls.NiceTS", checked)
+
+                                        text: qsTr("Digits below tuning step are zero")
+                                    }
+                                    CheckBox {
+                                        id: autoSSBchk
+                                        text: qsTr("Auto SSB")
+                                        checked: optBool("Controls.AutomaticSidebandSwitching", false)
+                                        onClicked: if (controller) controller.setOption("Controls.AutomaticSidebandSwitching", checked)
+                                        Accessible.name: "Auto SSB Switching"
+                                        Accessible.description: "When using SSB, automatically switch to the standard sideband for a given band."
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("When using SSB, automatically switch to the standard sideband for a given band.")
+                                    }
+                                    CheckBox {
+                                        id: pttEnableChk;
+                                        text: qsTr("Enable PTT Controls")
+                                        checked: optBool("Controls.EnablePTT", false)
+                                        onClicked: if (controller) controller.setOption("Controls.EnablePTT", checked)
+                                    }
+                                    CheckBox {
+                                        id: miniRxButtonsChk
+                                        text: qsTr("Mini RX Buttons")
+                                        checked: optBool("Interface.MiniRxButtons", true)
+                                        onClicked: if (controller) controller.setOption("Interface.MiniRxButtons", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Use compact menu buttons to open the Bands and RX Settings panels")
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
+                                RowLayout {
+                                    spacing: 8
+                                    ButtonGroup { id: pollingButtonGroup }
+                                    RadioButton {
+                                        id: autoPollBtn
+                                        text: qsTr("AutoPolling")
+                                        checked: controller ? Number(controller.options["Radio.PollingMS"]) === 0 : true
+                                        ButtonGroup.group: pollingButtonGroup
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("wfview will automatically calculate command polling. Recommended.")
+                                        onClicked: if (controller) controller.setOption("Radio.PollingMS", 0)
+                                    }
+                                    RadioButton {
+                                        id: manualPollBtn
+                                        text: qsTr("Manual Polling Interval:")
+                                        checked: controller ? Number(controller.options["Radio.PollingMS"]) !== 0 : false
+                                        ButtonGroup.group: pollingButtonGroup
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Manual (user-defined) command polling")
+                                        onClicked: if (controller && Number(controller.options["Radio.PollingMS"]) === 0) controller.setOption("Radio.PollingMS", pollTimeMsSpin.value)
+                                    }
+                                    SpinBox {
+                                        id: pollTimeMsSpin
+                                        from: 1
+                                        to: 250
+                                        value: controller ? Math.max(1, Number(controller.options["Radio.PollingMS"]) || 25) : 25
+                                        editable: true
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Sets the polling interval, in ms. Automatic polling is recommended. Serial/USB radios should not poll quicker than about 75ms.")
+                                        enabled: manualPollBtn.checked
+                                        onValueModified: if (controller && manualPollBtn.checked) controller.setOption("Radio.PollingMS", value)
+                                    }
+                                    Label { text: qsTr("ms") }
+                                    Item { Layout.fillWidth: true }
+                                }
+                            }
                         }
 
                         Item { Layout.fillHeight: true }
@@ -1596,6 +1610,17 @@ ApplicationWindow {
                     ColumnLayout {
                         anchors.fill: parent
                         spacing: 10
+
+                        RowLayout {
+                            spacing: 8
+                            CheckBox {
+                                id: useSystemThemeChk;
+                                checked: optBool("Interface.UseSystemTheme", false)
+                                onClicked: if (controller) controller.setOption("Interface.UseSystemTheme", checked)
+                                text: qsTr("Use System Theme")
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
 
                         // Color scheme / preset controls
                         RowLayout {
@@ -1878,6 +1903,23 @@ ApplicationWindow {
                                 text: qsTr("Adjust Reference")
                                 visible: false
                             }
+                        }
+
+                        RowLayout {
+                            spacing: 12
+                            CheckBox {
+                                id: forceVfoModeChk;
+                                text: qsTr("Force VFO Mode");
+                                checked: optBool("Interface.ForceVfoMode", true)
+                                onClicked: if (controller) controller.setOption("Interface.ForceVfoMode", checked)
+                            }
+                            CheckBox {
+                                id: autoPowerOnChk;
+                                text: qsTr("Auto Power-on radio");
+                                checked: optBool("Interface.AutoPowerOn", true)
+                                onClicked: if (controller) controller.setOption("Interface.AutoPowerOn", checked)
+                            }
+                            Item { Layout.fillWidth: true }
                         }
 
                         RowLayout {
@@ -2903,6 +2945,15 @@ ApplicationWindow {
                         Label {
                             text: qsTr("This page contains experimental features. Use at your own risk.")
                             wrapMode: Text.WordWrap
+                        }
+
+                        CheckBox {
+                            id: rigCreatorChk
+                            text: qsTr("Enable Rig Creator Feature (use with care)")
+                            ToolTip.visible: hovered
+                            ToolTip.text: qsTr("Rig creator allows changing of all rig features and adding new rig profiles")
+                            checked: optBool("Interface.RigCreatorEnable", false)
+                            onClicked: if (controller) controller.setOption("Interface.RigCreatorEnable", checked)
                         }
 
                         GroupBox {

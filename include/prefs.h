@@ -310,6 +310,7 @@ struct preferences {
     QString region;
     bool showBands;
     bool miniRxButtons = true;
+    bool sMeterOnTop = false;
 
     // Radio:
     manufacturersType_t manufacturer;

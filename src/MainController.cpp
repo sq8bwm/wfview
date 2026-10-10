@@ -1088,15 +1088,35 @@ void MainController::updatePrimaryMeterForTransmit(bool transmitting)
     if (!rigCaps || currentReceiver >= receivers.size() || !receivers[currentReceiver])
         return;
 
+    // The primary meter shows TX power while transmitting. SWR and other
+    // TX meters belong in the additional meter slots.
     meter_t rxMeter = meterS;
-    meter_t txMeter = meterSWR;
+    meter_t txMeter = meterPower;
     funcs rxCommand = meterCommandForType(rxMeter);
     funcs txCommand = meterCommandForType(txMeter);
 
     if (!rigCaps->commands.contains(txCommand)) {
-        txMeter = meterPower;
-        txCommand = meterCommandForType(txMeter);
+        if (rigCaps->manufacturer == manufKenwood) {
+            // Kenwood has no separate power meter command; the S meter
+            // command returns TX power while transmitting.
+            txCommand = rxCommand;
+        } else {
+            txMeter = rxMeter;
+            txCommand = rxCommand;
+        }
     }
+
+    // Don't stop polling a meter that an additional meter slot still needs.
+    auto optionalMeterUses = [this](funcs command, uchar receiver) {
+        if (!prefs)
+            return false;
+        for (meter_t type : { prefs->meter2Type, prefs->meter3Type }) {
+            const uchar slotReceiver = (type == meterSubS) ? uchar(1) : uchar(0);
+            if (meterCommandForType(type) == command && slotReceiver == receiver)
+                return true;
+        }
+        return false;
+    };
 
     for (int i = 0; i < receivers.size(); ++i) {
         if (!receivers[i])
@@ -1108,7 +1128,7 @@ void MainController::updatePrimaryMeterForTransmit(bool transmitting)
         const funcs newCommand = txMeterApplies ? txCommand : rxCommand;
         const funcs oldCommand = txMeterApplies ? rxCommand : txCommand;
 
-        if (oldCommand != funcNone)
+        if (oldCommand != funcNone && oldCommand != newCommand && !optionalMeterUses(oldCommand, receiver))
             queue->del(oldCommand, receiver);
 
         receivers[i]->setPrimaryMeterType(newMeter);
@@ -4354,12 +4374,11 @@ void MainController::receiveValueFromQueue(cacheItem val)
         receiveOptionalMeter(meter_t::meterCenter, val.value.value<double>());
         break;
     case funcPowerMeter:
-        //receivers[val.receiver]->receiveMeter(meter_t::meterS,val.value.value<double>());
+        if (val.receiver == currentReceiver)
+            receivers[val.receiver]->receiveMeter(meter_t::meterPower, val.value.value<double>());
         receiveOptionalMeter(meter_t::meterPower, val.value.value<double>());
         break;
     case funcSWRMeter:
-        if (val.receiver == currentReceiver)
-            receivers[val.receiver]->receiveMeter(meter_t::meterSWR, val.value.value<double>());
         receiveOptionalMeter(meter_t::meterSWR, val.value.value<double>());
         break;
     case funcALCMeter:
@@ -4758,6 +4777,7 @@ void MainController::setDefPrefs()
     defprefs->region = "1";
     defprefs->showBands = true;
     defprefs->miniRxButtons = true;
+    defprefs->sMeterOnTop = false;
     defprefs->manufacturer = manufIcom;
     defprefs->useUTC = false;
     defprefs->setRadioTime = false;
@@ -5042,6 +5062,7 @@ void MainController::loadSettings(QString settingsFile)
     //bandbtns->setRegion(prefs->region);
     prefs->showBands = settings->value("ShowBands",defprefs->showBands).toBool();
     prefs->miniRxButtons = settings->value("MiniRxButtons",defprefs->miniRxButtons).toBool();
+    prefs->sMeterOnTop = settings->value("SMeterOnTop",defprefs->sMeterOnTop).toBool();
 
     //ui->rigCreatorBtn->setEnabled(prefs->rigCreatorEnable);
 

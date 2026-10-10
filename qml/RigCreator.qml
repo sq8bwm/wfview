@@ -83,7 +83,7 @@ ApplicationWindow {
     }
 
     Connections {
-        target: MainController
+        target: MainController.settings
         function onColChanged(items) {
             rigCreator.applyDisabledPalette()
         }

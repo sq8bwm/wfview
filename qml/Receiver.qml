@@ -19,6 +19,8 @@ Control {
     property bool receiverFullScreen: false
     readonly property bool miniRxButtons: boolReceiverSettingValue(
         MainController.settings ? MainController.settings.options["Interface.MiniRxButtons"] : undefined, true)
+    readonly property bool sMeterOnTop: boolReceiverSettingValue(
+        MainController.settings ? MainController.settings.options["Interface.SMeterOnTop"] : undefined, false)
 
     signal requestDetach(var globalPos)
     signal fullScreenRequested(bool enabled)
@@ -156,12 +158,13 @@ Control {
 
                 Meter {
                     id: smeter
-                    anchors.left: parent.left
-                    anchors.leftMargin: bandDrawerButton.x + bandDrawerButton.width + 5
-                    anchors.top: parent.top
-                    anchors.topMargin: 2
-                    width: 300
-                    height: 26
+                    // Lives in the header, or beside the left frequency
+                    // display (smeterSlot) when "S-Meter on top" is off.
+                    parent: root.sMeterOnTop ? header : smeterSlot
+                    x: root.sMeterOnTop ? bandDrawerButton.x + bandDrawerButton.width + 5 : 0
+                    y: root.sMeterOnTop ? 2 : 0
+                    width: root.sMeterOnTop ? 300 : smeterSlot.width
+                    height: root.sMeterOnTop ? 26 : smeterSlot.height
                     meterType: root.controller ? root.controller.meterType : 0
                     // only set the "current" level; MeterItem does peak/avg itself
                     current: root.controller ? root.controller.meter : 0
@@ -237,7 +240,9 @@ Control {
                         color: Qt.darker(palette.window, 1.05)
 
                         // keep it out of the meter area when things get tight
-                        readonly property int leftLimit: smeter.x + smeter.width + 8
+                        readonly property int leftLimit: root.sMeterOnTop
+                                                         ? smeter.x + smeter.width + 8
+                                                         : bandDrawerButton.x + bandDrawerButton.width + 8
                         // and clear of the receiver settings button on the right
                         readonly property int rightLimit: header.width - drawerButton.width - 12
                         readonly property int maxW: Math.max(0, rightLimit - leftLimit)
@@ -448,6 +453,16 @@ Control {
                                     controller.setFrequencyA(freq, true)
                                     controller.frequencyAChanged()
                                 }
+                            }
+
+                            // Holds the S-meter when it is not in the header
+                            Item {
+                                id: smeterSlot
+                                visible: !root.sMeterOnTop
+                                Layout.preferredWidth: 300
+                                Layout.minimumWidth: 150
+                                Layout.fillHeight: true
+                                Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
                             }
 
 

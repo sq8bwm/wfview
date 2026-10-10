@@ -1006,6 +1006,7 @@ void SettingsController::load()
     //bandbtns->setRegion(prefs.region);
     prefs.showBands = settings->value("ShowBands",defPrefs.showBands).toBool();
     prefs.miniRxButtons = settings->value("MiniRxButtons",defPrefs.miniRxButtons).toBool();
+    prefs.sMeterOnTop = settings->value("SMeterOnTop",defPrefs.sMeterOnTop).toBool();
 
     //ui->rigCreatorBtn->setEnabled(prefs.rigCreatorEnable);
 
@@ -1807,6 +1808,7 @@ void SettingsController::save()
     settings->setValue("Region",prefs.region);
     settings->setValue("ShowBands",prefs.showBands);
     settings->setValue("MiniRxButtons",prefs.miniRxButtons);
+    settings->setValue("SMeterOnTop",prefs.sMeterOnTop);
     settings->setValue("GroupSeparator",prefs.groupSeparator);
     settings->setValue("DecimalSeparator",prefs.decimalSeparator);
     settings->setValue("ForceVfoMode",prefs.forceVfoMode);
@@ -2319,6 +2321,7 @@ void SettingsController::setDefPrefs()
     defPrefs.region = "1";
     defPrefs.showBands = true;
     defPrefs.miniRxButtons = true;
+    defPrefs.sMeterOnTop = false;
     defPrefs.manufacturer = manufIcom;
     defPrefs.useUTC = false;
     defPrefs.setRadioTime = false;
@@ -3312,6 +3315,7 @@ void SettingsController::buildBindings()
             [this](){ emit ifChanged(prefIfItems(prefIfItem::if_showBands)); });
 
     WF_BOOL("Interface.MiniRxButtons", prefs.miniRxButtons, [](){});
+    WF_BOOL("Interface.SMeterOnTop", prefs.sMeterOnTop, [](){});
 
     WF_ENUM_I32("Interface.Meter2Type", prefs.meter2Type, meter_t,
                 [this](){ emit ifChanged(prefIfItems(prefIfItem::if_meter2Type)); });
