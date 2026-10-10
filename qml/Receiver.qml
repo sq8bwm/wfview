@@ -136,7 +136,10 @@ Control {
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
             onWheel: (event) => {
                 if (!controller) return;
-                controller.onWheelTune(event.angleDelta.y, event.modifiers);
+                // Follow the Interface.ReverseWheel setting, as WheelArea does.
+                var rev = MainController.settings ? MainController.settings.options["Interface.ReverseWheel"] : false
+                var d = (rev === true || rev === "true") ? -event.angleDelta.y : event.angleDelta.y
+                controller.onWheelTune(d, event.modifiers);
                 event.accepted = true;
             }
         }
