@@ -163,6 +163,25 @@ Eigen::VectorXf RxAudioProcessor::processAudio(Eigen::VectorXf samples,
         }
     }
 
+    // ── ANR profile collection — feed raw input regardless of mode/bypass ────
+    // Collected before the bypass check so a sample can be taken while
+    // processing is bypassed.  Stereo is reduced using the selected channel.
+    if (m_anr->isProfiling()) {
+        if (channels == 2) {
+            const int frames = static_cast<int>(samples.size()) / 2;
+            std::vector<float> mono(static_cast<size_t>(frames));
+            for (int i = 0; i < frames; ++i) {
+                const float l = samples[i * 2], r = samples[i * 2 + 1];
+                mono[static_cast<size_t>(i)] = p.channelSelect == 1 ? l
+                                             : p.channelSelect == 2 ? r
+                                             : (l + r) * 0.5f;
+            }
+            m_anr->addProfileSamples(mono.data(), frames);
+        } else {
+            m_anr->addProfileSamples(samples.data(), static_cast<int>(samples.size()));
+        }
+    }
+
     // ── Master bypass ────────────────────────────────────────────────────────
     // In bypass mode, pass audio through unchanged (preserving stereo if present).
     if (p.bypass) {
@@ -204,12 +223,6 @@ Eigen::VectorXf RxAudioProcessor::processAudio(Eigen::VectorXf samples,
         }
         samples = std::move(mono);
         channels = 1;
-    }
-
-    // ── ANR profile collection — feed raw input regardless of active mode ─────
-    // Buffer is already mono at this point (stereo downmixed above).
-    if (m_anr->isProfiling()) {
-        m_anr->addProfileSamples(samples.data(), static_cast<int>(samples.size()));
     }
 
     pushSpeexParams(p);

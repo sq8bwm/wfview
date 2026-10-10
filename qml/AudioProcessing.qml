@@ -959,7 +959,18 @@ ApplicationWindow {
                 RowLayout {
                     spacing: 6
                     Button { text: qsTr("Collect Noise Sample"); onClicked: MainController.startAnrNoiseProfile() }
-                    Button { text: qsTr("Stop Collecting"); onClicked: MainController.stopAnrNoiseProfile() }
+                    Button {
+                        text: qsTr("Stop Collecting")
+                        enabled: MainController.anrProfiling
+                        onClicked: MainController.stopAnrNoiseProfile()
+                    }
+                    Label {
+                        Layout.leftMargin: 4
+                        text: MainController.anrProfiling
+                              ? qsTr("Sample in progress (%1)").arg(MainController.anrProfileSecondsLeft)
+                              : MainController.anrHasProfile ? qsTr("Sample available")
+                                                             : qsTr("No sample available")
+                    }
                 }
             }
 

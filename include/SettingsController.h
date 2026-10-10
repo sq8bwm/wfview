@@ -674,6 +674,7 @@ public:
 
     preferences* getPrefs() { return &prefs;}
     udpPreferences* getUdpPrefs() { return &udpPrefs;}
+    QString settingsFileName() const { return settings ? settings->fileName() : QString(); }
     SERVERCONFIG* getServerConfig() { return &serverConfig;}
     colorPrefsType getCurrentColorPreset() {return colorPreset[prefs.currentColorPresetNumber];}
     audioDevices* getAudioDevices() {return audioDev.get();}

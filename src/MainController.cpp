@@ -8,6 +8,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QEvent>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QInputMethod>
 #include <QKeyEvent>
@@ -321,11 +322,27 @@ void MainController::ensureAudioProcessors()
     if (!rxProc) {
         rxProc = new RxAudioProcessor(this);
         rxProc->setMuted(m_rxMuted);
-        QString appData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-        if (appData.isEmpty())
-            appData = QDir::homePath();
-        QDir().mkpath(appData);
-        rxProc->setNoiseStorePath(appData + "/wfview.noise");
+
+        // Per-radio ANR noise profile store, derived from the settings file.
+        // For an explicit --settings file: same directory and base name
+        // (e.g. ic7610.conf → ic7610.noise). For the default QSettings
+        // (macOS plist / Windows registry / Linux ~/.config) use AppDataLocation
+        // so the file always lands in a real writable directory.
+        QString noisePath;
+        const QString sf = m_settings ? m_settings->settingsFileName() : QString();
+        const QFileInfo fi(sf);
+        // Test for an ordinary file path — registry keys don't have a readable suffix.
+        if (!sf.isEmpty() && fi.suffix().length() >= 2 && fi.suffix().length() <= 5
+                && fi.absoluteDir().exists()) {
+            noisePath = fi.absoluteDir().absoluteFilePath(fi.baseName() + ".noise");
+        } else {
+            QString appData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+            if (appData.isEmpty())
+                appData = QDir::homePath();
+            QDir().mkpath(appData);
+            noisePath = appData + "/wfview.noise";
+        }
+        rxProc->setNoiseStorePath(noisePath);
     }
 
     if (!m_audioProcessorSignalsConnected) {
@@ -379,6 +396,22 @@ void MainController::ensureAudioProcessors()
                     m_rxAudioOutputLevel = peak;
                     emit rxAudioMetersChanged(m_rxAudioInputLevel, m_rxAudioOutputLevel);
                 });
+        // A mode change may load (or lack) a stored profile for the new mode.
+        connect(rxProc, &RxAudioProcessor::anrModeProfileStatus,
+                this, [this](QString, bool hasProfile) {
+                    if (m_anrHasProfile != hasProfile) {
+                        m_anrHasProfile = hasProfile;
+                        emit anrProfileStateChanged();
+                    }
+                });
+        m_anrProfileTimer.setInterval(1000);
+        connect(&m_anrProfileTimer, &QTimer::timeout, this, [this]() {
+            if (--m_anrProfileSecondsLeft <= 0)
+                stopAnrNoiseProfile();
+            else
+                emit anrProfileStateChanged();
+        });
+        m_anrHasProfile = rxProc->anrHasProfile();
         m_audioProcessorSignalsConnected = true;
     }
 
@@ -469,14 +502,29 @@ void MainController::applyRxAudioProcPrefs(const rxAudioProcessingPrefs& p)
 
 void MainController::startAnrNoiseProfile()
 {
-    if (rxProc)
-        rxProc->startAnrProfile();
+    if (!rxProc)
+        return;
+    // Starting again while collecting discards the partial sample and restarts
+    // the countdown.
+    rxProc->startAnrProfile();
+    m_anrProfiling = true;
+    m_anrProfileSecondsLeft = anrProfileSeconds;
+    m_anrProfileTimer.start();
+    emit anrProfileStateChanged();
 }
 
 void MainController::stopAnrNoiseProfile()
 {
-    if (rxProc)
+    if (!m_anrProfiling)
+        return;
+    m_anrProfileTimer.stop();
+    m_anrProfiling = false;
+    m_anrProfileSecondsLeft = 0;
+    if (rxProc) {
         rxProc->stopAnrProfile();
+        m_anrHasProfile = rxProc->anrHasProfile();
+    }
+    emit anrProfileStateChanged();
 }
 
 void MainController::setRxMuted(bool muted)
@@ -4137,6 +4185,10 @@ void MainController::receiveValueFromQueue(cacheItem val)
         receivers[val.receiver]->receiveMode(m,vfo);
         if (val.receiver == currentReceiver && vfo == 0) {
             m_cwSender->handleCurrentModeUpdate(m.mk);
+            // Notify the ANR engine so it can swap in the saved noise profile
+            // for this mode (or save the current one before switching away).
+            if (rxProc && !m.name.isEmpty())
+                rxProc->setRxMode(m.name);
         }
         if (val.receiver == 0 && vfo == 0 && !m_transmitting) {
             const bool warn = m.mk != modeUnknown && m.mk != modeFM;

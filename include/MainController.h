@@ -80,6 +80,9 @@ public:
     Q_PROPERTY(int ritFrequency READ ritFrequency WRITE setRitFrequency NOTIFY ritFrequencyChanged)
     Q_PROPERTY(bool transmitting READ transmitting WRITE setTransmit NOTIFY transmittingChanged)
     Q_PROPERTY(bool rxMuted READ rxMuted WRITE setRxMuted NOTIFY rxMutedChanged)
+    Q_PROPERTY(bool anrProfiling READ anrProfiling NOTIFY anrProfileStateChanged)
+    Q_PROPERTY(bool anrHasProfile READ anrHasProfile NOTIFY anrProfileStateChanged)
+    Q_PROPERTY(int anrProfileSecondsLeft READ anrProfileSecondsLeft NOTIFY anrProfileStateChanged)
     Q_PROPERTY(bool tunerEnabled READ tunerEnabled WRITE setTunerEnabled NOTIFY tunerEnabledChanged)
     Q_PROPERTY(bool ritEnabled READ ritEnabled WRITE setRitEnabled NOTIFY ritEnabledChanged)
     Q_PROPERTY(bool dualScope READ dualScope WRITE setDualScope NOTIFY dualScopeChanged)
@@ -192,6 +195,9 @@ public:
     int ritFrequency() const { return m_ritFrequency; }
     bool transmitting() const { return m_transmitting; }
     bool rxMuted() const { return m_rxMuted; }
+    bool anrProfiling() const { return m_anrProfiling; }
+    bool anrHasProfile() const { return m_anrHasProfile; }
+    int anrProfileSecondsLeft() const { return m_anrProfileSecondsLeft; }
     bool tunerEnabled() const { return m_tunerEnabled; }
     bool ritEnabled() const { return m_ritEnabled; }
     bool dualScope() const { return m_dualScope; }
@@ -347,6 +353,7 @@ signals:
     void ritFrequencyChanged();
     void transmittingChanged();
     void rxMutedChanged();
+    void anrProfileStateChanged();
     void tunerEnabledChanged();
     void ritEnabledChanged();
     void dualScopeChanged();
@@ -542,6 +549,12 @@ private:
     int m_ritFrequency = 0;
     bool m_transmitting = false;
     bool m_rxMuted = false;   // runtime-only RX mute used with TX self-monitor
+    // ANR noise-sample collection: runs for anrProfileSeconds unless stopped early.
+    static constexpr int anrProfileSeconds = 5;
+    QTimer m_anrProfileTimer;
+    bool m_anrProfiling = false;
+    bool m_anrHasProfile = false;
+    int m_anrProfileSecondsLeft = 0;
     bool m_tunerEnabled = false;
     bool m_ritEnabled = false;
     bool m_dualScope = false;

@@ -277,7 +277,7 @@ SettingsController::SettingsController(QString file, QObject *p) :
             file = info.fileName();
         }
 
-        settings = std::make_unique<QSettings>(file, QSettings::IniFormat);
+        settings = std::make_unique<QSettings>(path + file, QSettings::IniFormat);
 #if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
         settings->setIniCodec("UTF-8");
 #endif
