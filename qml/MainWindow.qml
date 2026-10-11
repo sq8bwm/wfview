@@ -29,8 +29,10 @@ ApplicationWindow {
     readonly property int mainControlSliderHeight: 120
     readonly property int mainControlDialSize: mainControlSliderHeight
     readonly property int ritDialSize: 44
-    readonly property int optionalMeterWidth: 300
-    readonly property int optionalMeterHeight: 40
+    // "Additional Meters Larger": same 1.5x size and larger font as the primary meter
+    readonly property bool largeOptionalMeters: settingAsBool(MainController.settings.options["Interface.LargeOptionalMeters"], false)
+    readonly property int optionalMeterWidth: largeOptionalMeters ? 450 : 300
+    readonly property int optionalMeterHeight: largeOptionalMeters ? 60 : 40
     // Optional meter slots showing audio (TX Mod = 10, RX Audio = 11, Audio = 12)
     // replace the vertical level bars next to the Vol / Mic sliders.
     readonly property var optionalMeterChoices: [
@@ -158,6 +160,7 @@ ApplicationWindow {
             meterType: optionalMeterSlot.meterChoice
             current: optionalMeterSlot.meterLevel
             drawLabels: true
+            fontSize: win.largeOptionalMeters ? 12 : 9
             reverseCompMeter: win.settingAsBool(MainController.settings.options["Interface.CompMeterReverse"], false)
             scaleTextColor: win.palette.windowText
             scaleLineColor: win.palette.windowText
@@ -1324,8 +1327,8 @@ ApplicationWindow {
 
                 ColumnLayout {
                     id: leftControlsColumn
-                    Layout.preferredWidth: 320
-                    Layout.maximumWidth: 320
+                    Layout.preferredWidth: Math.max(320, win.optionalMeterWidth + 20)
+                    Layout.maximumWidth: Math.max(320, win.optionalMeterWidth + 20)
                     Layout.fillHeight: true
                     spacing: win.mainControlSpacing
 

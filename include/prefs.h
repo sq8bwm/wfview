@@ -315,6 +315,7 @@ struct preferences {
     bool reverseWheel = false;   // invert mouse-wheel direction on sliders and dials
     bool sMeterOnTop = false;
     bool largeFreqDisplay = false; // 50% larger frequency digits and S/power meter
+    bool largeOptionalMeters = false; // 50% larger additional meters
 
     // Radio:
     manufacturersType_t manufacturer;

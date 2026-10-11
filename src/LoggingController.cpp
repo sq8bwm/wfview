@@ -17,8 +17,11 @@
 #include <QTextStream>
 #include <QUrl>
 
+#include <cstdio>
+
 std::atomic<LoggingController*> LoggingController::s_instance{nullptr};
 QtMessageHandler LoggingController::s_prevHandler = nullptr;
+std::atomic_bool LoggingController::s_consoleDebug{false};
 
 static inline const char* typeTag(QtMsgType type)
 {
@@ -98,6 +101,7 @@ void LoggingController::setDebugEnabled(bool v)
 {
     if (m_debugEnabled == v) return;
     m_debugEnabled = v;
+    s_consoleDebug.store(v, std::memory_order_relaxed);
     m_model.setShowDebug(v);
     emit debugEnabledChanged();
 }
@@ -291,8 +295,28 @@ void LoggingController::uninstallQtMessageHandler()
 {
     if (!m_handlerInstalled) return;
 
-    qInstallMessageHandler(s_prevHandler);
+    // Hand off to a console-only handler so debug messages emitted during
+    // shutdown stay quiet unless debug mode is on
+    qInstallMessageHandler(&LoggingController::shutdownMessageHandler);
     m_handlerInstalled = false;
+}
+
+void LoggingController::shutdownMessageHandler(QtMsgType type,
+                                               const QMessageLogContext& context,
+                                               const QString& msg)
+{
+    if (type == QtDebugMsg && !s_consoleDebug.load(std::memory_order_relaxed))
+        return;
+
+    if (s_prevHandler) {
+        s_prevHandler(type, context, msg);
+    } else {
+        fprintf(stderr, "%s\n", qPrintable(qFormatLogMessage(type, context, msg)));
+        fflush(stderr);
+    }
+
+    if (type == QtFatalMsg)
+        abort();
 }
 
 void LoggingController::enqueueEntry(QtMsgType type, const QString& text)

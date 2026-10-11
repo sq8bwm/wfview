@@ -1015,6 +1015,7 @@ void SettingsController::load()
     prefs.reverseWheel = settings->value("ReverseWheel",defPrefs.reverseWheel).toBool();
     prefs.sMeterOnTop = settings->value("SMeterOnTop",defPrefs.sMeterOnTop).toBool();
     prefs.largeFreqDisplay = settings->value("LargeFreqDisplay",defPrefs.largeFreqDisplay).toBool();
+    prefs.largeOptionalMeters = settings->value("LargeOptionalMeters",defPrefs.largeOptionalMeters).toBool();
 
     //ui->rigCreatorBtn->setEnabled(prefs.rigCreatorEnable);
 
@@ -1826,6 +1827,7 @@ void SettingsController::save()
     settings->setValue("ReverseWheel",prefs.reverseWheel);
     settings->setValue("SMeterOnTop",prefs.sMeterOnTop);
     settings->setValue("LargeFreqDisplay",prefs.largeFreqDisplay);
+    settings->setValue("LargeOptionalMeters",prefs.largeOptionalMeters);
     settings->setValue("GroupSeparator",prefs.groupSeparator);
     settings->setValue("DecimalSeparator",prefs.decimalSeparator);
     settings->setValue("ForceVfoMode",prefs.forceVfoMode);
@@ -2342,6 +2344,7 @@ void SettingsController::setDefPrefs()
     defPrefs.reverseWheel = false;
     defPrefs.sMeterOnTop = false;
     defPrefs.largeFreqDisplay = false;
+    defPrefs.largeOptionalMeters = false;
     defPrefs.manufacturer = manufIcom;
     defPrefs.useUTC = false;
     defPrefs.setRadioTime = false;
@@ -3362,6 +3365,7 @@ void SettingsController::buildBindings()
     WF_BOOL("Interface.ReverseWheel", prefs.reverseWheel, [](){});
     WF_BOOL("Interface.SMeterOnTop", prefs.sMeterOnTop, [](){});
     WF_BOOL("Interface.LargeFreqDisplay", prefs.largeFreqDisplay, [](){});
+    WF_BOOL("Interface.LargeOptionalMeters", prefs.largeOptionalMeters, [](){});
 
     WF_ENUM_I32("Interface.Meter2Type", prefs.meter2Type, meter_t,
                 [this](){ emit ifChanged(prefIfItems(prefIfItem::if_meter2Type)); });

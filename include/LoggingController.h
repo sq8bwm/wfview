@@ -130,9 +130,13 @@ private:
     static void qtMessageHandler(QtMsgType type,
                                  const QMessageLogContext &context,
                                  const QString &msg);
+    static void shutdownMessageHandler(QtMsgType type,
+                                       const QMessageLogContext &context,
+                                       const QString &msg);
 
     static std::atomic<LoggingController*> s_instance;   // <-- atomic, not raw
     static QtMessageHandler s_prevHandler;
+    static std::atomic_bool s_consoleDebug;
 
     std::atomic_bool m_shuttingDown{false};
 

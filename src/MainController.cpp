@@ -4929,6 +4929,7 @@ void MainController::setDefPrefs()
     defprefs->reverseWheel = false;
     defprefs->sMeterOnTop = false;
     defprefs->largeFreqDisplay = false;
+    defprefs->largeOptionalMeters = false;
     defprefs->manufacturer = manufIcom;
     defprefs->useUTC = false;
     defprefs->setRadioTime = false;
@@ -5216,6 +5217,7 @@ void MainController::loadSettings(QString settingsFile)
     prefs->reverseWheel = settings->value("ReverseWheel",defprefs->reverseWheel).toBool();
     prefs->sMeterOnTop = settings->value("SMeterOnTop",defprefs->sMeterOnTop).toBool();
     prefs->largeFreqDisplay = settings->value("LargeFreqDisplay",defprefs->largeFreqDisplay).toBool();
+    prefs->largeOptionalMeters = settings->value("LargeOptionalMeters",defprefs->largeOptionalMeters).toBool();
 
     //ui->rigCreatorBtn->setEnabled(prefs->rigCreatorEnable);
 

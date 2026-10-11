@@ -32,7 +32,7 @@ cachingQueue *cachingQueue::getInstance(QObject* parent)
 
 cachingQueue::~cachingQueue()
 {
-    qInfo() << "Destroying caching queue (app closing)";
+    qDebug() << "Destroying caching queue (app closing)";
 
     {
         QMutexLocker locker(&mutex);

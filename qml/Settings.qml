@@ -1443,6 +1443,19 @@ ApplicationWindow {
                                     }
                                     Item { Layout.fillWidth: true }
                                 }
+
+                                RowLayout {
+                                    spacing: 8
+                                    CheckBox {
+                                        id: largeOptionalMetersChk
+                                        text: qsTr("Additional Meters Larger")
+                                        checked: optBool("Interface.LargeOptionalMeters", false)
+                                        onClicked: if (controller) controller.setOption("Interface.LargeOptionalMeters", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Draw the additional meters larger, with a larger font")
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
                             }
                         }
 
