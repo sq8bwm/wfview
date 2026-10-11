@@ -82,6 +82,8 @@ protected:
     QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     void geometryChange(const QRectF &newG, const QRectF &oldG) override;
@@ -123,6 +125,10 @@ private:
     Theme previousTheme = Unknown;
     uchar floor = 0;
     uchar ceiling = 140;
+
+    // Left-button drag tunes the radio, same as the spectrum
+    bool   dragActive   = false;
+    double lastTuneFreq = 0.0;
 
     double xToFreq(qreal x) const;
 

@@ -97,10 +97,60 @@ double WaterfallItem::xToFreq(qreal x) const
 
 void WaterfallItem::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton)
-        event->accept();
-    else
+    if (event->button() != Qt::LeftButton) {
         event->ignore();
+        return;
+    }
+
+#if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
+    const qreal x = event->pos().x();
+#else
+    const qreal x = event->position().x();
+#endif
+
+    // Start a tuning drag; the radio only retunes once the mouse moves
+    lastTuneFreq = xToFreq(x);
+    dragActive = true;
+    event->accept();
+}
+
+void WaterfallItem::mouseMoveEvent(QMouseEvent *event)
+{
+    if (!dragActive)
+        return;
+
+    if (!(event->buttons() & Qt::LeftButton)) {
+        // button released but we didn't get release event for some reason
+        dragActive = false;
+        return;
+    }
+
+#if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
+    const qreal x = event->pos().x();
+#else
+    const qreal x = event->position().x();
+#endif
+
+    const double f = xToFreq(x);
+
+    const double minStepHz = 10.0; // tune step threshold
+    if (qAbs(f - lastTuneFreq) * 1e6 < minStepHz)
+        return;
+
+    lastTuneFreq = f;
+    emit tuneRequested(f);
+    event->accept();
+}
+
+void WaterfallItem::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event->button() != Qt::LeftButton) {
+        event->ignore();
+        return;
+    }
+
+    dragActive = false;
+    event->accept();
 }
 
 void WaterfallItem::mouseDoubleClickEvent(QMouseEvent *event)
