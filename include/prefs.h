@@ -103,6 +103,11 @@ enum prefColItem : qint64 {
     col_toolTipBase = 1LL << 46,
     col_toolTipText = 1LL << 47,
     col_placeholder = 1LL << 48,
+    col_freqBackground = 1LL << 49,
+    col_freqForeground = 1LL << 50,
+    col_freqUnits = 1LL << 51,
+    col_freqInactive = 1LL << 52,
+    col_freqHighlight = 1LL << 53,
     col_all = ~0LL
 };
 using prefColItems = qint64;

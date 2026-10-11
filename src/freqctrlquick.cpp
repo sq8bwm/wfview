@@ -475,6 +475,18 @@ void FreqCtrlQuick::setHighlightColor(const QColor& col)
     emit colorsChanged();
 }
 
+void FreqCtrlQuick::setInactiveColor(const QColor& col)
+{
+    m_UpdateAll = true;
+    m_InactiveColor = col;
+
+    for (int i = m_DigStart; i < m_NumDigits; i++)
+        m_DigitInfo[i].modified = true;
+
+    updateCtrl(true);
+    emit colorsChanged();
+}
+
 void FreqCtrlQuick::updateCtrl(bool all)
 {
     if (all)
@@ -1112,6 +1124,10 @@ void FreqCtrlQuick::keyPressEvent(QKeyEvent *event)
 void FreqCtrlQuick::drawBkGround(QPainter &Painter)
 {
     QRect    rect(0, 0, width(), height());
+
+    // Fill the whole item, including any space left of the first digit,
+    // so it always matches the current background color
+    Painter.fillRect(rect, m_BkColor);
 
     // qDebug() <<rect;
     int    cellwidth = 100 * rect.width() /

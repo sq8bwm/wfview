@@ -1836,6 +1836,29 @@ ApplicationWindow {
                                     ColorRow { key: "Color.ClusterSpots"; label: qsTr("Cluster Spots") }
                                     ColorRow { key: "Color.ButtonOff"; label: qsTr("Button Off") }
                                     ColorRow { key: "Color.ButtonOn"; label: qsTr("Button On") }
+
+                                    // Frequency display colors, grouped in a single column
+                                    Item { height: 20; Layout.columnSpan: 3 }
+
+                                    ColorRow { key: "Color.FreqBackground"; label: qsTr("Freq Background"); tooltip: qsTr("Frequency display background color") }
+                                    Item {}
+                                    Item {}
+
+                                    ColorRow { key: "Color.FreqForeground"; label: qsTr("Freq Digits"); tooltip: qsTr("Frequency display digit color") }
+                                    Item {}
+                                    Item {}
+
+                                    ColorRow { key: "Color.FreqUnits"; label: qsTr("Freq Units"); tooltip: qsTr("Frequency display units text color (e.g. MHz)") }
+                                    Item {}
+                                    Item {}
+
+                                    ColorRow { key: "Color.FreqInactive"; label: qsTr("Freq Unused Digits"); tooltip: qsTr("Frequency display color for unused leading zeros") }
+                                    Item {}
+                                    Item {}
+
+                                    ColorRow { key: "Color.FreqHighlight"; label: qsTr("Freq Highlight"); tooltip: qsTr("Frequency display highlight behind the hovered digit and typed entry") }
+                                    Item {}
+                                    Item {}
                                 }
                             }
                         }

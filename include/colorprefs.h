@@ -103,6 +103,13 @@ struct colorPrefsType{
     QColor buttonOff;
     QColor buttonOn;
 
+    // Frequency display:
+    QColor freqBackground;
+    QColor freqForeground;
+    QColor freqUnits;
+    QColor freqInactive;
+    QColor freqHighlight;
+
 };
 
 Q_DECLARE_METATYPE(colorPrefsType)

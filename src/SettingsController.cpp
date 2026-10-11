@@ -1125,6 +1125,11 @@ void SettingsController::load()
             p->clusterSpots = colorFromString(settings->value("clusterSpots", p->clusterSpots.name(QColor::HexArgb)).toString());
             p->buttonOff = colorFromString(settings->value("buttonOff", p->buttonOff.name(QColor::HexArgb)).toString());
             p->buttonOn = colorFromString(settings->value("buttonOn", p->buttonOn.name(QColor::HexArgb)).toString());
+            p->freqBackground = colorFromString(settings->value("freqBackground", p->freqBackground.name(QColor::HexArgb)).toString());
+            p->freqForeground = colorFromString(settings->value("freqForeground", p->freqForeground.name(QColor::HexArgb)).toString());
+            p->freqUnits = colorFromString(settings->value("freqUnits", p->freqUnits.name(QColor::HexArgb)).toString());
+            p->freqInactive = colorFromString(settings->value("freqInactive", p->freqInactive.name(QColor::HexArgb)).toString());
+            p->freqHighlight = colorFromString(settings->value("freqHighlight", p->freqHighlight.name(QColor::HexArgb)).toString());
         }
     }
     settings->endArray();
@@ -2064,6 +2069,11 @@ void SettingsController::save()
         settings->setValue("clusterSpots", p->clusterSpots.name(QColor::HexArgb));
         settings->setValue("buttonOff", p->buttonOff.name(QColor::HexArgb));
         settings->setValue("buttonOn", p->buttonOn.name(QColor::HexArgb));
+        settings->setValue("freqBackground", p->freqBackground.name(QColor::HexArgb));
+        settings->setValue("freqForeground", p->freqForeground.name(QColor::HexArgb));
+        settings->setValue("freqUnits", p->freqUnits.name(QColor::HexArgb));
+        settings->setValue("freqInactive", p->freqInactive.name(QColor::HexArgb));
+        settings->setValue("freqHighlight", p->freqHighlight.name(QColor::HexArgb));
     }
     settings->endArray();
     settings->endGroup();
@@ -2546,6 +2556,12 @@ void SettingsController::setDefPrefs()
             p->clusterSpots = QColor(Qt::red);
             p->buttonOff = QColor("transparent");
             p->buttonOn = QColor(0x50,0x50,0x50);
+
+            p->freqBackground = QColor(0x1f,0x1d,0x1d);
+            p->freqForeground = QColor(Qt::white);
+            p->freqUnits = QColor(Qt::gray);
+            p->freqInactive = QColor(0x43,0x43,0x43);
+            p->freqHighlight = QColor(0x5a,0x5a,0x5a);
             break;
         }
         case 1:
@@ -2597,6 +2613,13 @@ void SettingsController::setDefPrefs()
             p->clusterSpots = QColor(Qt::red);
             p->buttonOff = QColor("transparent");
             p->buttonOn = QColor(0x50,0x50,0x50);
+
+            // Inverse of the Dark preset frequency display colors
+            p->freqBackground = QColor(0xe0,0xe2,0xe2);
+            p->freqForeground = QColor(Qt::black);
+            p->freqUnits = QColor(0x5f,0x5f,0x5b);
+            p->freqInactive = QColor(0xbc,0xbc,0xbc);
+            p->freqHighlight = QColor(0xa5,0xa5,0xa5);
             break;
         }
         default:
@@ -2648,6 +2671,12 @@ void SettingsController::setDefPrefs()
 
             p->buttonOff = QColor("transparent");
             p->buttonOn = QColor(0x50,0x50,0x50);
+
+            p->freqBackground = QColor(0x1f,0x1d,0x1d);
+            p->freqForeground = QColor(Qt::white);
+            p->freqUnits = QColor(Qt::gray);
+            p->freqInactive = QColor(0x43,0x43,0x43);
+            p->freqHighlight = QColor(0x5a,0x5a,0x5a);
             break;
 
         }
@@ -3850,6 +3879,18 @@ void SettingsController::buildBindings()
              [this](){ emit colChanged(prefColItems(prefColItem::col_buttonOff)); });
     WF_COLOR("Color.ButtonOn",          curColor().buttonOn,
              [this](){ emit colChanged(prefColItems(prefColItem::col_buttonOn)); });
+
+    // Frequency display
+    WF_COLOR("Color.FreqBackground",    curColor().freqBackground,
+             [this](){ emit colChanged(prefColItems(prefColItem::col_freqBackground)); });
+    WF_COLOR("Color.FreqForeground",    curColor().freqForeground,
+             [this](){ emit colChanged(prefColItems(prefColItem::col_freqForeground)); });
+    WF_COLOR("Color.FreqUnits",         curColor().freqUnits,
+             [this](){ emit colChanged(prefColItems(prefColItem::col_freqUnits)); });
+    WF_COLOR("Color.FreqInactive",      curColor().freqInactive,
+             [this](){ emit colChanged(prefColItems(prefColItem::col_freqInactive)); });
+    WF_COLOR("Color.FreqHighlight",     curColor().freqHighlight,
+             [this](){ emit colChanged(prefColItems(prefColItem::col_freqHighlight)); });
 }
 
 
@@ -3925,6 +3966,12 @@ void SettingsController::refreshCurrentColorPresetOptions(bool loading)
     push("Color.ClusterSpots");
     push("Color.ButtonOff");
     push("Color.ButtonOn");
+
+    push("Color.FreqBackground");
+    push("Color.FreqForeground");
+    push("Color.FreqUnits");
+    push("Color.FreqInactive");
+    push("Color.FreqHighlight");
 }
 
 

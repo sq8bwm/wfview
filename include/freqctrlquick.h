@@ -55,6 +55,7 @@ class FreqCtrlQuick : public QQuickPaintedItem
     Q_PROPERTY(QColor backgroundColor READ getBgColor WRITE setBgColor NOTIFY colorsChanged)
     Q_PROPERTY(QColor unitsColor READ getUnitsColor WRITE setUnitsColor NOTIFY colorsChanged)
     Q_PROPERTY(QColor highlightColor READ getHighlightColor WRITE setHighlightColor NOTIFY colorsChanged)
+    Q_PROPERTY(QColor inactiveColor READ getInactiveColor WRITE setInactiveColor NOTIFY colorsChanged)
 
     Q_PROPERTY(int freqDigits READ getFreqDigits WRITE setFreqDigits NOTIFY freqDigitsChanged)
     Q_PROPERTY(qint64 freqMinStep READ getFreqMinStep WRITE setFreqMinStep NOTIFY freqMinStepChanged)
@@ -121,12 +122,14 @@ public:
     QColor getBgColor() const { return m_BkColor; }
     QColor getUnitsColor() const { return m_UnitsColor; }
     QColor getHighlightColor() const { return m_HighlightColor; }
+    QColor getInactiveColor() const { return m_InactiveColor; }
 
     void setUnit(FctlUnit unit);
     void setDigitColor(const QColor &col);
     void setBgColor(const QColor &col);
     void setUnitsColor(const QColor &col);
     void setHighlightColor(const QColor &col);
+    void setInactiveColor(const QColor &col);
 
     // group and decimal separators (e.g. ',' and '.')
     Q_INVOKABLE void setSeparators(QChar group, QChar decimal)

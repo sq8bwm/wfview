@@ -459,6 +459,12 @@ Control {
                                       : 0
 
                                 frequency: controller ? controller.frequencyA : 0
+
+                                backgroundColor: MainController.settings ? MainController.settings.options["Color.FreqBackground"] : "#1f1d1d"
+                                digitColor: MainController.settings ? MainController.settings.options["Color.FreqForeground"] : "white"
+                                unitsColor: MainController.settings ? MainController.settings.options["Color.FreqUnits"] : "gray"
+                                inactiveColor: MainController.settings ? MainController.settings.options["Color.FreqInactive"] : "#434343"
+                                highlightColor: MainController.settings ? MainController.settings.options["Color.FreqHighlight"] : "#5a5a5a"
                                 resetLowerDigits: controller ? controller.tuningFloorZeros : false
                                 tuningStep: MainController ? MainController.stepSize : 0
 
@@ -579,6 +585,12 @@ Control {
                                       : 0
 
                                 frequency: controller ? controller.frequencyB : 0
+
+                                backgroundColor: MainController.settings ? MainController.settings.options["Color.FreqBackground"] : "#1f1d1d"
+                                digitColor: MainController.settings ? MainController.settings.options["Color.FreqForeground"] : "white"
+                                unitsColor: MainController.settings ? MainController.settings.options["Color.FreqUnits"] : "gray"
+                                inactiveColor: MainController.settings ? MainController.settings.options["Color.FreqInactive"] : "#434343"
+                                highlightColor: MainController.settings ? MainController.settings.options["Color.FreqHighlight"] : "#5a5a5a"
                                 resetLowerDigits: controller ? controller.tuningFloorZeros : false
                                 tuningStep: MainController ? MainController.stepSize : 0
 
