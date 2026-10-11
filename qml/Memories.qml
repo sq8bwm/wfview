@@ -48,6 +48,8 @@ ApplicationWindow {
     minimumHeight: 400
 
     maximumWidth: {
+        if (!memoriesModel)
+            return 16777215
         var totalWidth = 0
         for (var i = 0; i < memoriesModel.columnCount(); i++) {
             if (memoriesModel.isColumnVisible(i)) {
@@ -101,6 +103,9 @@ ApplicationWindow {
             // Apply palette when window becomes visible
             MainController.updateApplicationPalette()
             applyDisabledPalette()
+            // Retry if an earlier load failed (for example, opened right after connecting)
+            if (memoriesModel)
+                memoriesModel.populate()
         }
     }
 
@@ -112,22 +117,29 @@ ApplicationWindow {
     }
 
     Connections {
-        target: MainController
+        target: MainController.settings
 
         function onColChanged(items) {
             memoriesWindow.applyDisabledPalette()
         }
+    }
+
+    Connections {
+        target: MainController
 
         function onMemoryReceived(mem) {
-            memoriesModel.receiveMemory(mem)
+            if (memoriesModel)
+                memoriesModel.receiveMemory(mem)
         }
 
         function onMemoryNameReceived(tag) {
-            memoriesModel.receiveMemoryName(tag)
+            if (memoriesModel)
+                memoriesModel.receiveMemoryName(tag)
         }
 
         function onMemorySplitReceived(split) {
-            memoriesModel.receiveMemorySplit(split)
+            if (memoriesModel)
+                memoriesModel.receiveMemorySplit(split)
         }
     }
 
@@ -142,30 +154,36 @@ ApplicationWindow {
 
                 ComboBox {
                     id: groupCombo
-                    model: memoriesModel.groupNames
-                    visible: memoriesModel.hasMemoryGroups
-                    currentIndex: memoriesModel.currentGroup
+                    model: memoriesModel ? memoriesModel.groupNames : []
+                    visible: memoriesModel ? memoriesModel.hasMemoryGroups : false
+                    currentIndex: memoriesModel ? memoriesModel.currentGroup : -1
                     onCurrentIndexChanged: {
-                        if (currentIndex >= 0) {
+                        if (memoriesModel && currentIndex >= 0) {
                             memoriesModel.currentGroup = currentIndex
                         }
                     }
                     Layout.preferredWidth: 150
                 }
 
+                Button {
+                    text: qsTr("Reload")
+                    enabled: memoriesModel ? !memoriesModel.loading : false
+                    onClicked: memoriesModel.reload()
+                }
+
                 Item { Layout.fillWidth: true }
 
                 CheckBox {
                     text: qsTr("Disable Editing")
-                    checked: !memoriesModel.canEdit
-                    onCheckedChanged: memoriesModel.canEdit = !checked
+                    checked: memoriesModel ? !memoriesModel.canEdit : false
+                    onCheckedChanged: if (memoriesModel) memoriesModel.canEdit = !checked
                 }
 
                 Item { Layout.fillWidth: true }
 
                 Button {
-                    text: memoriesModel.isScanning ? qsTr("Stop Scan") : qsTr("Start Scan")
-                    visible: memoriesModel.canScan
+                    text: (memoriesModel && memoriesModel.isScanning) ? qsTr("Stop Scan") : qsTr("Start Scan")
+                    visible: memoriesModel ? memoriesModel.canScan : false
                     onClicked: {
                         if (memoriesModel.isScanning) {
                             memoriesModel.stopScan()
@@ -179,7 +197,7 @@ ApplicationWindow {
 
                 Button {
                     text: qsTr(".csv Import")
-                    enabled: memoriesModel.canEdit
+                    enabled: memoriesModel ? memoriesModel.canEdit : false
                     onClicked: csvImportDialog.open()
                 }
 
@@ -197,11 +215,11 @@ ApplicationWindow {
                 Item { Layout.fillWidth: true }
 
                 Button {
-                    text: memoriesModel.memoryModeActive ?
+                    text: (memoriesModel && memoriesModel.memoryModeActive) ?
                           qsTr("Select VFO Mode") : qsTr("Select Memory Mode")
                     checkable: true
-                    checked: memoriesModel.memoryModeActive
-                    onCheckedChanged: memoriesModel.memoryModeActive = checked
+                    checked: memoriesModel ? memoriesModel.memoryModeActive : false
+                    onCheckedChanged: if (memoriesModel) memoriesModel.memoryModeActive = checked
                 }
             }
         }
@@ -220,22 +238,18 @@ ApplicationWindow {
                     model: memoriesModel ? memoriesModel.columnCount() : 0
                     Rectangle {
                         height: 30
-                        width: {
-                            if (!memoriesModel.isColumnVisible(index)) return 0
-                            switch(index) {
-                                case 0: return 80
-                                case 1: return 60
-                                case 2: return 120
-                                case 7: return 100
-                                default: return memoriesModel.visibleColumnCount > 15 ? 60 : 80
-                            }
-                        }
+                        // Reading visibleColumnCount makes this re-evaluate when columns are shown or hidden
+                        width: (memoriesModel && memoriesModel.visibleColumnCount >= 0)
+                               ? tableView.columnWidthProvider(index) : 0
+                        // Hidden columns have zero width, but their labels would still be drawn on top of each other
+                        visible: width > 0
+                        clip: true
                         color: palette.button
                         border.color: palette.mid
 
                         Text {
                             anchors.centerIn: parent
-                            text: memoriesModel.getColumnName(index)
+                            text: memoriesModel ? memoriesModel.getColumnName(index) : ""
                             font.bold: true
                             color: palette.buttonText
                         }
@@ -274,19 +288,23 @@ ApplicationWindow {
                         }
                     }
 
-                    Component.onCompleted: {
-                        updateColumnWidths()
-                        // alternatingRows is Qt 6.2+ only
-                        if (parseInt(Qt.version.split(".")[0]) >= 6) {
-                            alternatingRows = true
+                    // A width of 0 hides the column. setColumnWidth() is Qt 6.5+ only, so use the provider.
+                    columnWidthProvider: function(column) {
+                        if (!memoriesModel || !memoriesModel.isColumnVisible(column))
+                            return 0
+                        switch (column) {
+                            case 0: return 80
+                            case 1: return 60
+                            case 2: return 120
+                            case 7: return 100
+                            default: return memoriesModel.visibleColumnCount > 15 ? 60 : 80
                         }
                     }
 
-                    function updateColumnWidths() {
-                        for (var i = 0; i < memoriesModel.columnCount(); i++) {
-                            if (!memoriesModel.isColumnVisible(i)) {
-                                tableView.setColumnWidth(i, 0)
-                            }
+                    Component.onCompleted: {
+                        // alternatingRows is Qt 6.2+ only; Qt.version is not available in QML
+                        if (typeof alternatingRows !== "undefined") {
+                            alternatingRows = true
                         }
                     }
 
@@ -300,7 +318,7 @@ ApplicationWindow {
 
                         // Initialize saving state when delegate is created
                         Component.onCompleted: {
-                            if (delegateRow >= 0 && delegateRow < memoriesModel.rowCount()) {
+                            if (memoriesModel && delegateRow >= 0 && delegateRow < memoriesModel.rowCount()) {
                                 isSaving = memoriesModel.isRowSaving(delegateRow)
                             }
                         }
@@ -315,24 +333,7 @@ ApplicationWindow {
                             }
                         }
 
-                        // Cell dimensions
-                        implicitWidth: {
-                            if (!memoriesModel.isColumnVisible(delegateColumn)) {
-                                return 0
-                            }
-
-                            switch(delegateColumn) {
-                                case 0: return 80
-                                case 1: return 60
-                                case 2: return 120
-                                case 7: return 100
-                                default:
-                                    if (memoriesModel.visibleColumnCount > 15) {
-                                        return 60
-                                    }
-                                    return 80
-                            }
-                        }
+                        // Cell width comes from tableView.columnWidthProvider
                         implicitHeight: 35
 
                         // Cell color (alternatingRows is Qt 6.2+ only, use typeof guard)
@@ -373,6 +374,8 @@ ApplicationWindow {
                                     return recallButtonComponent
                                 }
 
+                                if (!memoriesModel)
+                                    return textDisplayComponent
                                 var colType = memoriesModel.getColumnType(delegateColumn)
                                 switch(colType) {
                                     case 0: return textInputComponent  // TypeText
@@ -443,15 +446,15 @@ ApplicationWindow {
                     spacing: 10
 
                     Label {
-                        text: memoriesModel.statusText
+                        text: memoriesModel ? memoriesModel.statusText : ""
                         Layout.fillWidth: true
                     }
 
                     ProgressBar {
-                        visible: memoriesModel.loading
+                        visible: memoriesModel ? memoriesModel.loading : false
                         from: 0
-                        to: memoriesModel.maxProgress
-                        value: memoriesModel.progress
+                        to: memoriesModel ? memoriesModel.maxProgress : 1
+                        value: memoriesModel ? memoriesModel.progress : 0
                         Layout.preferredWidth: 200
                     }
                 }
@@ -496,11 +499,11 @@ ApplicationWindow {
             property string originalValue: cellData || ""
 
             text: cellData || ""
-            enabled: memoriesModel.canEdit && cellColumn !== 1
-            readOnly: !memoriesModel.canEdit || cellColumn === 1
+            enabled: memoriesModel ? (memoriesModel.canEdit && cellColumn !== 1) : false
+            readOnly: memoriesModel ? (!memoriesModel.canEdit || cellColumn === 1) : true
             selectByMouse: true
 
-            inputMask: memoriesModel.getInputMask(cellColumn)
+            inputMask: memoriesModel ? memoriesModel.getInputMask(cellColumn) : ""
 
             anchors.fill: parent
             verticalAlignment: Text.AlignVCenter
@@ -534,13 +537,15 @@ ApplicationWindow {
             property int cellColumn
             property string originalValue: cellData || ""
 
-            model: memoriesModel.getComboOptions(cellColumn)
+            model: memoriesModel ? memoriesModel.getComboOptions(cellColumn) : []
             currentIndex: {
+                if (!memoriesModel)
+                    return -1
                 var options = memoriesModel.getComboOptions(cellColumn)
                 var value = cellData || ""
                 return Math.max(0, options.indexOf(value))
             }
-            enabled: memoriesModel.canEdit
+            enabled: memoriesModel ? memoriesModel.canEdit : false
             anchors.fill: parent
 
             // Update originalValue when cellData changes

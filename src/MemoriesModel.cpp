@@ -269,21 +269,36 @@ void MemoriesModel::initializeModel()
 
 void MemoriesModel::populate()
 {
-    //qDebug() << "populate() called";
+    // rigCaps may not have been available when the model was created, so retry here.
+    ensureInitialized();
 
     if (!m_rigCaps) {
         qWarning() << "Cannot populate - no rigCaps";
+        setStatusText(tr("Radio not ready, press Reload to try again"));
         return;
     }
 
-    //qDebug() << "Group names count:" << m_groupNames.count();
-
-    if (m_groupNames.count() > 1) {
-        //qInfo() << "Memory group items:" << m_groupNames.count();
-        setCurrentGroup(1);
-    } else {
-        setCurrentGroup(0);
+    const int group = (m_groupNames.count() > 1) ? 1 : 0;
+    if (group != m_currentGroup) {
+        setCurrentGroup(group);
+    } else if (!m_loading && m_memories.isEmpty()) {
+        // Nothing was loaded previously (for example a timeout right after connecting).
+        loadGroup(group);
     }
+}
+
+void MemoriesModel::reload()
+{
+    ensureInitialized();
+
+    if (!m_rigCaps) {
+        qWarning() << "Cannot reload memories - no rigCaps";
+        setStatusText(tr("Radio not ready, press Reload to try again"));
+        return;
+    }
+
+    qInfo() << "Reloading memory group" << m_currentGroup;
+    loadGroup(m_currentGroup);
 }
 
 // QAbstractTableModel interface
@@ -717,6 +732,13 @@ void MemoriesModel::setCurrentGroup(int group)
     m_currentGroup = group;
     emit currentGroupChanged();
 
+    loadGroup(group);
+}
+
+void MemoriesModel::loadGroup(int group)
+{
+    m_timeoutCount = 0;
+    setStatusText(QString());
     m_timeoutTimer.start(MEMORY_TIMEOUT);
     m_visibleColumns = 1;
 

@@ -93,6 +93,7 @@ public:
     Q_INVOKABLE void importCSV(const QString &filePath, bool allFields);
     Q_INVOKABLE void exportCSV(const QString &filePath, bool allFields);
     Q_INVOKABLE void populate();
+    Q_INVOKABLE void reload();
     Q_INVOKABLE bool isRowSaving(int row) const;
 
 signals:
@@ -201,6 +202,7 @@ private:
     };
 
     void initializeModel();
+    void loadGroup(int group);
     void setupColumns();
     void configureColumnsForMode(int row, modeInfo mode, quint8 split = 0);
     void configureColumnsBForMode(int row, modeInfo mode);
