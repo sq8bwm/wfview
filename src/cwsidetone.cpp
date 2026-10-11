@@ -10,7 +10,7 @@ cwSidetone::cwSidetone(int level, int speed, int freq, double ratio, QObject* pa
     ratio(ratio)
 {
 
-    qInfo(logCW()) << "Starting sidetone. Thread=" << QThread::currentThreadId();
+    qDebug(logCW()) << "Starting sidetone. Thread=" << QThread::currentThreadId();
      /*
      * Characters to match Icom table
      * Unknown characters will return '?'
@@ -74,7 +74,7 @@ cwSidetone::cwSidetone(int level, int speed, int freq, double ratio, QObject* pa
 
 cwSidetone::~cwSidetone()
 {
-    qInfo(logCW()) << "cwSidetone() finished";
+    qDebug(logCW()) << "cwSidetone() finished";
     this->stop();
     if (output)
         output->stop();
@@ -82,7 +82,7 @@ cwSidetone::~cwSidetone()
 
 void cwSidetone::init()
 {
-    qInfo(logCW()) << "Sidetone init() Thread=" << QThread::currentThreadId();
+    qDebug(logCW()) << "Sidetone init() Thread=" << QThread::currentThreadId();
     format.setSampleRate(44100);
     format.setChannelCount(1);
 #if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
@@ -90,6 +90,7 @@ void cwSidetone::init()
     format.setSampleSize(16);
     format.setByteOrder(QAudioFormat::LittleEndian);
     format.setSampleType(QAudioFormat::SignedInt);
+    // TODO: Dynamic assignment with a UI
     QAudioDeviceInfo device(QAudioDeviceInfo::defaultOutputDevice());
 #else
     format.setSampleFormat(QAudioFormat::Int16);
@@ -153,10 +154,10 @@ void cwSidetone::init()
             return;
         }
 #if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
-        qInfo(logCW()) << QString("Sidetone Output: %0 (volume: %1 rate: %2 size: %3 type: %4)")
+        qDebug(logCW()) << QString("Sidetone Output: %0 (volume: %1 rate: %2 size: %3 type: %4)")
                           .arg(device.deviceName()).arg(volume).arg(format.sampleRate()).arg(format.sampleSize()).arg(format.sampleType());
 #else
-        qInfo(logCW()) << QString("Sidetone Output: %0 (volume: %1 rate: %2 type: %3")
+        qDebug(logCW()) << QString("Sidetone Output: %0 (volume: %1 rate: %2 type: %3")
                           .arg(device.description()).arg(volume).arg(format.sampleRate()).arg(format.sampleFormat());
 #endif        
     }
