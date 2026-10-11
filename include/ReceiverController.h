@@ -217,6 +217,9 @@ public:
     Q_INVOKABLE void selectVfoB(bool enabled);
     Q_INVOKABLE void swapVfoAB();
     Q_INVOKABLE void equalizeVfoAB();
+    // Custom fixed-edge dialog: current edges and limits, all in MHz
+    Q_INVOKABLE QVariantMap customEdgeFreqDialogParams() const;
+    Q_INVOKABLE void setCustomEdgeFreqs(double startMHz, double endMHz);
 
 public slots:
 

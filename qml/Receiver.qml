@@ -656,7 +656,6 @@ Control {
                                 visible: !root.isCenterScopeMode(scopeModeCombo.currentValue)
                                 text: qsTr("Custom Edge")
                                 onClicked: customEdgeDialog.open()
-                                Layout.preferredWidth: 90
                             }
 
                             Button {
@@ -2195,45 +2194,67 @@ Control {
         }
     }
 
-    // Small dialog for entering a custom edge
+    // Small dialog for entering a custom fixed edge, in MHz
     Dialog {
         id: customEdgeDialog
         modal: true
+        title: qsTr("Custom Fixed Edge")
 
-        // constraints (filled from C++)
-        property int minKHz: 0
-        property int maxKHz: 0
-        property int minSpan: 1
-        property int maxSpan: 999999
+        // constraints (filled from C++), all in MHz; 0 means no limit known
+        property real minMHz: 0
+        property real maxMHz: 0
+        property real minSpan: 0
+        property real maxSpan: 0
+
+        function parseMHz(text) {
+            return parseFloat(String(text).replace(",", "."))
+        }
+
+        function formatMHz(v) {
+            return (v > 0) ? Number(v).toFixed(6) : ""
+        }
+
+        function errorText() {
+            const start = parseMHz(startEdgeFreq.text)
+            const end = parseMHz(endEdgeFreq.text)
+            if (isNaN(start) || isNaN(end))
+                return qsTr("Enter both edges in MHz")
+            if (end <= start)
+                return qsTr("End must be above start")
+            if (minMHz > 0 && start < minMHz)
+                return qsTr("Start is below %1 MHz").arg(formatMHz(minMHz))
+            if (maxMHz > 0 && end > maxMHz)
+                return qsTr("End is above %1 MHz").arg(formatMHz(maxMHz))
+            const span = end - start
+            // Allow for floating point rounding at the limits
+            if (minSpan > 0 && span < minSpan - 0.0000005)
+                return qsTr("Span must be at least %1 kHz").arg(Math.round(minSpan * 1000))
+            if (maxSpan > 0 && span > maxSpan + 0.0000005)
+                return qsTr("Span must be at most %1 kHz").arg(Math.round(maxSpan * 1000))
+            return ""
+        }
+
+        function isValid() {
+            return errorText() === ""
+        }
 
         onOpened: {
             const p = controller.customEdgeFreqDialogParams()
 
-            // copy into dialog-scoped properties so isValid() can see them
-            minKHz   = p.minKHz
-            maxKHz   = p.maxKHz
-            minSpan  = p.minSpan
-            maxSpan  = p.maxSpan
+            minMHz  = p.minMHz
+            maxMHz  = p.maxMHz
+            minSpan = p.minSpan
+            maxSpan = p.maxSpan
 
-            startEdgeFreq.from     = minKHz
-            startEdgeFreq.to       = maxKHz
-            startEdgeFreq.stepSize = minSpan
-            startEdgeFreq.value    = p.startKHz
-
-            endEdgeFreq.from       = minKHz
-            endEdgeFreq.to         = maxKHz
-            endEdgeFreq.stepSize   = minSpan
-            endEdgeFreq.value      = p.endKHz
+            startEdgeFreq.text = formatMHz(p.startMHz)
+            endEdgeFreq.text   = formatMHz(p.endMHz)
+            startEdgeFreq.forceActiveFocus()
+            startEdgeFreq.selectAll()
 
             // (re)bind OK enabled after values/constraints are set
             const okBtn = standardButton(Dialog.Ok)
             if (okBtn)
                 okBtn.enabled = Qt.binding(() => customEdgeDialog.isValid())
-        }
-
-        function isValid() {
-            return (endEdgeFreq.value - startEdgeFreq.value >= minSpan &&
-                    endEdgeFreq.value - startEdgeFreq.value <= maxSpan)
         }
 
         standardButtons: Dialog.Ok | Dialog.Cancel
@@ -2252,38 +2273,45 @@ Control {
             spacing: 8
 
             Label {
-                text: qsTr("Start frequency (kHz):")
+                text: qsTr("Start frequency (MHz):")
             }
 
-            SpinBox {
+            TextField {
                 id: startEdgeFreq
-                editable: true
                 Layout.fillWidth: true
+                Layout.preferredWidth: 180
+                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                validator: RegularExpressionValidator { regularExpression: /^[0-9]*[.,]?[0-9]{0,6}$/ }
+                onAccepted: if (customEdgeDialog.isValid()) customEdgeDialog.accept()
             }
 
             Label {
-                text: qsTr("End frequency (kHz):")
+                text: qsTr("End frequency (MHz):")
             }
 
-            SpinBox {
+            TextField {
                 id: endEdgeFreq
-                editable: true
                 Layout.fillWidth: true
+                Layout.preferredWidth: 180
+                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                validator: RegularExpressionValidator { regularExpression: /^[0-9]*[.,]?[0-9]{0,6}$/ }
+                onAccepted: if (customEdgeDialog.isValid()) customEdgeDialog.accept()
             }
 
             Label {
-                text: qsTr("Invalid span size")
+                text: customEdgeDialog.errorText()
                 color: "red"
-                visible: !customEdgeDialog.isValid()
+                visible: text !== ""
             }
         }
         Component.onCompleted: {
             const okBtn = standardButton(Dialog.Ok)
-            okBtn.enabled = Qt.binding(() => customEdgeDialog.isValid())
+            if (okBtn)
+                okBtn.enabled = Qt.binding(() => customEdgeDialog.isValid())
         }
         onAccepted: {
-            // safe: this will only fire when valid
-            controller.setCustomEdgeFreqs(startEdgeFreq.value,endEdgeFreq.value)
+            // safe: OK is only enabled when valid
+            controller.setCustomEdgeFreqs(parseMHz(startEdgeFreq.text), parseMHz(endEdgeFreq.text))
         }
 
     }

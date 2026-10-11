@@ -1260,6 +1260,53 @@ void ReceiverController::toFixedEdge(uchar val)
     queue->addUnique(priorityImmediate,queueItem(funcScopeMode,QVariant::fromValue<uchar>(1),false,t.receiver));
 }
 
+QVariantMap ReceiverController::customEdgeFreqDialogParams() const
+{
+    // Fixed-edge span limits are twice the smallest/largest center-mode span
+    double minSpan = 0.0;
+    double maxSpan = 0.0;
+    double minMHz = 0.0;
+    double maxMHz = 0.0;
+    if (rigCaps != nullptr)
+    {
+        for (const auto &span : rigCaps->scopeCenterSpans)
+        {
+            const double s = (span.freq * 2) / 1000000.0;
+            if (minSpan <= 0.0 || s < minSpan)
+                minSpan = s;
+            if (s > maxSpan)
+                maxSpan = s;
+        }
+        for (const auto &band : rigCaps->bands)
+        {
+            const double lo = band.lowFreq / 1000000.0;
+            const double hi = band.highFreq / 1000000.0;
+            if (minMHz <= 0.0 || lo < minMHz)
+                minMHz = lo;
+            if (hi > maxMHz)
+                maxMHz = hi;
+        }
+    }
+
+    return {
+        {"minMHz", minMHz},
+        {"maxMHz", maxMHz},
+        {"startMHz", lowerFreq},
+        {"endMHz", upperFreq},
+        {"minSpan", minSpan},
+        {"maxSpan", maxSpan}
+    };
+}
+
+void ReceiverController::setCustomEdgeFreqs(double startMHz, double endMHz)
+{
+    if (endMHz <= startMHz)
+        return;
+    qInfo(logGui()) << "Setting custom fixed edge" << scopeEdge << "to" << startMHz << "-" << endMHz << "MHz";
+    vfoCommandType t = queue->getVfoCommand(vfoA,receiver,true);
+    queue->addUnique(priorityImmediate,queueItem(funcScopeFixedEdgeFreq,QVariant::fromValue(spectrumBounds(startMHz, endMHz, scopeEdge)),false,t.receiver));
+}
+
 void ReceiverController::setFrequencyA(quint64 f, bool u)
 {
     if (frequencyA != f)

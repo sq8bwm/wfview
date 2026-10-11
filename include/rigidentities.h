@@ -144,7 +144,6 @@ enum centerSpansType {
 
 struct centerSpanData {
     centerSpanData() {}
-    centerSpanData(centerSpanData const &c): reg(c.reg), name(c.name), freq(c.freq)  {}
     centerSpanData(uchar reg, QString name, unsigned int freq) :
         reg(reg), name(name), freq(freq){}
     uchar reg;
@@ -164,7 +163,6 @@ struct centerSpanData {
 
 struct bandType {
     bandType() {band=bandUnknown;}
-    bandType(bandType const &b): region(b.region), band(b.band), bsr(b.bsr), lowFreq(b.lowFreq), highFreq(b.highFreq), range(b.range), memGroup(b.memGroup), bytes(b.bytes), ants(b.ants), power(b.power), color(b.color), name(b.name), offset(b.offset){};
     bandType(QString region, availableBands band, uchar bsr, quint64 lowFreq, quint64 highFreq, double range, int memGroup, qint8 bytes, bool ants, float power, QColor color, QString name, int offset) :
         region(region), band(band), bsr(bsr), lowFreq(lowFreq), highFreq(highFreq), range(range), memGroup(memGroup), bytes(bytes), ants(ants), power(power), color(color), name(name), offset(offset) {}
 
@@ -198,8 +196,6 @@ struct bandType {
 // Used for setting/retrieving BSR information
 struct bandStackType {
     bandStackType(): band(0),reg(1),freq(freqt()),data(0),mode(0),filter(0) {}
-    bandStackType(bandStackType const &b): band(b.band),reg(b.reg),freq(b.freq),data(b.data),
-        mode(b.mode),filter(b.filter), sql(b.sql), tone(b.tone), tsql(b.tsql) {}
     bandStackType(uchar band, uchar reg): band(band),reg(reg), freq(), data(0), mode(0), filter(0) {}
     bandStackType(uchar band, uchar reg, freqt freq, uchar data, uchar mode, uchar filter):
         band(band), reg(reg), freq(freq), data(data), mode(mode), filter(filter) {};
@@ -228,7 +224,6 @@ struct bandStackType {
 
 struct filterType {
     filterType():num(0),name(""),modes(0) {}
-    filterType(filterType const &f): num(f.num),name(f.name),modes(f.modes) {}
     filterType(quint8 num, QString name, unsigned int modes) :
         num(num), name(name), modes(modes) {}
 
@@ -251,7 +246,6 @@ struct filterType {
 
 struct genericType {
     genericType():num(0),name("") {}
-    genericType(genericType const &g):num(g.num),name(g.name) {}
     genericType(quint8 num, QString name) :
         num(num), name(name) {}
     quint8 num;
@@ -272,7 +266,6 @@ struct genericType {
 
 struct widthsType {
     widthsType():bands(0),num(0),hz(0) {}
-    widthsType(widthsType const &w):bands(w.bands),num(w.num),hz(w.hz) {}
     widthsType(ushort bands, uchar num, ushort hz) : bands(bands),num(num),hz(hz) {}
     ushort bands;
     uchar num;
