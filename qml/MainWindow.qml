@@ -31,6 +31,16 @@ ApplicationWindow {
     readonly property int ritDialSize: 44
     readonly property int optionalMeterWidth: 300
     readonly property int optionalMeterHeight: 40
+    // Optional meter slots showing audio (TX Mod = 10, RX Audio = 11, Audio = 12)
+    // replace the vertical level bars next to the Vol / Mic sliders.
+    readonly property var optionalMeterChoices: [
+        Number(MainController.settings.options["Interface.Meter2Type"] || 0),
+        Number(MainController.settings.options["Interface.Meter3Type"] || 0)
+    ]
+    readonly property bool rxAudioOnOptionalMeter: optionalMeterChoices.indexOf(11) !== -1
+                                                   || optionalMeterChoices.indexOf(12) !== -1
+    readonly property bool txAudioOnOptionalMeter: optionalMeterChoices.indexOf(10) !== -1
+                                                   || optionalMeterChoices.indexOf(12) !== -1
     readonly property bool radioConnected: Number(MainController.connStatus) === 2
     readonly property bool waylandPlatform: String(MainController.platformName()).indexOf("wayland") !== -1
     readonly property var mainControlSpecs: MainController.uiSpecs["mainControls"] || ({})
@@ -97,7 +107,11 @@ ApplicationWindow {
     }
 
     width: 946
-    height: minimumHeight
+    // No "height: minimumHeight" binding here: the window system resizing the
+    // window does not break a QML binding on Window.height, so it stayed live
+    // and snapped the window back to minimumHeight whenever the content reflowed
+    // (seen on Wayland, where nothing else ever assigns height). The initial
+    // height is set once in Component.onCompleted instead.
     visible: false
 
     minimumWidth:  radioConnected ? 360 : mainLayout.implicitWidth + contentHorizontalPadding * 2
@@ -1544,7 +1558,9 @@ ApplicationWindow {
                                 }
 
                                 AudioLevelBar {
-                                    value: MainController.rxAudioLevel
+                                    visible: !win.rxAudioOnOptionalMeter
+                                    enabled: visible
+                                    value: visible ? MainController.rxAudioLevel : 0
                                     label: qsTr("RX audio")
                                     active: MainController.localAudioAvailable
                                 }
@@ -1633,7 +1649,9 @@ ApplicationWindow {
                                 }
 
                                 AudioLevelBar {
-                                    value: MainController.txAudioLevel
+                                    visible: !win.txAudioOnOptionalMeter
+                                    enabled: visible
+                                    value: visible ? MainController.txAudioLevel : 0
                                     label: qsTr("TX audio")
                                     active: micGainSlider.enabled
                                 }
@@ -2010,6 +2028,7 @@ ApplicationWindow {
 
     Component.onCompleted: {
         MainController.updateApplicationPalette();
+        win.height = win.minimumHeight
         restoreWindowGeometry()
         // Check if this is the first run
         //if (MainController.isFirstRun()) {

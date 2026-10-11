@@ -2076,6 +2076,8 @@ void MainController::setRxAudioLevel(int level)
 
     m_rxAudioLevel = bounded;
     emit audioLevelsChanged();
+    // Same level drives the optional "RX Audio" / "Audio" meters.
+    receiveOptionalMeter(meterRxAudio, bounded);
 }
 
 void MainController::setTxAudioLevel(int level)
@@ -2086,6 +2088,8 @@ void MainController::setTxAudioLevel(int level)
 
     m_txAudioLevel = bounded;
     emit audioLevelsChanged();
+    // Same level drives the optional "TX Mod" / "Audio" meters.
+    receiveOptionalMeter(meterTxMod, bounded);
 }
 
 void MainController::publishTxAudioDiagnosticLevel(const audioPacket& packet, TxAudioInput source)
