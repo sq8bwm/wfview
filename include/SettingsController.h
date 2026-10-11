@@ -665,6 +665,7 @@ public:
     // Generic key/value API (still useful for C++ and QML writes)
     Q_INVOKABLE QVariant option(const QString& key) const;
     Q_INVOKABLE void setOption(const QString& key, const QVariant& value);
+    QStringList optionKeys() const { return m_bindings.keys(); }
     Q_INVOKABLE QStringList freqFontNames() const { return FreqCtrlQuick::builtinFontNames(); }
     Q_INVOKABLE bool selectClusterRow(int row);
 
@@ -676,6 +677,7 @@ public:
     preferences* getPrefs() { return &prefs;}
     udpPreferences* getUdpPrefs() { return &udpPrefs;}
     QString settingsFileName() const { return settings ? settings->fileName() : QString(); }
+    QSettings::Format settingsFormat() const { return settings ? settings->format() : QSettings::IniFormat; }
     SERVERCONFIG* getServerConfig() { return &serverConfig;}
     colorPrefsType getCurrentColorPreset() {return colorPreset[prefs.currentColorPresetNumber];}
     audioDevices* getAudioDevices() {return audioDev.get();}

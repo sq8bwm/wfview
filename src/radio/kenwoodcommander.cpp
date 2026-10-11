@@ -4,6 +4,7 @@
 #include "rigidentities.h"
 #include "logcategories.h"
 #include "printhex.h"
+#include "mcphooks.h"
 
 // Copyright 2017-2024 Elliott H. Liggett W6EL and Phil E. Taylor M0VSE
 
@@ -165,6 +166,7 @@ void kenwoodCommander::lanConnected()
     networkRttBaseline = -1;
     networkResponseCount = 0;
     status = networkStatus();
+    MCP_RADIO_TX(this, QByteArray("##CN;\n"));
     port->write("##CN;\n");
 }
 
@@ -527,6 +529,7 @@ void kenwoodCommander::receiveRawExternalCommand(QByteArray data, uchar receiver
         return;
 
     QMutexLocker locker(&serialMutex);
+    MCP_RADIO_TX(this, data);
     port->write(data);
 }
 
@@ -573,6 +576,7 @@ void kenwoodCommander::powerOn()
         d.append(QString("%0;").arg(cmd).toLatin1());
         QMutexLocker locker(&serialMutex);
         if (portConnected) {
+            MCP_RADIO_TX(this, d);
             port->write(d);
             lastCommand.data = d;
         }
@@ -593,6 +597,7 @@ void kenwoodCommander::powerOff()
         d.append(QString("%0;").arg(cmd).toLatin1());
         QMutexLocker locker(&serialMutex);
         if (portConnected) {
+            MCP_RADIO_TX(this, d);
             port->write(d);
             lastCommand.data = d;
         }
@@ -1896,6 +1901,7 @@ void kenwoodCommander::receiveCommand(funcs func, QVariant value, uchar receiver
             qDebug(logRigTraffic()).noquote() << "Send to rig: " << funcString[cmd.cmd] << payload.toStdString().c_str();
 
             recordNetworkCommand(cmd.data);
+            MCP_RADIO_TX(this, payload);
             if (port->write(payload) != payload.size())
             {
                 qInfo(logSerial()) << "Error writing to port";

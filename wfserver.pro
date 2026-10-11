@@ -268,6 +268,7 @@ HEADERS  += \
     include/rigidentities.h \
     include/rtpaudio.h \
     include/logcategories.h \
+    include/mcphooks.h \
     include/rigserver.h \
     include/packettypes.h \
     include/repeaterattributes.h \
@@ -289,3 +290,22 @@ HEADERS  += \
     include/yaesuudpcat.h \
     include/yaesuudpcontrol.h \
     include/yaesuudpscope.h
+
+# Optional MCP (Model Context Protocol) diagnostics server. Off unless qmake is
+# run with CONFIG+=mcp, for example: qmake "CONFIG+=mcp" ../wfserver.pro
+# It also has to be turned on at run time with --use-mcp. See docs/MCP.md.
+contains(CONFIG, mcp) {
+    DEFINES += WFVIEW_MCP
+    SOURCES += \
+        src/mcphost.cpp \
+        src/mcphostserver.cpp \
+        src/mcpprobe.cpp \
+        src/mcpserver.cpp \
+        src/mcptools.cpp
+    HEADERS += \
+        include/mcphost.h \
+        include/mcphostserver.h \
+        include/mcpprobe.h \
+        include/mcpserver.h \
+        include/mcptools.h
+}

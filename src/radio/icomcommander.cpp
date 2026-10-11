@@ -8,6 +8,7 @@
 #include "rigidentities.h"
 #include "logcategories.h"
 #include "printhex.h"
+#include "mcphooks.h"
 
 // Copyright 2017-2024 Elliott H. Liggett W6EL and Phil E. Taylor M0VSE
 
@@ -1583,6 +1584,7 @@ void icomCommander::setCIVAddr(quint16 civAddr)
 
 void icomCommander::handleNewData(const QByteArray& data)
 {
+    MCP_RADIO_RX(this, data);
     emit haveDataForServer(data);
     parseData(data);
 }

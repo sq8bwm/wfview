@@ -1,5 +1,6 @@
 #include "icomudpbase.h"
 #include "logcategories.h"
+#include "mcphooks.h"
 
 void icomUdpBase::init(quint16 lport)
 {
@@ -391,6 +392,7 @@ void icomUdpBase::sendControl(bool tracked = true, quint8 type = 0, quint16 seq 
 
     if (!tracked) {
         p.seq = seq;
+        MCP_NETWORK_TX(this, QByteArray::fromRawData((const char*)p.packet, sizeof(p)));
         udpMutex.lock();
         udp->writeDatagram(QByteArray::fromRawData((const char*)p.packet, sizeof(p)), radioIP, port);
         udpMutex.unlock();
@@ -455,6 +457,7 @@ void icomUdpBase::sendTrackedPacket(QByteArray d)
     //purgeOldEntries(); // Delete entries older than PURGE_SECONDS seconds (currently 5)
     sendSeq++;
 
+    MCP_NETWORK_TX(this, d);
     udpMutex.lock();
     udp->writeDatagram(d, radioIP, port);
 

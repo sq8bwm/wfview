@@ -61,6 +61,17 @@
 #include "rigctld.h"
 #include "audiodevices.h"
 #include "cachingqueue.h"
+#include "mcphooks.h"
+
+#ifdef WFVIEW_MCP
+#include "mcpprobe.h"
+#include "mcpserver.h"
+#ifdef BUILD_WFSERVER
+#include "mcphostserver.h"
+#else
+#include "mcphostwfview.h"
+#endif
+#endif
 
 #ifndef BUILD_WFSERVER
 #include "cluster.h"
@@ -89,6 +100,97 @@
 #endif
 
 bool debugMode=false;
+
+// MCP options are parsed in every build, so a build without MCP support can
+// say so instead of rejecting the flags.
+struct McpCommandLine
+{
+    bool use = false;
+    quint16 port = 8765;
+    QString bind = QStringLiteral("127.0.0.1");
+    QString token;
+    bool allowWrite = false;
+    QString error;
+};
+static McpCommandLine mcpArgs;
+
+// Returns true if argv[*i] is an MCP option, consuming its value if it has one.
+static bool parseMcpArg(int argc, char* argv[], int* i)
+{
+    const QString arg = QString::fromLocal8Bit(argv[*i]);
+    if (arg == QStringLiteral("--use-mcp")) {
+        mcpArgs.use = true;
+        return true;
+    }
+    if (arg == QStringLiteral("--mcp-allow-write")) {
+        mcpArgs.allowWrite = true;
+        return true;
+    }
+
+    auto value = [&](const QString& name, QString* out) {
+        if (arg == name) {
+            if (*i + 1 < argc)
+                *out = QString::fromLocal8Bit(argv[++*i]);
+            else
+                mcpArgs.error = name + QStringLiteral(" needs a value");
+            return true;
+        }
+        if (arg.startsWith(name + QLatin1Char('='))) {
+            *out = arg.mid(name.size() + 1);
+            return true;
+        }
+        return false;
+    };
+
+    QString port;
+    if (value(QStringLiteral("--mcp-port"), &port)) {
+        bool ok = false;
+        const uint number = port.toUInt(&ok);
+        if (!ok || number == 0 || number > 65535)
+            mcpArgs.error = QStringLiteral("Invalid --mcp-port: ") + port;
+        else
+            mcpArgs.port = quint16(number);
+        return true;
+    }
+    return value(QStringLiteral("--mcp-bind"), &mcpArgs.bind) || value(QStringLiteral("--mcp-token"), &mcpArgs.token);
+}
+
+// Call after parsing. Returns false if the MCP options are unusable.
+static bool finishMcpArgs()
+{
+    if (!mcpArgs.error.isEmpty()) {
+        std::cerr << mcpArgs.error.toStdString() << "\n";
+        return false;
+    }
+    if (mcpArgs.token.isEmpty())
+        mcpArgs.token = qEnvironmentVariable("WFVIEW_MCP_TOKEN");
+#ifndef WFVIEW_MCP
+    if (mcpArgs.use)
+        std::cerr << "This build has no MCP support (build with qmake CONFIG+=mcp); ignoring --use-mcp.\n";
+    mcpArgs.use = false;
+#endif
+    return true;
+}
+
+#ifdef WFVIEW_MCP
+static std::unique_ptr<McpServer> startMcpServer(McpHost* host)
+{
+    McpOptions options;
+    options.port = mcpArgs.port;
+    options.bindAddress = mcpArgs.bind;
+    options.token = mcpArgs.token;
+    options.allowWrite = mcpArgs.allowWrite;
+
+    auto server = std::make_unique<McpServer>(options, host);
+    QString error;
+    if (server->start(&error))
+        return server;
+
+    qCritical(logSystem()).noquote() << "MCP server not started:" << error;
+    std::cerr << "MCP server not started: " << error.toStdString() << "\n";
+    return nullptr;
+}
+#endif
 
 #ifndef BUILD_WFSERVER
 struct QtMsgHandlerGuard {
@@ -157,8 +259,11 @@ static void parseCommonServerArgs(int argc, char* argv[], QString* settingsFile,
             *logFilename = QString::fromLocal8Bit(argv[++i]);
         } else if (((arg == QStringLiteral("-s")) || (arg == QStringLiteral("--settings"))) && i + 1 < argc) {
             *settingsFile = QString::fromLocal8Bit(argv[++i]);
+        } else {
+            parseMcpArg(argc, argv, &i);
         }
     }
+    finishMcpArgs();
 }
 
 static void setServiceStatus(DWORD state, DWORD win32ExitCode = NO_ERROR, DWORD waitHint = 0)
@@ -652,6 +757,12 @@ static int startWfserverRuntime(QCoreApplication* app, const QString& settingsFi
 
     qInfo(logSystem()) << version;
 
+#ifdef WFVIEW_MCP
+    // Before the radios are created, so their hooks attach.
+    if (mcpArgs.use)
+        McpProbe::setEnabled(true);
+#endif
+
 #ifdef Q_OS_WIN
     if (serviceMode) {
         setServiceStatus(SERVICE_RUNNING);
@@ -672,6 +783,23 @@ static int startWfserverRuntime(QCoreApplication* app, const QString& settingsFi
     }
 
     w = new servermain(settingsFile);
+
+#ifdef WFVIEW_MCP
+    std::unique_ptr<McpHostServer> mcpHost;
+    std::unique_ptr<McpServer> mcpServer;
+    if (mcpArgs.use) {
+        mcpHost = std::make_unique<McpHostServer>(w);
+        mcpServer = startMcpServer(mcpHost.get());
+        if (mcpServer) {
+            // Connected before the servermain cleanup below, so MCP stops first.
+            QObject::connect(app, &QCoreApplication::aboutToQuit, mcpServer.get(), &McpServer::stop);
+        } else {
+            mcpHost.reset();
+            McpProbe::setEnabled(false);
+        }
+    }
+#endif
+
     QObject::connect(app, &QCoreApplication::aboutToQuit, app, []() {
         delete w;
         w = nullptr;
@@ -684,6 +812,12 @@ static int startWfserverRuntime(QCoreApplication* app, const QString& settingsFi
         kb->wait();
         delete kb;
     }
+
+#ifdef WFVIEW_MCP
+    mcpServer.reset();
+    mcpHost.reset();
+    McpProbe::setEnabled(false);
+#endif
 
     return result;
 }
@@ -843,6 +977,7 @@ int main(int argc, char *argv[])
 
 
     const QString helpText = QString("\nUsage: -l --logfile filename.log, -s --settings filename.ini, -c --clearconfig CONFIRM, -b --background (not Windows), -d --debug, -v --version"
+                                     ", --use-mcp, --mcp-port PORT, --mcp-bind ADDRESS, --mcp-token TOKEN, --mcp-allow-write"
 #ifdef BUILD_WFSERVER
                                      ", --setup (interactive config wizard; modify or replace settings)"
 #ifdef Q_OS_WIN
@@ -1041,12 +1176,20 @@ int main(int argc, char *argv[])
         {
             showVersion = true;
 	}
+        else if (parseMcpArg(argc, argv, &c))
+        {
+        }
         else {
             std::cout << "Unrecognized option: " << currentArg.toStdString();
             std::cout << helpText.toStdString();
             return -1;
         }
 
+    }
+
+    if (!finishMcpArgs()) {
+        std::cout << helpText.toStdString();
+        return -1;
     }
 
 #ifndef BUILD_WFSERVER
@@ -1101,6 +1244,12 @@ int main(int argc, char *argv[])
     std::cout << "DEBUG: Installing Qt message handler..." << std::endl;
     g_log->installQtMessageHandler();
     std::cout << "DEBUG: Logging initialized successfully" << std::endl;
+
+#ifdef WFVIEW_MCP
+    // Before MainController creates the radio and audio, so their hooks attach.
+    if (mcpArgs.use)
+        McpProbe::setEnabled(true);
+#endif
 
     // Log initial program information
     qInfo(logSystem()).noquote() << QString("wfview version: %1 (Git:%2 on %3 at %4 by %5@%6)")
@@ -1162,6 +1311,23 @@ int main(int argc, char *argv[])
     std::cout << "DEBUG: Creating MainController" << std::endl;
     auto g_mwc = std::make_unique<MainController>(settingsFile, logFilename, debugMode, &a);
     std::cout << "DEBUG: MainController created successfully" << std::endl;
+
+#ifdef WFVIEW_MCP
+    std::unique_ptr<McpHostWfview> mcpHost;
+    std::unique_ptr<McpServer> mcpServer;
+    if (mcpArgs.use) {
+        mcpHost = std::make_unique<McpHostWfview>(g_mwc.get());
+        mcpServer = startMcpServer(mcpHost.get());
+        if (mcpServer) {
+            // Connected before MainController::shutdown below, so MCP stops first.
+            QObject::connect(&a, &QCoreApplication::aboutToQuit, mcpServer.get(), &McpServer::stop);
+        } else {
+            mcpHost.reset();
+            McpProbe::setEnabled(false);
+        }
+    }
+#endif
+
     QObject::connect(&a, &QCoreApplication::aboutToQuit, g_mwc.get(), &MainController::shutdown);
 
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)   
@@ -1277,6 +1443,7 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
     {
         return;
     }
+    MCP_LOG_MESSAGE(type, context.category, msg);
     QMutexLocker locker(&logMutex);
     QTextStream out(m_logFile.data());
     QString text;
