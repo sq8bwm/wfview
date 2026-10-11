@@ -180,6 +180,8 @@ Control {
                     scaleHighLineColor: MainController.settings.options["Color.MeterHighScale"]
 
                     drawLabels: true
+                    // About a third larger with "Larger digits and primary meter"
+                    fontSize: root.displayScale > 1 ? 12 : 9
                     function applyExtremities() {
                         const type = root.controller ? root.controller.meterType : 0
                         const ext = MainController.optionalMeterExtremities(type)

@@ -29,6 +29,7 @@ class MeterItem : public QQuickPaintedItem
     Q_PROPERTY(bool reverseCompMeter READ reverseCompMeter WRITE setReverseCompMeter NOTIFY reverseCompMeterChanged)
     Q_PROPERTY(bool useGradients READ useGradients WRITE setUseGradients NOTIFY useGradientsChanged)
     Q_PROPERTY(bool drawLabels READ drawLabels WRITE setDrawLabels NOTIFY drawLabelsChanged)
+    Q_PROPERTY(int fontSize READ fontSize WRITE setFontSize NOTIFY fontSizeChanged)
     Q_PROPERTY(QString warningText READ warningText WRITE setWarningText NOTIFY warningTextChanged)
     Q_PROPERTY(QColor scaleTextColor READ scaleTextColor WRITE setScaleTextColor NOTIFY scaleColorsChanged)
     Q_PROPERTY(QColor scaleLineColor READ scaleLineColor WRITE setScaleLineColor NOTIFY scaleColorsChanged)
@@ -71,6 +72,10 @@ public:
     bool drawLabels() const { return m_drawLabels; }
     void setDrawLabels(bool d);
 
+    // Point size for the scale, label and warning text
+    int fontSize() const { return m_fontSize; }
+    void setFontSize(int size);
+
     QString warningText() const { return m_warningText; }
     void setWarningText(const QString &text);
 
@@ -101,6 +106,7 @@ signals:
     void reverseCompMeterChanged();
     void useGradientsChanged();
     void drawLabelsChanged();
+    void fontSizeChanged();
     void warningTextChanged();
     void scaleColorsChanged();
 

@@ -385,6 +385,20 @@ void MeterItem::setDrawLabels(bool d)
     markScaleDirty();
 }
 
+void MeterItem::setFontSize(int size)
+{
+    size = qMax(6, size);
+    if (m_fontSize == size) return;
+    m_fontSize = size;
+
+    // The label column is sized from the font
+    m_mXstart = labelColumnWidth();
+    setImplicitWidth(m_scalePixelWidth + m_mXstart + 15);
+
+    emit fontSizeChanged();
+    markScaleDirty();
+}
+
 void MeterItem::setScaleTextColor(const QColor &color)
 {
     if (!color.isValid() || m_lowTextColor == color)
