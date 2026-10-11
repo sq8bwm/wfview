@@ -16,5 +16,6 @@
         <file>AudioProcessing.qml</file>
         <file>CollapsibleSection.qml</file>
         <file>WheelArea.qml</file>
+        <file>TextEditMenu.qml</file>
     </qresource>
 </RCC>

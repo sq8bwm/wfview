@@ -6,6 +6,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QVariantMap>
+#include <QVersionNumber>
 
 #include "ReceiverController.h"
 #include "RigCreatorController.h"
@@ -39,6 +40,8 @@ class MainController : public QObject {
 
     Q_PROPERTY(CWSenderController* cwSender READ cwSender CONSTANT)
     Q_PROPERTY(SelectRadioController* selectRadio READ selectRadio CONSTANT)
+    // Qt 6.9+ Controls give TextField/TextArea their own right-click edit menu.
+    Q_PROPERTY(bool nativeTextContextMenu READ nativeTextContextMenu CONSTANT)
 
 
 public:
@@ -217,6 +220,7 @@ public:
 
     MemoriesModel* memoriesModel() const { return m_memoriesModel; }
     bool slowLoad() const { return m_slowLoad; }
+    bool nativeTextContextMenu() const { return QVersionNumber::fromString(QString::fromLatin1(qVersion())) >= QVersionNumber(6, 9); }
 
     void setSlowLoad(bool value) {
         if (m_slowLoad != value) {

@@ -252,6 +252,8 @@ ApplicationWindow {
             Layout.preferredWidth: 110
             placeholderText: qsTr("#AARRGGBB")
 
+            TextEditMenu { field: hexField }
+
             // Don't bind text permanently. We update it when cur changes.
             onEditingFinished: {
                 if (!controller) return
@@ -421,6 +423,7 @@ ApplicationWindow {
     }
     // ---- Main Layout ----
     ColumnLayout {
+        id: settingsContent
         anchors.fill: parent
         anchors.margins: window.contentMargin
         spacing: 8
@@ -3497,6 +3500,9 @@ ApplicationWindow {
             Item { width: 20 } // fixed spacer (matches the .ui)
         }
     }
+
+    // Right-click Cut/Copy/Paste for every text field above.
+    TextEditMenu { root: settingsContent }
 
     Dialog {
         id: usbResetConfirm
