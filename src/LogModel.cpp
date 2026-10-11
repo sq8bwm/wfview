@@ -34,11 +34,35 @@ void LogModel::append(const LogEntry& e)
     m_entries.push_back(e);
 
     const int srcIndex = m_entries.size() - 1;
-    if (m_filter.isEmpty() || e.text.contains(m_filter, Qt::CaseInsensitive)) {
+    if (isVisible(e)) {
         beginInsertRows({}, m_visible.size(), m_visible.size());
         m_visible.push_back(srcIndex);
         endInsertRows();
     }
+
+    if (m_entries.size() > kMaxEntries)
+        trimOldest(kTrimChunk);
+}
+
+void LogModel::trimOldest(int count)
+{
+    count = qMin(count, int(m_entries.size()));
+    if (count <= 0) return;
+
+    // Visible indices are ascending, so the rows to drop are at the front.
+    int rows = 0;
+    while (rows < m_visible.size() && m_visible[rows] < count)
+        ++rows;
+
+    if (rows > 0) {
+        beginRemoveRows({}, 0, rows - 1);
+        m_visible.remove(0, rows);
+        endRemoveRows();
+    }
+
+    m_entries.remove(0, count);
+    for (int& i : m_visible)
+        i -= count;
 }
 
 void LogModel::clear()
@@ -64,13 +88,26 @@ void LogModel::setFilter(const QString& f)
     emit filterChanged();
 }
 
+void LogModel::setShowDebug(bool v)
+{
+    if (m_showDebug == v) return;
+    m_showDebug = v;
+    rebuildFilter();
+}
+
+bool LogModel::isVisible(const LogEntry& e) const
+{
+    if (e.type == QtDebugMsg && !m_showDebug)
+        return false;
+    return m_filter.isEmpty() || e.text.contains(m_filter, Qt::CaseInsensitive);
+}
+
 void LogModel::rebuildFilter()
 {
     beginResetModel();
     m_visible.clear();
     for (int i = 0; i < m_entries.size(); ++i) {
-        if (m_filter.isEmpty() ||
-            m_entries[i].text.contains(m_filter, Qt::CaseInsensitive))
+        if (isVisible(m_entries[i]))
             m_visible.push_back(i);
     }
     endResetModel();

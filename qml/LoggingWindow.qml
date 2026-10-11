@@ -435,8 +435,44 @@ ApplicationWindow {
                 Button { text: qsTr("Open Log Directory"); onClicked: Logging.openLogDirectoryRequested() }
                 Button { text: qsTr("Open Log"); onClicked: Logging.openLogFileRequested() }
                 Button { text: qsTr("Copy Path"); onClicked: Logging.copyPathRequested() }
-                Button { text: qsTr("Send to termbin.com"); onClicked: Logging.sendToTermbinRequested() }
+                Button {
+                    text: qsTr("Send to termbin.com")
+                    enabled: !Logging.termbinBusy
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 500
+                    ToolTip.text: qsTr("Uploads the visible log text to termbin.com (unencrypted, publicly readable). Check it for personal information first.")
+                    onClicked: Logging.sendToTermbinRequested()
+                }
             }
+        }
+    }
+
+    Dialog {
+        id: termbinDialog
+        property string url: ""
+        title: qsTr("Log posted")
+        modal: true
+        anchors.centerIn: parent
+        standardButtons: Dialog.Ok
+
+        ColumnLayout {
+            spacing: 8
+            Label { text: qsTr("Your log has been posted, and the URL has been copied to the clipboard.") }
+            TextField {
+                Layout.fillWidth: true
+                text: termbinDialog.url
+                readOnly: true
+                selectByMouse: true
+                font.bold: true
+            }
+        }
+    }
+
+    Connections {
+        target: Logging
+        function onTermbinUrlReceived(url) {
+            termbinDialog.url = url
+            termbinDialog.open()
         }
     }
 

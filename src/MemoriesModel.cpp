@@ -1668,7 +1668,7 @@ int MemoriesModel::findRowByMemoryNumber(int memNum) const
 
 void MemoriesModel::loadNextMemory()
 {
-    qInfo() << "Requesting memory: " << (m_lastMemoryRequested & 0xffff);
+    qDebug() << "Requesting memory: " << (m_lastMemoryRequested & 0xffff);
     if (m_currentGroup == MEMORY_SATGROUP) {
         m_queue->add(priorityImmediate, queueItem(funcSatelliteMemory,
                                                   QVariant::fromValue<ushort>(m_lastMemoryRequested & 0xffff)));

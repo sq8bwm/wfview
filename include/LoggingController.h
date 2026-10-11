@@ -26,6 +26,7 @@ class LoggingController : public QObject
     // Useful for UI enable/disable, status bars etc.
     Q_PROPERTY(QString lastTermbinUrl READ lastTermbinUrl NOTIFY lastTermbinUrlChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
+    Q_PROPERTY(bool termbinBusy READ termbinBusy NOTIFY termbinBusyChanged)
     Q_PROPERTY(bool consoleLoggingEnabled READ consoleLoggingEnabled WRITE setConsoleLoggingEnabled NOTIFY consoleLoggingEnabledChanged)
     Q_PROPERTY(LogModel* model READ model CONSTANT)
 
@@ -56,6 +57,7 @@ public:
 
     QString lastTermbinUrl() const { return m_lastTermbinUrl; }
     QString lastError() const { return m_lastError; }
+    bool termbinBusy() const { return m_termbinBusy; }
 
     int flushIntervalMs() const { return m_flushIntervalMs; }
     void setFlushIntervalMs(int v);
@@ -105,6 +107,8 @@ signals:
 
     void lastTermbinUrlChanged();
     void lastErrorChanged();
+    void termbinBusyChanged();
+    void termbinUrlReceived(const QString &url);
 
     // Let QML do the scroll if you prefer (or connect in C++)
     void requestScrollToBottom();
@@ -117,9 +121,11 @@ private:
     void ensureLogFileOpen_locked();
     void setError(const QString &msg);
     void setTermbinUrl(const QString &url);
+    void setTermbinBusy(bool busy);
 
     QString m_lastTermbinUrl;
     QString m_lastError;
+    bool m_termbinBusy = false;
 
     static void qtMessageHandler(QtMsgType type,
                                  const QMessageLogContext &context,

@@ -1,4 +1,5 @@
 #include "LoggingController.h"
+#include "logcategories.h"
 
 #include <QClipboard>
 #include <QCoreApplication>
@@ -97,6 +98,7 @@ void LoggingController::setDebugEnabled(bool v)
 {
     if (m_debugEnabled == v) return;
     m_debugEnabled = v;
+    m_model.setShowDebug(v);
     emit debugEnabledChanged();
 }
 
@@ -177,46 +179,89 @@ void LoggingController::copyPathRequested()
 
 void LoggingController::sendToTermbinRequested()
 {
-    // termbin.com:9999 is plain TCP. You send text, it replies with a URL.
-    // WARNING: This sends your log content unencrypted over the network.
-    // Your UI tooltip already warns about personal info.
+    // termbin.com:9999 is plain TCP: send the text, the server replies with a URL
+    // and closes the connection. The log is sent unencrypted.
+    if (m_termbinBusy)
+        return;
 
-    setError(QString()); // clear previous
+    setError(QString());
     setTermbinUrl(QString());
 
-    const QString payload = m_logText.isEmpty() ? QString("(empty)") : m_logText;
+    // Snapshot what the window shows now, so lines logged during the send aren't included.
+    QString payload = m_model.allVisibleText();
+    payload += QStringLiteral("\n----------\nSent from wfview version ");
+    payload += QStringLiteral(WFVIEW_VERSION);
+    payload += QStringLiteral("\n----------\n");
+
+    const QString host = QStringLiteral("termbin.com");
+    const quint16 port = 9999;
 
     auto *sock = new QTcpSocket(this);
     sock->setObjectName("termbinSocket");
+    setTermbinBusy(true);
 
-    connect(sock, &QTcpSocket::connected, this, [this, sock, payload]() {
-        QByteArray data = payload.toUtf8();
-        if (!data.endsWith('\n'))
-            data.append('\n');
-        sock->write(data);
-        sock->flush();
-        sock->disconnectFromHost(); // termbin sends URL then closes; but this is fine
+    // Don't leave the button disabled forever if the server never answers.
+    auto *timeout = new QTimer(sock);
+    timeout->setSingleShot(true);
+    connect(timeout, &QTimer::timeout, this, [this, sock]() {
+        qWarning(logLogger()) << "Timed out waiting for termbin.com";
+        setError(QStringLiteral("termbin.com timed out."));
+        sock->abort();
+        sock->deleteLater();
+        setTermbinBusy(false);
+    });
+    timeout->start(30000);
+
+    connect(sock, &QTcpSocket::connected, this, [sock, payload]() {
+        qInfo(logLogger()) << "Connected to logging host";
+        sock->write(payload.toUtf8());
     });
 
     connect(sock, &QTcpSocket::readyRead, this, [this, sock]() {
-        const QByteArray r = sock->readAll();
-        const QString s = QString::fromUtf8(r).trimmed();
-        if (!s.isEmpty()) {
-            // termbin typically returns a single URL line
-            setTermbinUrl(s);
+        const QByteArray data = sock->readAll();
+        if (data.length() >= 256) {
+            qDebug(logLogger()) << "Error, return from logging host too large. Received" << data.length() << "bytes.";
+            return;
         }
+        // termbin terminates its reply with a NUL byte, which renders as a stray glyph.
+        QByteArray reply = data;
+        reply.replace('\0', QByteArray());
+        const QString url = QString::fromUtf8(reply).trimmed();
+        if (url.isEmpty())
+            return;
+
+        if (auto cb = QGuiApplication::clipboard())
+            cb->setText(url);
+        qInfo(logLogger()).noquote() << "Sent log to URL:" << url;
+        qInfo(logLogger()) << "This address already copied to the clipboard. Please paste this URL in to your support questions.";
+        setTermbinUrl(url);
+        emit termbinUrlReceived(url);
     });
 
-    connect(sock, &QTcpSocket::errorOccurred, this, [this, sock](QAbstractSocket::SocketError) {
+    connect(sock, &QTcpSocket::errorOccurred, this, [this, sock](QAbstractSocket::SocketError err) {
+        if (err == QAbstractSocket::RemoteHostClosedError)
+            return; // normal end of a termbin exchange; handled by disconnected()
+        qWarning(logLogger()) << "Error connecting to logging host. Check internet connection. Error:" << sock->errorString();
         setError(QString("termbin.com failed: %1").arg(sock->errorString()));
         sock->deleteLater();
+        setTermbinBusy(false);
     });
 
-    connect(sock, &QTcpSocket::disconnected, this, [sock]() {
+    connect(sock, &QTcpSocket::disconnected, this, [this, sock]() {
+        qInfo(logLogger()) << "Disconnected from logging host";
         sock->deleteLater();
+        setTermbinBusy(false);
     });
 
-    sock->connectToHost("termbin.com", 9999);
+    qInfo(logLogger()).noquote().nospace() << "Sending data to " << host << ":" << port << ", Standby.";
+    sock->connectToHost(host, port);
+}
+
+void LoggingController::setTermbinBusy(bool busy)
+{
+    if (m_termbinBusy == busy) return;
+    m_termbinBusy = busy;
+    emit termbinBusyChanged();
 }
 
 void LoggingController::setError(const QString &msg)
@@ -279,7 +324,7 @@ void LoggingController::flushPendingToModel()
     ensureLogFileOpen_locked();
     for (const auto& e : batch) {
         m_model.append(e);
-        if (m_logFile.isOpen())
+        if (m_logFile.isOpen() && (e.type != QtDebugMsg || m_debugEnabled))
             m_logStream << e.text << '\n';
     }
 
@@ -319,9 +364,8 @@ void LoggingController::qtMessageHandler(QtMsgType type,
     }
 
     // Filters (NO early return without guard now)
-    if (type == QtDebugMsg && !inst->m_debugEnabled)
-        return;
-
+    // Debug messages are always captured; the Debug checkbox only controls
+    // whether they are shown, so enabling it reveals earlier messages too.
     if (type == QtWarningMsg && msg.contains("QPainter::"))
         return;
 

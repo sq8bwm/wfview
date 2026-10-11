@@ -1097,6 +1097,7 @@ int main(int argc, char *argv[])
     auto g_log = std::make_unique<LoggingController>(&a);
     std::cout << "DEBUG: Setting log file path..." << std::endl;
     g_log->setLogFilePath(logFilename);
+    g_log->setDebugEnabled(debugMode);
     std::cout << "DEBUG: Installing Qt message handler..." << std::endl;
     g_log->installQtMessageHandler();
     std::cout << "DEBUG: Logging initialized successfully" << std::endl;
