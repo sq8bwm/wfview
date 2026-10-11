@@ -351,6 +351,30 @@ ApplicationWindow {
         }
     }
 
+    // Label + combo for a stored transmit modulation source (rigInput reg).
+    // The choices come from rigCaps, so it is hidden until a radio is connected.
+    component ModSourcePref: RowLayout {
+        id: modSourcePref
+        property string key: ""
+        property string label: ""
+        property int dataMode: 0
+        property bool active: true
+        readonly property bool supported: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(dataMode)
+        visible: supported
+        spacing: 8
+        Label { text: modSourcePref.label; enabled: modSourcePref.active && window.connStatus === 2 }
+        ComboBox {
+            id: modSourcePrefCombo
+            Accessible.name: modSourcePref.label
+            enabled: modSourcePref.active && window.connStatus === 2
+            textRole: "text"
+            valueRole: "value"
+            model: modSourcePref.supported ? MainController.modSourceOptions(modSourcePref.dataMode) : []
+            currentIndex: count > 0 && controller && controller.options ? indexFromValue(modSourcePrefCombo, controller.options[modSourcePref.key]) : -1
+            onActivated: if (controller) controller.setOption(modSourcePref.key, currentValue)
+        }
+    }
+
     component ProcSlider: RowLayout {
         property string key: ""
         property string label: ""
@@ -1817,75 +1841,162 @@ ApplicationWindow {
                         anchors.fill: parent
                         spacing: 10
 
-                        RowLayout {
-                            spacing: 8
-                            Label {
-                                id: modInputDataOffComboText
-                                text: qsTr("Data Off Modulation Input:")
-                                visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(0)
-                                enabled: window.connStatus === 2
+                        GroupBox {
+                            id: currentModSourceGroup
+                            title: qsTr("Current transmit modulation source")
+                            Layout.fillWidth: true
+
+                            RowLayout {
+                                spacing: 8
+                                Label {
+                                    id: modInputDataOffComboText
+                                    text: qsTr("Data Off Modulation Input:")
+                                    visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(0)
+                                    enabled: window.connStatus === 2
+                                }
+                                ComboBox {
+                                    id: modInputCombo
+                                    Accessible.name: "Modulation Input"
+                                    Accessible.description: "Transmit modulation source"
+                                    visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(0)
+                                    enabled: visible && window.connStatus === 2
+                                    textRole: "text"
+                                    valueRole: "value"
+                                    model: MainController.modSourceRevision >= 0 ? MainController.modSourceOptions(0) : []
+                                    currentIndex: MainController.modSourceRevision >= 0 ? indexFromValue(modInputCombo, MainController.modSourceReg(0)) : -1
+                                    onActivated: MainController.setModSource(0, currentValue)
+                                }
+                                Label {
+                                    id: modInputData1ComboText
+                                    text: qsTr("(Data Mod Inputs) DATA1:")
+                                    visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(1)
+                                    enabled: window.connStatus === 2
+                                }
+                                ComboBox {
+                                    id: modInputData1Combo
+                                    visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(1)
+                                    enabled: visible && window.connStatus === 2
+                                    textRole: "text"
+                                    valueRole: "value"
+                                    model: MainController.modSourceRevision >= 0 ? MainController.modSourceOptions(1) : []
+                                    currentIndex: MainController.modSourceRevision >= 0 ? indexFromValue(modInputData1Combo, MainController.modSourceReg(1)) : -1
+                                    onActivated: MainController.setModSource(1, currentValue)
+                                }
+                                Label {
+                                    id: modInputData2ComboText
+                                    text: qsTr("DATA2:")
+                                    visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(2)
+                                    enabled: window.connStatus === 2
+                                }
+                                ComboBox {
+                                    id: modInputData2Combo
+                                    visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(2)
+                                    enabled: visible && window.connStatus === 2
+                                    textRole: "text"
+                                    valueRole: "value"
+                                    model: MainController.modSourceRevision >= 0 ? MainController.modSourceOptions(2) : []
+                                    currentIndex: MainController.modSourceRevision >= 0 ? indexFromValue(modInputData2Combo, MainController.modSourceReg(2)) : -1
+                                    onActivated: MainController.setModSource(2, currentValue)
+                                }
+                                Label {
+                                    id: modInputData3ComboText
+                                    text: qsTr("DATA3:")
+                                    visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(3)
+                                    enabled: window.connStatus === 2
+                                }
+                                ComboBox {
+                                    id: modInputData3Combo
+                                    visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(3)
+                                    enabled: visible && window.connStatus === 2
+                                    textRole: "text"
+                                    valueRole: "value"
+                                    model: MainController.modSourceRevision >= 0 ? MainController.modSourceOptions(3) : []
+                                    currentIndex: MainController.modSourceRevision >= 0 ? indexFromValue(modInputData3Combo, MainController.modSourceReg(3)) : -1
+                                    onActivated: MainController.setModSource(3, currentValue)
+                                }
+                                Item { Layout.fillWidth: true }
                             }
-                            ComboBox {
-                                id: modInputCombo
-                                Accessible.name: "Modulation Input"
-                                Accessible.description: "Transmit modulation source"
-                                visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(0)
-                                enabled: visible && window.connStatus === 2
-                                textRole: "text"
-                                valueRole: "value"
-                                model: MainController.modSourceRevision >= 0 ? MainController.modSourceOptions(0) : []
-                                currentIndex: MainController.modSourceRevision >= 0 ? indexFromValue(modInputCombo, MainController.modSourceReg(0)) : -1
-                                onActivated: MainController.setModSource(0, currentValue)
+                        }
+
+                        GroupBox {
+                            id: onConnectGroup
+                            title: qsTr("On Connect")
+                            Layout.fillWidth: true
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 6
+
+                                RowLayout {
+                                    spacing: 8
+                                    CheckBox {
+                                        id: connectModSrcChk
+                                        text: qsTr("Set transmit mod input sources on connect")
+                                        checked: optBool("Radio.SetModSrcOnConnect", false)
+                                        onClicked: if (controller) controller.setOption("Radio.SetModSrcOnConnect", checked)
+                                    }
+                                    ModSourcePref {
+                                        label: qsTr("Data Off:")
+                                        key: "Radio.ConnectDataOffModSrc"
+                                        dataMode: 0
+                                        active: connectModSrcChk.checked
+                                    }
+                                    ModSourcePref {
+                                        label: qsTr("Data On:")
+                                        key: "Radio.ConnectDataOnModSrc"
+                                        dataMode: 1
+                                        active: connectModSrcChk.checked
+                                    }
+                                    Label {
+                                        text: qsTr("(connect to a radio to choose sources)")
+                                        visible: window.connStatus !== 2
+                                        opacity: 0.7
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
+
+                                CheckBox {
+                                    id: setRadioTimeChk
+                                    text: qsTr("Set radio time on connect (takes up to a minute)")
+                                    checked: optBool("Radio.SetRadioTime", false)
+                                    onClicked: if (controller) controller.setOption("Radio.SetRadioTime", checked)
+                                }
                             }
-                            Label {
-                                id: modInputData1ComboText
-                                text: qsTr("(Data Mod Inputs) DATA1:")
-                                visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(1)
-                                enabled: window.connStatus === 2
+                        }
+
+                        GroupBox {
+                            id: onDisconnectGroup
+                            title: qsTr("On Disconnect")
+                            Layout.fillWidth: true
+
+                            RowLayout {
+                                anchors.fill: parent
+                                spacing: 8
+                                CheckBox {
+                                    id: disconnectModSrcChk
+                                    text: qsTr("Set transmit mod input sources on disconnect")
+                                    checked: optBool("Radio.SetModSrcOnDisconnect", false)
+                                    onClicked: if (controller) controller.setOption("Radio.SetModSrcOnDisconnect", checked)
+                                }
+                                ModSourcePref {
+                                    label: qsTr("Data Off:")
+                                    key: "Radio.DisconnectDataOffModSrc"
+                                    dataMode: 0
+                                    active: disconnectModSrcChk.checked
+                                }
+                                ModSourcePref {
+                                    label: qsTr("Data On:")
+                                    key: "Radio.DisconnectDataOnModSrc"
+                                    dataMode: 1
+                                    active: disconnectModSrcChk.checked
+                                }
+                                Label {
+                                    text: qsTr("(connect to a radio to choose sources)")
+                                    visible: window.connStatus !== 2
+                                    opacity: 0.7
+                                }
+                                Item { Layout.fillWidth: true }
                             }
-                            ComboBox {
-                                id: modInputData1Combo
-                                visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(1)
-                                enabled: visible && window.connStatus === 2
-                                textRole: "text"
-                                valueRole: "value"
-                                model: MainController.modSourceRevision >= 0 ? MainController.modSourceOptions(1) : []
-                                currentIndex: MainController.modSourceRevision >= 0 ? indexFromValue(modInputData1Combo, MainController.modSourceReg(1)) : -1
-                                onActivated: MainController.setModSource(1, currentValue)
-                            }
-                            Label {
-                                id: modInputData2ComboText
-                                text: qsTr("DATA2:")
-                                visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(2)
-                                enabled: window.connStatus === 2
-                            }
-                            ComboBox {
-                                id: modInputData2Combo
-                                visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(2)
-                                enabled: visible && window.connStatus === 2
-                                textRole: "text"
-                                valueRole: "value"
-                                model: MainController.modSourceRevision >= 0 ? MainController.modSourceOptions(2) : []
-                                currentIndex: MainController.modSourceRevision >= 0 ? indexFromValue(modInputData2Combo, MainController.modSourceReg(2)) : -1
-                                onActivated: MainController.setModSource(2, currentValue)
-                            }
-                            Label {
-                                id: modInputData3ComboText
-                                text: qsTr("DATA3:")
-                                visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(3)
-                                enabled: window.connStatus === 2
-                            }
-                            ComboBox {
-                                id: modInputData3Combo
-                                visible: MainController.modSourceRevision >= 0 && MainController.modSourceSupported(3)
-                                enabled: visible && window.connStatus === 2
-                                textRole: "text"
-                                valueRole: "value"
-                                model: MainController.modSourceRevision >= 0 ? MainController.modSourceOptions(3) : []
-                                currentIndex: MainController.modSourceRevision >= 0 ? indexFromValue(modInputData3Combo, MainController.modSourceReg(3)) : -1
-                                onActivated: MainController.setModSource(3, currentValue)
-                            }
-                            Item { Layout.fillWidth: true }
                         }
 
                         RowLayout {
@@ -1910,12 +2021,6 @@ ApplicationWindow {
                                     if (window.connStatus === 2)
                                         MainController.syncRadioClock()
                                 }
-                            }
-                            CheckBox {
-                                id: setRadioTimeChk
-                                text: qsTr("Set radio time on connect (takes up to a minute)")
-                                checked: optBool("Radio.SetRadioTime", false)
-                                onClicked: if (controller) controller.setOption("Radio.SetRadioTime", checked)
                             }
                             Item { Layout.fillWidth: true }
                             Button {

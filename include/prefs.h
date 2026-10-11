@@ -120,6 +120,8 @@ enum prefRsItem {
     rs_satOps = 1 << 9,
     rs_adjRef = 1 << 10,
     rs_debug = 1 << 11,
+    rs_modSrcOnConnect = 1 << 12,
+    rs_modSrcOnDisconnect = 1 << 13,
     rs_all = ~0
 };
 
@@ -378,6 +380,14 @@ struct preferences {
     bool useUTC = false;
 
     bool setRadioTime = false;
+
+    // Transmit modulation sources (rigInput reg) applied on connect/disconnect
+    bool setModSrcOnConnect = false;
+    int connectDataOffModSrc = 0;
+    int connectDataOnModSrc = 0;
+    bool setModSrcOnDisconnect = false;
+    int disconnectDataOffModSrc = 0;
+    int disconnectDataOnModSrc = 0;
 
     audioSetup rxSetup;
     audioSetup txSetup;

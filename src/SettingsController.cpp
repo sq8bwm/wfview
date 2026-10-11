@@ -1000,6 +1000,12 @@ void SettingsController::load()
 
     prefs.useUTC = settings->value("UseUTC", defPrefs.useUTC).toBool();
     prefs.setRadioTime = settings->value("SetRadioTime", defPrefs.setRadioTime).toBool();
+    prefs.setModSrcOnConnect = settings->value("SetModSrcOnConnect", defPrefs.setModSrcOnConnect).toBool();
+    prefs.connectDataOffModSrc = settings->value("ConnectDataOffModSrc", defPrefs.connectDataOffModSrc).toInt();
+    prefs.connectDataOnModSrc = settings->value("ConnectDataOnModSrc", defPrefs.connectDataOnModSrc).toInt();
+    prefs.setModSrcOnDisconnect = settings->value("SetModSrcOnDisconnect", defPrefs.setModSrcOnDisconnect).toBool();
+    prefs.disconnectDataOffModSrc = settings->value("DisconnectDataOffModSrc", defPrefs.disconnectDataOffModSrc).toInt();
+    prefs.disconnectDataOnModSrc = settings->value("DisconnectDataOnModSrc", defPrefs.disconnectDataOnModSrc).toInt();
 
     prefs.rigCreatorEnable = settings->value("RigCreator",false).toBool();
     prefs.region = settings->value("Region",defPrefs.region).toString();
@@ -1805,6 +1811,12 @@ void SettingsController::save()
 
     settings->setValue("UseUTC",prefs.useUTC);
     settings->setValue("SetRadioTime",prefs.setRadioTime);
+    settings->setValue("SetModSrcOnConnect", prefs.setModSrcOnConnect);
+    settings->setValue("ConnectDataOffModSrc", prefs.connectDataOffModSrc);
+    settings->setValue("ConnectDataOnModSrc", prefs.connectDataOnModSrc);
+    settings->setValue("SetModSrcOnDisconnect", prefs.setModSrcOnDisconnect);
+    settings->setValue("DisconnectDataOffModSrc", prefs.disconnectDataOffModSrc);
+    settings->setValue("DisconnectDataOnModSrc", prefs.disconnectDataOnModSrc);
 
     settings->setValue("RigCreator",prefs.rigCreatorEnable);
     settings->setValue("FrequencyUnits",prefs.frequencyUnits);
@@ -2333,6 +2345,12 @@ void SettingsController::setDefPrefs()
     defPrefs.manufacturer = manufIcom;
     defPrefs.useUTC = false;
     defPrefs.setRadioTime = false;
+    defPrefs.setModSrcOnConnect = false;
+    defPrefs.connectDataOffModSrc = 0;
+    defPrefs.connectDataOnModSrc = 0;
+    defPrefs.setModSrcOnDisconnect = false;
+    defPrefs.disconnectDataOffModSrc = 0;
+    defPrefs.disconnectDataOnModSrc = 0;
     defPrefs.forceVfoMode = true;
     defPrefs.autoPowerOn=true;
 
@@ -3185,6 +3203,24 @@ void SettingsController::buildBindings()
 
     WF_BOOL("Radio.SetRadioTime", prefs.setRadioTime,
             [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_setRadioTime)); });
+
+    WF_BOOL("Radio.SetModSrcOnConnect", prefs.setModSrcOnConnect,
+            [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_modSrcOnConnect)); });
+
+    WF_I32("Radio.ConnectDataOffModSrc", prefs.connectDataOffModSrc,
+           [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_modSrcOnConnect)); });
+
+    WF_I32("Radio.ConnectDataOnModSrc", prefs.connectDataOnModSrc,
+           [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_modSrcOnConnect)); });
+
+    WF_BOOL("Radio.SetModSrcOnDisconnect", prefs.setModSrcOnDisconnect,
+            [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_modSrcOnDisconnect)); });
+
+    WF_I32("Radio.DisconnectDataOffModSrc", prefs.disconnectDataOffModSrc,
+           [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_modSrcOnDisconnect)); });
+
+    WF_I32("Radio.DisconnectDataOnModSrc", prefs.disconnectDataOnModSrc,
+           [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_modSrcOnDisconnect)); });
 
     WF_STR("Radio.SerialPortRadio", prefs.serialPortRadio,
            [this](){ emit raChanged(prefRaItems(prefRaItem::ra_serialPortRadio)); });

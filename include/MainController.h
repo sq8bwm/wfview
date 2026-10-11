@@ -421,6 +421,10 @@ private:
     void setFooterMessageText(const QString& text);
     void setRigModelName(const QString& modelName);
     funcs modSourceCommand(int dataMode) const;
+    const rigInput* findModSourceInput(int dataMode, int reg) const;
+    void applyConnectModSources();
+    bool applyDisconnectModSources();
+    void disconnectRig();
     funcType inputLevelCommand(inputTypes input) const;
     uchar currentDataMode() const;
     void receiveModInput(const rigInput& input, int dataMode);
@@ -604,6 +608,8 @@ private:
     connectionStatus_t connStatus = connDisconnected;
 
     bool shuttingDown = false;
+    bool m_disconnectPending = false;
+    bool m_quitPending = false;
 
     int cmdInterval_ms = 100;
     int cmdStartupInterval_ms = 250;

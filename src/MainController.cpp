@@ -1089,21 +1089,67 @@ bool MainController::modSourceSupported(int dataMode) const
     return rigCaps && func != funcNone && rigCaps->commands.contains(func);
 }
 
-void MainController::setModSource(int dataMode, int reg)
+// Returns the rig input with the given reg if the radio can select it as the
+// source for this data mode, otherwise nullptr. Requires rigCaps.
+const rigInput* MainController::findModSourceInput(int dataMode, int reg) const
 {
-    if (!rigCaps || !m_settings || dataMode < 0 || dataMode > 3)
+    if (!modSourceSupported(dataMode) || (dataMode != 0 && reg < 0))
+        return nullptr;
+
+    for (const auto& input : rigCaps->inputs) {
+        if (int(input.reg) == reg)
+            return &input;
+    }
+    return nullptr;
+}
+
+void MainController::applyConnectModSources()
+{
+    if (!rigCaps || !prefs || !prefs->setModSrcOnConnect)
         return;
 
-    auto it = std::find_if(rigCaps->inputs.cbegin(), rigCaps->inputs.cend(), [reg](const rigInput& input) {
-        return int(input.reg) == reg;
-    });
+    qInfo(logSystem()) << "Setting transmit modulation sources on connect, data off:"
+                       << prefs->connectDataOffModSrc << "data on:" << prefs->connectDataOnModSrc;
+    setModSource(0, prefs->connectDataOffModSrc);
+    setModSource(1, prefs->connectDataOnModSrc);
+}
 
-    if (it == rigCaps->inputs.cend())
+// Queues the on-disconnect modulation sources ahead of everything else.
+// Returns true if anything was queued; the caller then delays the actual
+// disconnect so the commands reach the radio.
+bool MainController::applyDisconnectModSources()
+{
+    if (!rigCaps || !prefs || !queue || !rig || !prefs->setModSrcOnDisconnect ||
+        connStatus != connectionStatus_t::connConnected)
+        return false;
+
+    const int regs[2] = { prefs->disconnectDataOffModSrc, prefs->disconnectDataOnModSrc };
+    bool queued = false;
+    for (int dataMode = 0; dataMode < 2; ++dataMode) {
+        const rigInput* input = findModSourceInput(dataMode, regs[dataMode]);
+        if (input == nullptr)
+            continue;
+        queue->add(priorityImmediate, queueItem(modSourceCommand(dataMode), QVariant::fromValue<rigInput>(*input),
+                                                false, currentReceiver));
+        queued = true;
+    }
+
+    if (queued)
+        qInfo(logSystem()) << "Setting transmit modulation sources on disconnect, data off:"
+                           << regs[0] << "data on:" << regs[1];
+    return queued;
+}
+
+void MainController::setModSource(int dataMode, int reg)
+{
+    if (!m_settings)
+        return;
+
+    const rigInput* it = findModSourceInput(dataMode, reg);
+    if (it == nullptr)
         return;
 
     const funcs sourceFunc = modSourceCommand(dataMode);
-    if (sourceFunc == funcNone || !rigCaps->commands.contains(sourceFunc))
-        return;
 
     auto* pref = m_settings->getPrefs();
     pref->inputSource[dataMode] = *it;
@@ -2560,6 +2606,19 @@ void MainController::shutdown()
 
 void MainController::quitApplication()
 {
+    if (m_quitPending)
+        return;
+
+    // Give on-disconnect commands time to reach the radio before shutting down.
+    if (!shuttingDown && applyDisconnectModSources()) {
+        m_quitPending = true;
+        QTimer::singleShot(250, this, [this]() {
+            shutdown();
+            QCoreApplication::quit();
+        });
+        return;
+    }
+
     shutdown();
     QCoreApplication::quit();
 }
@@ -3194,49 +3253,70 @@ void MainController::connectionHandler()
     {
         openRigConnection();
     } else {
-        // disconnect and delete
-        resetTxAudioOwnership();
-        stopUsbAudioBridge();
+        if (m_disconnectPending && !shuttingDown)
+            return;
 
-        // Might as well empty both queue and cache, as both are now invalid.
-        queue->clear();
-        queue->clearCache();
-        for (auto *r : std::as_const(receivers)) {
-            if (r) r->deleteLater();
-        }
-        receivers.clear();
-        detached.clear();
-        currentReceiver = 0;
-        emit receiverCountChanged();
-        emit detachedChanged();
-
-        if (rig) {
-            QMetaObject::invokeMethod(rig, &rigCommander::closeComm,
-                                      rig->thread() == QThread::currentThread()
-                                          ? Qt::DirectConnection
-                                          : Qt::BlockingQueuedConnection);
-        }
-        if (rigThread) {
-            rigThread->quit();
-            rigThread->wait();
-        }
-        rig = nullptr;
-        rigThread = nullptr;
-        if (m_memoriesModel) {
-            m_memoriesModel->deleteLater();
-            m_memoriesModel = nullptr;
-            emit memoriesModelChanged();
+        // Give on-disconnect commands time to reach the radio before closing.
+        if (!shuttingDown && applyDisconnectModSources()) {
+            m_disconnectPending = true;
+            QTimer::singleShot(250, this, [this]() {
+                m_disconnectPending = false;
+                if (connStatus == connectionStatus_t::connDisconnected)
+                    return;
+                disconnectRig();
+                emit connStatusChanged();
+            });
+            return;
         }
 
-        queue->interval(-1); // Disable queue
-        setFooterMessageText(QString());
-        setRadioStatusText(QString());
-        setRigModelName(QString());
-        connStatus = connectionStatus_t::connDisconnected;
-        updateAudioRouteState();
+        disconnectRig();
     }
 
     emit connStatusChanged();
+}
+
+void MainController::disconnectRig()
+{
+    // disconnect and delete
+    resetTxAudioOwnership();
+    stopUsbAudioBridge();
+
+    // Might as well empty both queue and cache, as both are now invalid.
+    queue->clear();
+    queue->clearCache();
+    for (auto *r : std::as_const(receivers)) {
+        if (r) r->deleteLater();
+    }
+    receivers.clear();
+    detached.clear();
+    currentReceiver = 0;
+    emit receiverCountChanged();
+    emit detachedChanged();
+
+    if (rig) {
+        QMetaObject::invokeMethod(rig, &rigCommander::closeComm,
+                                  rig->thread() == QThread::currentThread()
+                                      ? Qt::DirectConnection
+                                      : Qt::BlockingQueuedConnection);
+    }
+    if (rigThread) {
+        rigThread->quit();
+        rigThread->wait();
+    }
+    rig = nullptr;
+    rigThread = nullptr;
+    if (m_memoriesModel) {
+        m_memoriesModel->deleteLater();
+        m_memoriesModel = nullptr;
+        emit memoriesModelChanged();
+    }
+
+    queue->interval(-1); // Disable queue
+    setFooterMessageText(QString());
+    setRadioStatusText(QString());
+    setRigModelName(QString());
+    connStatus = connectionStatus_t::connDisconnected;
+    updateAudioRouteState();
 }
 
 void MainController::openRigConnection()
@@ -3696,6 +3776,8 @@ void MainController::getInitialRigState()
 
     if (rigCaps->commands.contains(funcTime) && prefs->setRadioTime)
         prepareRadioClockSync();
+
+    applyConnectModSources();
 
     /*
     if (cw != nullptr)
