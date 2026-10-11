@@ -285,6 +285,36 @@ QList<QByteArray> takeCompleteTerminatedCommands(QByteArray &buffer, const QByte
     return commands;
 }
 
+// The AC (tuner) command is P1 P2 P3: P1 is the RX ATU, P2 the TX ATU and P3
+// tuning, mapped to tunerOff (TX ATU off), tunerOn (on, not tuning) and
+// tunerTuning. The rig file's Bytes gives the number of digits; P2 and P3 are
+// always the last two.
+bool tunerValueFromDigits(const QByteArray &digits, uchar *value)
+{
+    if (digits.size() < 2)
+        return false;
+    for (const char c : digits) {
+        if (c < '0' || c > '9')
+            return false;
+    }
+
+    if (digits.at(digits.size() - 1) != '0')
+        *value = tunerTuning;
+    else
+        *value = (digits.at(digits.size() - 2) != '0') ? tunerOn : tunerOff;
+    return true;
+}
+
+QByteArray tunerDigitsFromValue(uchar value, int width)
+{
+    // The radio ignores P1 when setting and the manuals say to send 1; the
+    // RX ATU is set with the EX menu instead.
+    QByteArray digits(width, '1');
+    digits[width - 2] = (value != tunerOff) ? '1' : '0';
+    digits[width - 1] = (value == tunerTuning) ? '1' : '0';
+    return digits;
+}
+
 QByteArray joinTerminatedCommands(const QList<QByteArray> &commands)
 {
     QByteArray data;
@@ -492,23 +522,10 @@ bool kenwoodCommander::queueParsedExternalCommand(funcs func, const funcType &ty
         break;
     case funcTunerStatus:
     {
-        const ushort tuner = d.mid(0, type.bytes).toUShort(&ok);
-        if (ok) {
-            switch (tuner) {
-            case 100:
-                value.setValue<uchar>(0);
-                break;
-            case 110:
-                value.setValue<uchar>(1);
-                break;
-            case 111:
-                value.setValue<uchar>(2);
-                break;
-            default:
-                ok = false;
-                break;
-            }
-        }
+        uchar tuner = 0;
+        ok = tunerValueFromDigits(d.mid(0, type.bytes), &tuner);
+        if (ok)
+            value = QVariant::fromValue<uchar>(tuner);
         break;
     }
     default:
@@ -939,21 +956,12 @@ void kenwoodCommander::parseData(QByteArray data)
         // These are numbers, as they might contain other info, only extract type.bytes len of data.
         case funcTunerStatus:
         {
-            uchar s = d.mid(0, type.bytes).toUShort();
-            switch(s)  {
-            case 0:
-                // 000: not enabled
-                value.setValue<uchar>(0);
-                break;
-            case 10:
-                // 010: tuned and enabled
-                value.setValue<uchar>(1);
-                break;
-            case 11:
-                // 011: tuning, we think
-                value.setValue<uchar>(2);
-                break;
-            }
+            uchar tuner = 0;
+            if (tunerValueFromDigits(d.mid(0, type.bytes), &tuner))
+                value = QVariant::fromValue<uchar>(tuner);
+            else
+                qWarning(logRig()) << "Cannot decode tuner status" << cmdFull
+                                   << "- check Bytes for Tuner/ATU Status in the rig file";
             break;
         }
         case funcAGCTimeConstant:
@@ -1567,22 +1575,13 @@ void kenwoodCommander::receiveCommand(funcs func, QVariant value, uchar receiver
                     // We have logged-in so start audio
                 }
                 if(func==funcTunerStatus) {
-                    switch(value.value<uchar>()) {
-                    case 0:
-                        // Turn it off
-                        payload.append(QString::number(100).rightJustified(3, QChar('0')).toLatin1());
-                        break;
-                    case 1:
-                        // Turn it on
-                        payload.append(QString::number(110).rightJustified(3, QChar('0')).toLatin1());
-                        break;
-                    case 2:
-                        // Run the tuning cycle
-                        payload.append(QString::number(111).rightJustified(3, QChar('0')).toLatin1());
-                        break;
-                    default:
-                        break;
+                    const uchar tuner = value.value<uchar>();
+                    if (cmd.bytes < 2 || tuner > cmd.maxVal) {
+                        qWarning(logRig()) << "Not sending tuner value" << tuner << "- the rig file allows up to"
+                                           << cmd.maxVal << "with" << cmd.bytes << "digits";
+                        return;
                     }
+                    payload.append(tunerDigitsFromValue(tuner, cmd.bytes));
                 } else if ( (func==funcALCMeter) || (func==funcSWRMeter) ||
                             (func==funcCompMeter) || (func==funcIdMeter) || (func==funcVdMeter) ) {
                     // The cmd.bytes is set to four for receiving these values, but when sending values, exactly one byte is required.

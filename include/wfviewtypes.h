@@ -148,6 +148,9 @@ enum rptAccessTxRx_t {
 
 enum pttType_t { pttCIV, pttRTS, pttDTR };
 
+// The value of funcTunerStatus, the same for every manufacturer.
+enum tunerStatus_t { tunerOff = 0, tunerOn = 1, tunerTuning = 2 };
+
 enum vfoModeType_t { vfoModeVfo, vfoModeMem, vfoModeSat };
 
 enum manufacturersType_t {manufIcom=0, manufKenwood, manufYaesu, manufFlexRadio};
