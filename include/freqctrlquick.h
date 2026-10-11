@@ -39,6 +39,9 @@ enum FctlUnit {
 #define FCTL_MAX_DIGITS 12
 #define FCTL_MIN_DIGITS 4
 
+// Built-in font used when no font is set, or the chosen font is unavailable
+#define FCTL_DEFAULT_FONT "LCD Raster"
+
 class FreqCtrlQuick : public QQuickPaintedItem
 {
     Q_OBJECT
@@ -56,6 +59,7 @@ class FreqCtrlQuick : public QQuickPaintedItem
     Q_PROPERTY(QColor unitsColor READ getUnitsColor WRITE setUnitsColor NOTIFY colorsChanged)
     Q_PROPERTY(QColor highlightColor READ getHighlightColor WRITE setHighlightColor NOTIFY colorsChanged)
     Q_PROPERTY(QColor inactiveColor READ getInactiveColor WRITE setInactiveColor NOTIFY colorsChanged)
+    Q_PROPERTY(QString fontName READ getFontName WRITE setFontName NOTIFY fontNameChanged)
 
     Q_PROPERTY(int freqDigits READ getFreqDigits WRITE setFreqDigits NOTIFY freqDigitsChanged)
     Q_PROPERTY(qint64 freqMinStep READ getFreqMinStep WRITE setFreqMinStep NOTIFY freqMinStepChanged)
@@ -131,6 +135,12 @@ public:
     void setHighlightColor(const QColor &col);
     void setInactiveColor(const QColor &col);
 
+    // Font is either a built-in short name (see builtinFontNames()) or a system font family
+    QString getFontName() const { return m_FontName; }
+    void setFontName(const QString &name);
+    static QStringList builtinFontNames();
+    static QString resolveFontFamily(const QString &name);
+
     // group and decimal separators (e.g. ',' and '.')
     Q_INVOKABLE void setSeparators(QChar group, QChar decimal)
     {
@@ -172,6 +182,7 @@ signals:
     void dsepChanged();
     void gsepChanged();
     void freqMinStepChanged();
+    void fontNameChanged();
 
 public slots:
     void setFrequency(qint64 freq);
@@ -275,6 +286,7 @@ private:
     QRect       m_SepRect[FCTL_MAX_DIGITS]; // separation rectangles
 
     QString     m_UnitString;
+    QString     m_FontName;
     QString     m_DirectEntryText;
 
     QFont       m_DigitFont;

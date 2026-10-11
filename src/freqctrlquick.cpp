@@ -33,6 +33,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include <QDebug>
+#include <QHash>
 #include <QLocale>
 #include <cmath>
 #include "freqctrlquick.h"
@@ -45,6 +46,20 @@
 // adjustment for separation between digits
 #define SEPRATIO_N 100         // separation rectangle size ratio numerator times 100
 #define SEPRATIO_D 3           // separation rectangle size ratio denominator
+
+// Fonts bundled in resources/fonts, listed by the short name shown in settings
+struct FctlBuiltinFont {
+    const char *name;
+    const char *path;
+};
+
+static const FctlBuiltinFont fctlBuiltinFonts[] = {
+    { "Smooth",       ":/resources/fonts/frequency.ttf" },
+    { "VFD",          ":/resources/fonts/EnsoniqVFD.otf" },
+    { "LCD Segments", ":/resources/fonts/LCD14.otf" },
+    { "LCD Raster",   ":/resources/fonts/MatrixMonoRaster-Regular.otf" },
+    { "LCD Screen",   ":/resources/fonts/MatrixMonoScreen-Regular.otf" },
+};
 
 #define STATUS_TIP \
 "Scroll or left-click to increase/decrease digit. " \
@@ -79,16 +94,86 @@ FreqCtrlQuick::FreqCtrlQuick()
     m_ActiveEditDigit = -1;
     m_ResetLowerDigits = false;
     m_InvertScrolling = false;
-    const int fontid = QFontDatabase::addApplicationFont(":/resources/frequency.ttf");
-    const QStringList fontFamilies = QFontDatabase::applicationFontFamilies(fontid);
-    const QString font = fontFamilies.isEmpty() ? QStringLiteral("monospace") : fontFamilies.at(0);
 
+    m_FontName = QStringLiteral(FCTL_DEFAULT_FONT);
+    const QString font = resolveFontFamily(m_FontName);
     m_UnitsFont  = QFont(font,12,QFont::Normal);
     m_DigitFont  = QFont(font,12,QFont::Normal);
     //m_UnitsFont = QFont("Arial", 12, QFont::Normal);
     //m_DigitFont = QFont("Arial", 12, QFont::Normal);
 
     //setStatusTip(tr(STATUS_TIP));
+}
+
+QStringList FreqCtrlQuick::builtinFontNames()
+{
+    QStringList names;
+    for (const auto &f : fctlBuiltinFonts)
+        names.append(QString::fromLatin1(f.name));
+    return names;
+}
+
+// Load a bundled font on first use and return its family, or an empty string
+static QString builtinFontFamily(const QString &name)
+{
+    static QHash<QString, QString> loaded;
+
+    const auto it = loaded.constFind(name);
+    if (it != loaded.constEnd())
+        return it.value();
+
+    QString family;
+    for (const auto &f : fctlBuiltinFonts) {
+        if (name.compare(QLatin1String(f.name), Qt::CaseInsensitive) != 0)
+            continue;
+        const int fontid = QFontDatabase::addApplicationFont(QString::fromLatin1(f.path));
+        const QStringList families = QFontDatabase::applicationFontFamilies(fontid);
+        if (families.isEmpty())
+            qWarning(logGui()) << "Could not load frequency display font" << f.path;
+        else
+            family = families.at(0);
+        loaded.insert(name, family);
+        break;
+    }
+    return family;
+}
+
+QString FreqCtrlQuick::resolveFontFamily(const QString &name)
+{
+    const QString trimmed = name.trimmed();
+
+    if (!trimmed.isEmpty()) {
+        const QString builtin = builtinFontFamily(trimmed);
+        if (!builtin.isEmpty())
+            return builtin;
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        const QStringList families = QFontDatabase::families();
+#else
+        const QStringList families = QFontDatabase().families();
+#endif
+        if (families.contains(trimmed, Qt::CaseInsensitive))
+            return trimmed;
+
+        qWarning(logGui()) << "Frequency display font" << trimmed
+                           << "not found, using" << FCTL_DEFAULT_FONT;
+    }
+
+    const QString fallback = builtinFontFamily(QStringLiteral(FCTL_DEFAULT_FONT));
+    return fallback.isEmpty() ? QStringLiteral("monospace") : fallback;
+}
+
+void FreqCtrlQuick::setFontName(const QString &name)
+{
+    if (name == m_FontName)
+        return;
+
+    m_FontName = name;
+    const QString family = resolveFontFamily(name);
+    m_DigitFont.setFamily(family);
+    m_UnitsFont.setFamily(family);
+    updateCtrl(true);
+    emit fontNameChanged();
 }
 
 FreqCtrlQuick::~FreqCtrlQuick()

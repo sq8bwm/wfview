@@ -17,6 +17,10 @@
         <file>mirabox293s.png</file>
         <file>miraboxn3.png</file>
         <file>ajazzakp03.png</file>
-        <file>frequency.ttf</file>
+        <file>fonts/frequency.ttf</file>
+	<file>fonts/EnsoniqVFD.otf</file>
+	<file>fonts/LCD14.otf</file>
+	<file>fonts/MatrixMonoRaster-Regular.otf</file>
+	<file>fonts/MatrixMonoScreen-Regular.otf</file>
     </qresource>
 </RCC>

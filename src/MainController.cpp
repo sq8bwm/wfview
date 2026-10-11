@@ -4930,6 +4930,7 @@ void MainController::setDefPrefs()
     defprefs->sMeterOnTop = false;
     defprefs->largeFreqDisplay = false;
     defprefs->largeOptionalMeters = false;
+    defprefs->freqFont = QStringLiteral(FCTL_DEFAULT_FONT);
     defprefs->manufacturer = manufIcom;
     defprefs->useUTC = false;
     defprefs->setRadioTime = false;
@@ -5218,6 +5219,7 @@ void MainController::loadSettings(QString settingsFile)
     prefs->sMeterOnTop = settings->value("SMeterOnTop",defprefs->sMeterOnTop).toBool();
     prefs->largeFreqDisplay = settings->value("LargeFreqDisplay",defprefs->largeFreqDisplay).toBool();
     prefs->largeOptionalMeters = settings->value("LargeOptionalMeters",defprefs->largeOptionalMeters).toBool();
+    prefs->freqFont = settings->value("FreqFont",defprefs->freqFont).toString();
 
     //ui->rigCreatorBtn->setEnabled(prefs->rigCreatorEnable);
 

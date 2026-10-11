@@ -321,6 +321,7 @@ struct preferences {
     bool sMeterOnTop = false;
     bool largeFreqDisplay = false; // 50% larger frequency digits and S/power meter
     bool largeOptionalMeters = false; // 50% larger additional meters
+    QString freqFont; // frequency display font: built-in short name or system family
 
     // Radio:
     manufacturersType_t manufacturer;

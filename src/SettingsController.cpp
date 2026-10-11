@@ -1016,6 +1016,7 @@ void SettingsController::load()
     prefs.sMeterOnTop = settings->value("SMeterOnTop",defPrefs.sMeterOnTop).toBool();
     prefs.largeFreqDisplay = settings->value("LargeFreqDisplay",defPrefs.largeFreqDisplay).toBool();
     prefs.largeOptionalMeters = settings->value("LargeOptionalMeters",defPrefs.largeOptionalMeters).toBool();
+    prefs.freqFont = settings->value("FreqFont",defPrefs.freqFont).toString();
 
     //ui->rigCreatorBtn->setEnabled(prefs.rigCreatorEnable);
 
@@ -1833,6 +1834,7 @@ void SettingsController::save()
     settings->setValue("SMeterOnTop",prefs.sMeterOnTop);
     settings->setValue("LargeFreqDisplay",prefs.largeFreqDisplay);
     settings->setValue("LargeOptionalMeters",prefs.largeOptionalMeters);
+    settings->setValue("FreqFont",prefs.freqFont);
     settings->setValue("GroupSeparator",prefs.groupSeparator);
     settings->setValue("DecimalSeparator",prefs.decimalSeparator);
     settings->setValue("ForceVfoMode",prefs.forceVfoMode);
@@ -2355,6 +2357,7 @@ void SettingsController::setDefPrefs()
     defPrefs.sMeterOnTop = false;
     defPrefs.largeFreqDisplay = false;
     defPrefs.largeOptionalMeters = false;
+    defPrefs.freqFont = QStringLiteral(FCTL_DEFAULT_FONT);
     defPrefs.manufacturer = manufIcom;
     defPrefs.useUTC = false;
     defPrefs.setRadioTime = false;
@@ -3395,6 +3398,7 @@ void SettingsController::buildBindings()
     WF_BOOL("Interface.SMeterOnTop", prefs.sMeterOnTop, [](){});
     WF_BOOL("Interface.LargeFreqDisplay", prefs.largeFreqDisplay, [](){});
     WF_BOOL("Interface.LargeOptionalMeters", prefs.largeOptionalMeters, [](){});
+    WF_STR("Interface.FreqFont", prefs.freqFont, [](){});
 
     WF_ENUM_I32("Interface.Meter2Type", prefs.meter2Type, meter_t,
                 [this](){ emit ifChanged(prefIfItems(prefIfItem::if_meter2Type)); });

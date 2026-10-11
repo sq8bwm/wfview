@@ -465,6 +465,7 @@ Control {
                                 unitsColor: MainController.settings ? MainController.settings.options["Color.FreqUnits"] : "gray"
                                 inactiveColor: MainController.settings ? MainController.settings.options["Color.FreqInactive"] : "#434343"
                                 highlightColor: MainController.settings ? MainController.settings.options["Color.FreqHighlight"] : "#5a5a5a"
+                                fontName: MainController.settings ? MainController.settings.options["Interface.FreqFont"] : ""
                                 resetLowerDigits: controller ? controller.tuningFloorZeros : false
                                 tuningStep: MainController ? MainController.stepSize : 0
 
@@ -591,6 +592,7 @@ Control {
                                 unitsColor: MainController.settings ? MainController.settings.options["Color.FreqUnits"] : "gray"
                                 inactiveColor: MainController.settings ? MainController.settings.options["Color.FreqInactive"] : "#434343"
                                 highlightColor: MainController.settings ? MainController.settings.options["Color.FreqHighlight"] : "#5a5a5a"
+                                fontName: MainController.settings ? MainController.settings.options["Interface.FreqFont"] : ""
                                 resetLowerDigits: controller ? controller.tuningFloorZeros : false
                                 tuningStep: MainController ? MainController.stepSize : 0
 

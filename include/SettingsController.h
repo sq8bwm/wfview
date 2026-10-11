@@ -665,6 +665,7 @@ public:
     // Generic key/value API (still useful for C++ and QML writes)
     Q_INVOKABLE QVariant option(const QString& key) const;
     Q_INVOKABLE void setOption(const QString& key, const QVariant& value);
+    Q_INVOKABLE QStringList freqFontNames() const { return FreqCtrlQuick::builtinFontNames(); }
     Q_INVOKABLE bool selectClusterRow(int row);
 
     QVariantMap getUiSpecs() const { return uiSpecs; }

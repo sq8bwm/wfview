@@ -27,7 +27,8 @@ Item {
         let dedication = "<br/><br/><b>This version of wfview is dedicated to the natural pursuit of freedom by people everywhere.</b> " +
                         "<br/><br/>Special thanks to Tony Collen, N0RUA/AE0KW (SK), for his work on open890, which was the inspiration for our support of the Kenwood TS-890. " +
                         "<br/><br/>Special thanks to our translators:<br/>Siwij Cat TA1YEP (Turkish)<br/>OK2HAM (Czech)<br/>JG3HLX (Japanese)<br/>Dawid SQ6EMM (Polish)<br/>Jim PA8E (Dutch)";
-        
+	let fontCredit = "<br/><br/>wfview includes the following open-source fonts:<br/>\"VFD\" is EnsoniqVFD.otf from EPSWave, contributed by  Mike Jennings (@tymcode on github)<br/>\"LCD Segments\" is LCD14.otf by Fredrick Brennan (@ctrlcctrlv on github)<br/>\"LCD Raster\" and \"LCD Screen\" are from Brad Neil (@FriedOrange on github)"
+
         let ssCredit = "<br/><br/>Stylesheet <a href=\"https://github.com/ColinDuquesnoy/QDarkStyleSheet/tree/master/qdarkstyle\"  style=\"color: cyan;\">qdarkstyle</a> used under MIT license.";
         
         let website = "<br/><br/>Please visit <a href=\"https://wfview.org/\"  style=\"color: cyan;\">https://wfview.org/</a> for the latest information.";
@@ -136,7 +137,7 @@ Item {
         let end = "</body></html>";
         
         // String it all together
-        let aboutText = head + copyright + "\n" + "\n" + scm + "\n" + doctest + dedication + wfviewcommunityack;
+        let aboutText = head + copyright + "\n" + "\n" + scm + "\n" + doctest + dedication + fontCredit + wfviewcommunityack;
         aboutText += website + "\n" + donate + "\n" + docs + support + "\n";
         aboutText += "\n" + ssCredit + "\n" + rsCredit + "\n";
         aboutText += rtaudiocredit;

@@ -1526,6 +1526,49 @@ ApplicationWindow {
                                 }
                                 RowLayout {
                                     spacing: 8
+                                    Label { text: qsTr("Font") }
+                                    ComboBox {
+                                        id: freqFontCombo
+                                        Layout.preferredWidth: 200
+
+                                        readonly property string customEntry: qsTr("Custom...")
+                                        readonly property string curFont: (controller && controller.options && controller.options["Interface.FreqFont"] !== undefined)
+                                                                          ? String(controller.options["Interface.FreqFont"])
+                                                                          : ""
+                                        readonly property var builtinFonts: controller ? controller.freqFontNames() : []
+
+                                        // Built-in fonts, then the current custom font (if any), then "Custom..."
+                                        model: {
+                                            var m = builtinFonts.slice()
+                                            if (curFont.length > 0 && m.indexOf(curFont) < 0)
+                                                m.push(curFont)
+                                            m.push(customEntry)
+                                            return m
+                                        }
+                                        currentIndex: model.indexOf(curFont)
+
+                                        onActivated: function(index) {
+                                            if (index === model.length - 1)
+                                                freqFontDialog.open()
+                                            else if (controller)
+                                                controller.setOption("Interface.FreqFont", model[index])
+                                            // Re-sync with the stored setting (the dialog may be cancelled)
+                                            currentIndex = Qt.binding(function() { return freqFontCombo.model.indexOf(freqFontCombo.curFont) })
+                                        }
+
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Font used for the frequency display. Choose Custom... to pick any installed font.")
+                                    }
+                                    Item { Layout.fillWidth: true }
+
+                                    FontDialog {
+                                        id: freqFontDialog
+                                        title: qsTr("Select frequency display font")
+                                        onAccepted: if (controller) controller.setOption("Interface.FreqFont", selectedFont.family)
+                                    }
+                                }
+                                RowLayout {
+                                    spacing: 8
                                     Label { text: qsTr("Region:") }
                                     TextField {
                                         id: regionTxt
