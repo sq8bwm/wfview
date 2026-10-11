@@ -1608,7 +1608,8 @@ void SettingsController::load()
             USBDEVICE tempPrefs;
             tempPrefs.path = settings->value("Path", "").toString();
             tempPrefs.disabled = settings->value("Disabled", false).toBool();
-            tempPrefs.sensitivity = settings->value("Sensitivity", 1).toInt();
+            tempPrefs.sensitivity = qMax(1, settings->value("Sensitivity", 1).toInt());
+            tempPrefs.ringAccel = qBound(1, settings->value("RingAccel", 3).toInt(), maxRingAccel);
             tempPrefs.pages = settings->value("Pages", 1).toInt();
             tempPrefs.brightness = (quint8)settings->value("Brightness", 2).toInt();
             tempPrefs.orientation = (quint8)settings->value("Orientation", 2).toInt();
@@ -2173,6 +2174,7 @@ void SettingsController::save()
         settings->setValue("Path", dev->path);
         settings->setValue("Disabled", dev->disabled);
         settings->setValue("Sensitivity", dev->sensitivity);
+        settings->setValue("RingAccel", dev->ringAccel);
         settings->setValue("Brightness", dev->brightness);
         settings->setValue("Orientation", dev->orientation);
         settings->setValue("Speed", dev->speed);

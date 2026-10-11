@@ -6,6 +6,7 @@
 #endif
 
 #include <QDebug>
+#include <cmath>
 
 #include "logcategories.h"
 
@@ -23,13 +24,14 @@ usbController::usbController()
     loadKnobs();
 
     // This is a the "master" list of supported devices. Maybe move to settings at some point?
-    // usbDeviceType, manufacturer, product, usage, usagePage, buttons, columns, knobs, leds, maxPayload, iconSize
-    knownDevices.append(USBTYPE(shuttleXpress,0x0b33,0x0020,0x0000,0x0000,15,0,2,0,5,0));
-    knownDevices.append(USBTYPE(shuttlePro2,0x0b33,0x0030,0x0000,0x0000,15,0,2,0,5,0));
-    knownDevices.append(USBTYPE(shuttlePro2,0x0b33,0x0011,0x0000,0x0000,15,0,2,0,5,0)); // Actually a ShuttlePro but hopefully will work?
-    knownDevices.append(USBTYPE(RC28,0x0c26,0x001e,0x0000,0x0000,3,0,1,3,64,0));
-    knownDevices.append(USBTYPE(eCoderPlus, 0x1fc9, 0x0003,0x0000,0x0000,22,0,4,0,32,0)); // Actually 20 but some bit0 and bit15 aren't used
-    knownDevices.append(USBTYPE(QuickKeys, 0x28bd, 0x5202,0x0001,0xff0a,10,0,1,0,32,0));
+    // usbDeviceType, manufacturer, product, usage, usagePage, buttons, columns, knobs, leds, maxPayload, iconSize, maxKnobRate
+    // maxKnobRate is the approximate max knob counts per 100ms when spun quickly (guessed values, refine when measured).
+    knownDevices.append(USBTYPE(shuttleXpress,0x0b33,0x0020,0x0000,0x0000,15,0,2,0,5,0,4));
+    knownDevices.append(USBTYPE(shuttlePro2,0x0b33,0x0030,0x0000,0x0000,15,0,2,0,5,0,4));
+    knownDevices.append(USBTYPE(shuttlePro2,0x0b33,0x0011,0x0000,0x0000,15,0,2,0,5,0,4)); // Actually a ShuttlePro but hopefully will work?
+    knownDevices.append(USBTYPE(RC28,0x0c26,0x001e,0x0000,0x0000,3,0,1,3,64,0,50));
+    knownDevices.append(USBTYPE(eCoderPlus, 0x1fc9, 0x0003,0x0000,0x0000,22,0,4,0,32,0,25)); // Actually 20 but some bit0 and bit15 aren't used
+    knownDevices.append(USBTYPE(QuickKeys, 0x28bd, 0x5202,0x0001,0xff0a,10,0,1,0,32,0,6));
     knownDevices.append(USBTYPE(StreamDeckMini, 0x0fd9, 0x0063, 0x0000, 0x0000,6,0,0,0,1024,80));
     knownDevices.append(USBTYPE(StreamDeckMiniV2, 0x0fd9, 0x0090, 0x0000, 0x0000,6,0,0,0,1024,80));
     knownDevices.append(USBTYPE(StreamDeckOriginal, 0x0fd9, 0x0060, 0x0000, 0x0000,15,5,0,0,8191,72));
@@ -38,12 +40,12 @@ usbController::usbController()
     knownDevices.append(USBTYPE(StreamDeckXL, 0x0fd9, 0x006c, 0x0000, 0x0000,32,8,0,0,1024,96));
     knownDevices.append(USBTYPE(StreamDeckXLV2, 0x0fd9, 0x008f, 0x0000, 0x0000,32,8,0,0,1024,96));
     knownDevices.append(USBTYPE(StreamDeckPedal, 0x0fd9, 0x0086, 0x0000, 0x0000,3,0,0,0,1024,0));
-    knownDevices.append(USBTYPE(StreamDeckPlus, 0x0fd9, 0x0084, 0x0000, 0x0000,12,0,4,0,1024,120));
+    knownDevices.append(USBTYPE(StreamDeckPlus, 0x0fd9, 0x0084, 0x0000, 0x0000,12,0,4,0,1024,120,10));
     knownDevices.append(USBTYPE(XKeysXK3, 0x05f3, 0x04c5, 0x0001, 0x000c,3,0,0,2,32,0)); // So-called "splat" interface?
     knownDevices.append(USBTYPE(MiraBox293, 0x5500, 0x1001, 0x0000, 0x0000,15,0,0,0,512,100));
     knownDevices.append(USBTYPE(MiraBox293S, 0x5548, 0x6670, 0x0001, 0xffa0,15,0,0,0,512,85)); // Boot logo 854 x 480.
-    knownDevices.append(USBTYPE(MiraBoxN3, 0x6603, 0x1003, 0x0001, 0xffa0,12,0,3,0,1024,72));
-    knownDevices.append(USBTYPE(AjazzAKP03, 0x0300, 0x1002, 0x0000, 0x0000,12,0,3,0,1024,72)); // Similar to MiraBoxN3
+    knownDevices.append(USBTYPE(MiraBoxN3, 0x6603, 0x1003, 0x0001, 0xffa0,12,0,3,0,1024,72,6));
+    knownDevices.append(USBTYPE(AjazzAKP03, 0x0300, 0x1002, 0x0000, 0x0000,12,0,3,0,1024,72,6)); // Similar to MiraBoxN3
 }
 
 usbController::~usbController()
@@ -632,13 +634,13 @@ void usbController::runTimer()
                     if (dev->shutpos > 0  && dev->shutpos < 0x08)
                     {
                         dev->shutMult = dev->shutpos;
-                        emit doShuttle(true, dev->shutMult);
+                        emit doShuttle(true, shuttleSteps(dev));
                         qDebug(logUsbControl()) << "Shuttle PLUS" << dev->shutMult;
                         
                     }
                     else if (dev->shutpos > 0xEF) {
                         dev->shutMult = abs(dev->shutpos - 0xff) + 1;
-                        emit doShuttle(false, dev->shutMult);
+                        emit doShuttle(false, shuttleSteps(dev));
                         qDebug(logUsbControl()) << "Shuttle MINUS" << dev->shutMult;
                     }
                 }
@@ -677,8 +679,16 @@ void usbController::runTimer()
                         }
                         else
                         {
-                            sendCommand.value = dev->knobValues[i].value/dev->sensitivity;
-                            dev->knobValues[i].value = 0;
+                            // Divide the counts by the sensitivity, carrying the remainder forward
+                            // so that slow turns still tune once enough counts accumulate.
+                            const int divisor = effectiveKnobSensitivity(dev);
+                            const int steps = dev->knobValues[i].value / divisor;
+                            dev->knobValues[i].value -= steps * divisor;
+                            if (steps == 0) {
+                                dev->knobValues[i].previous = dev->knobValues[i].value;
+                                continue;
+                            }
+                            sendCommand.value = steps;
                         }
                         
                         emit button(&sendCommand);
@@ -757,7 +767,12 @@ void usbController::sendRequest(USBDEVICE *dev, usbFeatureType feature, int val,
     // If feature is sensitivity, this is not model dependent and will update the internal sensitivity divider.
     if (feature == usbFeatureType::featureSensitivity)
     {
-        dev->sensitivity=val;
+        dev->sensitivity=qMax(1, val);
+        return;
+    }
+    if (feature == usbFeatureType::featureRingAccel)
+    {
+        dev->ringAccel=qBound(1, val, maxRingAccel);
         return;
     }
 
@@ -907,7 +922,7 @@ void usbController::sendRequest(USBDEVICE *dev, usbFeatureType feature, int val,
             dev->brightness = val;
             break;
         case usbFeatureType::featureSensitivity:
-            dev->sensitivity=val;
+            dev->sensitivity=qMax(1, val);
             break;
         case usbFeatureType::featureGraph:
         {
@@ -1954,6 +1969,16 @@ void usbController::buttonState(QString name, double val)
 
 /* End of Gamepad functions*/
 
+// Tuning steps per 100ms for the current shuttle ring position.
+// steps = position ^ exponent, where ring acceleration 1..5 maps to exponent 1.0..3.0,
+// so position 1 is always a single step for fine tuning.
+int usbController::shuttleSteps(const USBDEVICE* dev)
+{
+    const int level = qBound(1, int(dev->shutMult), 7);
+    const double exponent = 1.0 + (qBound(1, dev->ringAccel, maxRingAccel) - 1) * 0.5;
+    return qMax(1, int(std::lround(std::pow(level, exponent))));
+}
+
 void usbController::backupController(USBDEVICE* dev, QString file)
 {
     QMutexLocker locker(mutex);
@@ -1971,6 +1996,7 @@ void usbController::backupController(USBDEVICE* dev, QString file)
     settings->setValue("Model",dev->product);
     settings->setValue("Disabled", dev->disabled);
     settings->setValue("Sensitivity", dev->sensitivity);
+    settings->setValue("RingAccel", dev->ringAccel);
     settings->setValue("Brightness", dev->brightness);
     settings->setValue("Orientation", dev->orientation);
     settings->setValue("Speed", dev->speed);
@@ -2059,7 +2085,8 @@ void usbController::restoreController(USBDEVICE* dev, QString file)
     settings->beginGroup("Controller");
 
     dev->disabled = settings->value("Disabled", false).toBool();
-    dev->sensitivity = settings->value("Sensitivity", 1).toInt();
+    dev->sensitivity = qMax(1, settings->value("Sensitivity", 1).toInt());
+    dev->ringAccel = qBound(1, settings->value("RingAccel", 3).toInt(), maxRingAccel);
     dev->pages = settings->value("Pages", 1).toInt();
     dev->brightness = (quint8)settings->value("Brightness", 2).toInt();
     dev->orientation = (quint8)settings->value("Orientation", 2).toInt();

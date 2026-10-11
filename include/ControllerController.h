@@ -46,7 +46,10 @@ public:
         ShowSpeedRole,
         ShowOrientationRole,
         ShowColorRole,
-        ShowTimeoutRole
+        ShowTimeoutRole,
+        MaxSensitivityRole,
+        RingAccelRole,
+        ShowRingAccelRole
     };
 
     explicit DeviceModel(QObject *parent = nullptr);
@@ -149,6 +152,7 @@ public:
     Q_INVOKABLE void setPage(const QString &devicePath, int page);
     Q_INVOKABLE void setTotalPages(const QString &devicePath, int pages);
     Q_INVOKABLE void setSensitivity(const QString &devicePath, int value);
+    Q_INVOKABLE void setRingAccel(const QString &devicePath, int value);
     Q_INVOKABLE void setBrightness(const QString &devicePath, int index);
     Q_INVOKABLE void setSpeed(const QString &devicePath, int index);
     Q_INVOKABLE void setOrientation(const QString &devicePath, int index);

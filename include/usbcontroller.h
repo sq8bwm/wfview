@@ -66,9 +66,9 @@ using namespace std;
 #define MAX_STR 255
 
 struct USBTYPE {
-    USBTYPE(): model(usbNone), manufacturerId(0), productId(0), usage(0), usagePage(0), buttons(0), cols(0), knobs(0), leds(0), maxPayload(0), iconSize(0) {}
-    USBTYPE(usbDeviceType model,quint32 manufacturerId, quint32 productId , quint32 usage, quint32 usagePage, int buttons, int cols, int knobs, int leds,  int maxPayload, int iconSize) :
-        model(model), manufacturerId(manufacturerId), productId(productId), usage(usage), usagePage(usagePage), buttons(buttons), cols(cols), knobs(knobs), leds(leds), maxPayload(maxPayload), iconSize(iconSize) {}
+    USBTYPE(): model(usbNone), manufacturerId(0), productId(0), usage(0), usagePage(0), buttons(0), cols(0), knobs(0), leds(0), maxPayload(0), iconSize(0), maxKnobRate(10) {}
+    USBTYPE(usbDeviceType model,quint32 manufacturerId, quint32 productId , quint32 usage, quint32 usagePage, int buttons, int cols, int knobs, int leds,  int maxPayload, int iconSize, int maxKnobRate = 10) :
+        model(model), manufacturerId(manufacturerId), productId(productId), usage(usage), usagePage(usagePage), buttons(buttons), cols(cols), knobs(knobs), leds(leds), maxPayload(maxPayload), iconSize(iconSize), maxKnobRate(maxKnobRate) {}
 
     usbDeviceType model;
     quint32 manufacturerId;
@@ -81,6 +81,7 @@ struct USBTYPE {
     int leds;     // how many leds
     int maxPayload;   // Max allowed payload
     int iconSize;
+    int maxKnobRate; // Approximate max knob counts per 100ms polling interval when spun quickly
 };
 
 
@@ -94,11 +95,11 @@ struct KNOBVALUE {
 
 struct USBDEVICE {
     USBDEVICE() : detected(false), remove(false), connected(false), uiCreated(false), disabled(false), openAttempts(0), speed(2), timeout(30), brightness(2),orientation(0),
-        color(Qt::darkGray), lcd(funcNone), sensitivity(1),jogpos(0),shutpos(0),shutMult(0),jogCounter(0),buttons(0),knobs(0),lastusbController(QTime::currentTime()),
+        color(Qt::darkGray), lcd(funcNone), sensitivity(1),ringAccel(3),jogpos(0),shutpos(0),shutMult(0),jogCounter(0),buttons(0),knobs(0),lastusbController(QTime::currentTime()),
         lastData(QByteArray(8,0x0)), lastDialPos(0), pages(1),currentPage(1), ledStatus(0x07) {}
 
     USBDEVICE(USBTYPE type) : type(type), detected(false), remove(false), connected(false), uiCreated(false), disabled(false), openAttempts(0), speed(2), timeout(30), brightness(2),orientation(0),
-        color(Qt::darkGray), lcd(funcNone), sensitivity(1),jogpos(0),shutpos(0),shutMult(0),jogCounter(0),buttons(0),knobs(0),lastusbController(QTime::currentTime()),
+        color(Qt::darkGray), lcd(funcNone), sensitivity(1),ringAccel(3),jogpos(0),shutpos(0),shutMult(0),jogCounter(0),buttons(0),knobs(0),lastusbController(QTime::currentTime()),
         lastData(QByteArray(8,0x0)), lastDialPos(0), pages(1),currentPage(1), ledStatus(0x07) {}
 
     USBTYPE type;
@@ -123,6 +124,7 @@ struct USBDEVICE {
     QString deviceId;
     QString path;
     int sensitivity;
+    int ringAccel; // Shuttle ring acceleration curve, 1 (linear) to maxRingAccel
     quint8 jogpos;
     quint8 shutpos;
     quint8 shutMult;
@@ -142,6 +144,26 @@ struct USBDEVICE {
 };
 Q_DECLARE_METATYPE(USBDEVICE)
 Q_DECLARE_METATYPE(const USBDEVICE*)
+
+// Sensitivity is a divisor applied to knob counts when tuning frequency.
+// It must never be zero, and is capped at the device's approximate max counts per interval.
+inline int maxKnobSensitivity(const USBDEVICE *dev)
+{
+    return (dev && dev->type.maxKnobRate > 0) ? dev->type.maxKnobRate : 10;
+}
+
+inline int effectiveKnobSensitivity(const USBDEVICE *dev)
+{
+    return dev ? qBound(1, dev->sensitivity, maxKnobSensitivity(dev)) : 1;
+}
+
+// Devices with a spring-loaded outer shuttle ring that reports a held position.
+inline bool deviceHasShuttleRing(const USBDEVICE *dev)
+{
+    return dev && (dev->type.model == shuttleXpress || dev->type.model == shuttlePro2);
+}
+
+constexpr int maxRingAccel = 5;
 
 enum cmdValueType {cmdValueInc, cmdValueDec, cmdValueAbs };
 struct COMMAND {
@@ -255,7 +277,7 @@ signals:
     void jogPlus();
     void jogMinus();
     void sendJog(int counter);
-    void doShuttle(bool plus, quint8 level);
+    void doShuttle(bool plus, int steps);
     void button(const COMMAND* cmd);
     void initUI(usbDevMap* devs, QVector<BUTTON>* but, QVector<KNOB>* kb, QVector<COMMAND>* cmd, QMutex* mut);
     void newDevice(USBDEVICE* dev);
@@ -264,6 +286,7 @@ signals:
     void changePage(USBDEVICE* dev, int page);
 
 private:
+    static int shuttleSteps(const USBDEVICE* dev);
 
     void checkForGamePad();
     void checkForControllers();

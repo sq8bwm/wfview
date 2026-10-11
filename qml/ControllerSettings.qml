@@ -148,6 +148,9 @@ Item {
                 required property int orientation
                 required property int timeout
                 required property bool showSensitivity
+                required property int maxSensitivity
+                required property int ringAccel
+                required property bool showRingAccel
                 required property bool showBrightness
                 required property bool showSpeed
                 required property bool showOrientation
@@ -225,18 +228,59 @@ Item {
                         visible: deviceTab.showSensitivity
                     }
 
+                    // Stored sensitivity is a divisor for knob counts when tuning frequency
+                    // (1 is full speed, the max is the device's approximate counts per 100ms).
+                    // The slider is inverted so far right is the most sensitive.
                     Slider {
+                        id: sensitivitySlider
+                        readonly property int divisor: to + 1 - Math.round(value)
                         WheelArea {}
                         Layout.preferredWidth: 110
                         visible: deviceTab.showSensitivity
-                        from: 0
-                        to: 100
+                        from: 1
+                        to: Math.max(2, deviceTab.maxSensitivity)
                         stepSize: 1
-                        value: deviceTab.sensitivity
+                        snapMode: Slider.SnapAlways
+                        value: to + 1 - deviceTab.sensitivity
                         onMoved: {
                             if (root.controllerController)
-                                root.controllerController.setSensitivity(deviceTab.devicePath, value)
+                                root.controllerController.setSensitivity(deviceTab.devicePath, divisor)
                         }
+                        ToolTip.visible: hovered
+                        ToolTip.text: qsTr("Knob clicks per tuning step when tuning frequency")
+                    }
+
+                    Label {
+                        visible: deviceTab.showSensitivity
+                        text: "1/" + sensitivitySlider.divisor
+                    }
+
+                    Label {
+                        text: qsTr("Ring acceleration")
+                        visible: deviceTab.showRingAccel
+                    }
+
+                    Slider {
+                        id: ringAccelSlider
+                        WheelArea {}
+                        Layout.preferredWidth: 90
+                        visible: deviceTab.showRingAccel
+                        from: 1
+                        to: 5
+                        stepSize: 1
+                        snapMode: Slider.SnapAlways
+                        value: deviceTab.ringAccel
+                        onMoved: {
+                            if (root.controllerController)
+                                root.controllerController.setRingAccel(deviceTab.devicePath, Math.round(value))
+                        }
+                        ToolTip.visible: hovered
+                        ToolTip.text: qsTr("How quickly tuning speeds up as the outer ring is turned further")
+                    }
+
+                    Label {
+                        visible: deviceTab.showRingAccel
+                        text: Math.round(ringAccelSlider.value)
                     }
 
                     Label {

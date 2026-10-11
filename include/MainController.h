@@ -401,7 +401,7 @@ private slots:
     void clusterChanged(SettingsController::prefClusterItems items);
 #if defined(USB_CONTROLLER)
     void changeFrequency(int value);
-    void doShuttle(bool up, quint8 level);
+    void doShuttle(bool up, int steps);
 #endif
     void buttonControl(const COMMAND* cmd);
 

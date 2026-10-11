@@ -143,7 +143,13 @@ QVariant DeviceModel::data(const QModelIndex &index, int role) const
     case DisabledRole:
         return dev->disabled;
     case SensitivityRole:
-        return dev->sensitivity;
+        return effectiveKnobSensitivity(dev);
+    case MaxSensitivityRole:
+        return maxKnobSensitivity(dev);
+    case RingAccelRole:
+        return qBound(1, dev->ringAccel, maxRingAccel);
+    case ShowRingAccelRole:
+        return deviceHasShuttleRing(dev);
     case BrightnessRole:
         return dev->brightness;
     case SpeedRole:
@@ -184,6 +190,9 @@ QHash<int, QByteArray> DeviceModel::roleNames() const
     roles[OrientationRole] = "orientation";
     roles[TimeoutRole] = "timeout";
     roles[ShowSensitivityRole] = "showSensitivity";
+    roles[MaxSensitivityRole] = "maxSensitivity";
+    roles[RingAccelRole] = "ringAccel";
+    roles[ShowRingAccelRole] = "showRingAccel";
     roles[ShowBrightnessRole] = "showBrightness";
     roles[ShowSpeedRole] = "showSpeed";
     roles[ShowOrientationRole] = "showOrientation";
@@ -747,6 +756,7 @@ void ControllerController::setSensitivity(const QString &devicePath, int value)
     if (!dev)
         return;
 
+    value = qBound(1, value, maxKnobSensitivity(dev));
     qInfo(logUsbControl()) << "Setting sensitivity" << value << "for device" << dev->product;
     dev->sensitivity = value;
     emit sendRequest(dev, usbFeatureType::featureSensitivity, value);
@@ -799,6 +809,20 @@ void ControllerController::setColor(const QString &devicePath, const QColor &col
     dev->color = color;
     QColor *colorPtr = new QColor(color);
     emit sendRequest(dev, usbFeatureType::featureColor, 0, "", nullptr, colorPtr);
+    deviceModelObject->updateDevice(devicePath);
+    emit deviceUpdated(devicePath);
+}
+
+void ControllerController::setRingAccel(const QString &devicePath, int value)
+{
+    USBDEVICE *dev = deviceModelObject->getDevice(devicePath);
+    if (!dev)
+        return;
+
+    value = qBound(1, value, maxRingAccel);
+    qInfo(logUsbControl()) << "Setting ring acceleration" << value << "for device" << dev->product;
+    dev->ringAccel = value;
+    emit sendRequest(dev, usbFeatureType::featureRingAccel, value);
     deviceModelObject->updateDevice(devicePath);
     emit deviceUpdated(devicePath);
 }

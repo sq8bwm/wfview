@@ -3077,18 +3077,9 @@ void MainController::changeFrequency(int value)
     receivers[rx]->tuneSteps(value, 0, true);
 }
 
-void MainController::doShuttle(bool up, quint8 level)
+void MainController::doShuttle(bool up, int steps)
 {
-    int steps = 1;
-    int modifiers = 0;
-    if (level == 1) {
-        modifiers = Qt::ShiftModifier;
-    } else if (level > 4) {
-        modifiers = Qt::ControlModifier;
-        steps = qMax(1, int(level) - 3);
-    } else if (level > 1) {
-        steps = qMax(1, int(level) - 1);
-    }
+    // Steps already include the device's ring acceleration curve.
     changeFrequency(up ? steps : -steps);
 }
 #endif
@@ -5514,7 +5505,8 @@ void MainController::loadSettings(QString settingsFile)
             USBDEVICE tempPrefs;
             tempprefs->path = settings->value("Path", "").toString();
             tempprefs->disabled = settings->value("Disabled", false).toBool();
-            tempprefs->sensitivity = settings->value("Sensitivity", 1).toInt();
+            tempprefs->sensitivity = qMax(1, settings->value("Sensitivity", 1).toInt());
+            tempprefs->ringAccel = qBound(1, settings->value("RingAccel", 3).toInt(), maxRingAccel);
             tempprefs->pages = settings->value("Pages", 1).toInt();
             tempprefs->brightness = (quint8)settings->value("Brightness", 2).toInt();
             tempprefs->orientation = (quint8)settings->value("Orientation", 2).toInt();
