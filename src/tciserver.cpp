@@ -478,7 +478,15 @@ bool tciServer::setCommandValue(const QString &command, const QStringList &args)
         return true;
     }
     if (command == QLatin1String("tune") && args.size() >= 2) {
-        queueIfSupported(funcTunerStatus, QVariant::fromValue(boolValue(args[1])), rx);
+        // TCI's tune starts or stops a tuning cycle; it does not switch the
+        // tuner off. Stopping leaves the tuner on, and only if it is tuning.
+        if (boolValue(args[1])) {
+            queueIfSupported(funcTunerStatus, QVariant::fromValue<uchar>(tunerTuning), rx);
+        } else {
+            const QVariant current = cacheValue(funcTunerStatus, rx);
+            if (!current.isValid() || current.toInt() == tunerTuning)
+                queueIfSupported(funcTunerStatus, QVariant::fromValue<uchar>(tunerOn), rx);
+        }
         return true;
     }
     if (command == QLatin1String("drive") && args.size() >= 2) {
@@ -599,7 +607,7 @@ QString tciServer::commandReply(const QString &command, const QStringList &args)
     if (command == QLatin1String("trx"))
         return QStringLiteral("trx:%1,%2;").arg(rx).arg(cacheBool(funcTransceiverStatus, rx) ? "true" : "false");
     if (command == QLatin1String("tune"))
-        return QStringLiteral("tune:%1,%2;").arg(rx).arg(cacheBool(funcTunerStatus, rx) ? "true" : "false");
+        return QStringLiteral("tune:%1,%2;").arg(rx).arg(cacheInt(funcTunerStatus, rx, tunerOff) == tunerTuning ? "true" : "false");
     if (command == QLatin1String("drive"))
         return QStringLiteral("drive:%1,%2;").arg(rx).arg(toTciRange(funcRFPower, 0, 100, rx));
     if (command == QLatin1String("rit_enable"))
@@ -828,7 +836,7 @@ void tciServer::receiveCache(cacheItem item)
         messages << QStringLiteral("trx:%1,%2;").arg(item.receiver).arg(item.value.toBool() ? "true" : "false");
         messages << QStringLiteral("tx_footswitch:%1,%2;").arg(item.receiver).arg(item.value.toBool() ? "true" : "false");
     } else if (func == funcTunerStatus) {
-        messages << QStringLiteral("tune:%1,%2;").arg(item.receiver).arg(item.value.toBool() ? "true" : "false");
+        messages << QStringLiteral("tune:%1,%2;").arg(item.receiver).arg(item.value.toInt() == tunerTuning ? "true" : "false");
     } else if (func == funcSplitStatus) {
         messages << QStringLiteral("split_enable:%1,%2;").arg(item.receiver).arg(item.value.toBool() ? "true" : "false");
     } else if (func == funcRitStatus) {

@@ -410,6 +410,7 @@ HEADERS  += \
     include/kenwoodserver.h \
     include/keyboard.h \
     include/logcategories.h \
+    include/mcphooks.h \
     include/packettypes.h \
     include/prefs.h \
     include/printhex.h \
@@ -445,6 +446,25 @@ HEADERS  += \
     src/audio/plugins/mbeq.h \
     src/audio/plugins/noisegate.h \
     src/audio/plugins/triple_para.h
+
+# Optional MCP (Model Context Protocol) diagnostics server. Off unless qmake is
+# run with CONFIG+=mcp, for example: qmake "CONFIG+=mcp" ../wfview.pro
+# It also has to be turned on at run time with --use-mcp. See docs/MCP.md.
+contains(CONFIG, mcp) {
+    DEFINES += WFVIEW_MCP
+    SOURCES += \
+        src/mcphost.cpp \
+        src/mcphostwfview.cpp \
+        src/mcpprobe.cpp \
+        src/mcpserver.cpp \
+        src/mcptools.cpp
+    HEADERS += \
+        include/mcphost.h \
+        include/mcphostwfview.h \
+        include/mcpprobe.h \
+        include/mcpserver.h \
+        include/mcptools.h
+}
 
 
 DISTFILES += \

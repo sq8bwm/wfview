@@ -3,6 +3,7 @@
 
 #include "icomudphandler.h"
 #include "logcategories.h"
+#include "mcphooks.h"
 
 icomUdpHandler::icomUdpHandler(udpPreferences prefs, audioSetup rx, audioSetup tx) :
     controlPort(prefs.controlLANPort),
@@ -272,6 +273,7 @@ void icomUdpHandler::dataReceived()
         lastReceived = QTime::currentTime();
         QNetworkDatagram datagram = udp->receiveDatagram();
         QByteArray r = datagram.data();
+        MCP_NETWORK_RX(this, r);
 
         switch (r.length())
         {

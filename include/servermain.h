@@ -186,6 +186,9 @@ private slots:
     void updateAudioDevices();
 
 private:
+#ifdef WFVIEW_MCP
+    friend class McpHostServer;
+#endif
     QSettings *settings=Q_NULLPTR;
     void loadSettings();
 

@@ -420,6 +420,9 @@ private slots:
     //void serverChanged(prefServerItems items);
 
 private:
+#ifdef WFVIEW_MCP
+    friend class McpHostWfview;
+#endif
     void buildUiSpecs();
     void setRadioStatusText(const QString& text);
     void setFooterMessageText(const QString& text);

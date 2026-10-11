@@ -1,5 +1,6 @@
 #include "LoggingController.h"
 #include "logcategories.h"
+#include "mcphooks.h"
 
 #include <QClipboard>
 #include <QCoreApplication>
@@ -400,6 +401,8 @@ void LoggingController::qtMessageHandler(QtMsgType type,
     if (type == QtDebugMsg && !inst->m_rigctlDebugEnabled
         && context.category && qstrncmp(context.category, "rigctld", 6) == 0)
         return;
+
+    MCP_LOG_MESSAGE(type, context.category, msg);
 
     const QString ts  = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz ");
     const QString cat = context.category ? QString::fromUtf8(context.category) : QString("default");

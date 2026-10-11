@@ -2,6 +2,7 @@
 // audiohandler_base.cpp (fixed names)
 // =============================
 #include "audiohandlerbase.h"
+#include "mcphooks.h"
 
 audioHandlerBase::audioHandlerBase(QObject* parent)
     : QObject(parent)
@@ -245,6 +246,7 @@ bool audioHandlerBase::init(const audioSetup& setup)
 #endif
 
     initialized = true;
+    MCP_ATTACH_AUDIO(this, setup, nativeFormat, radioFormat);
     qDebug(logAudio()) << role() << "thread id" << QThread::currentThreadId();
     return true;
 }

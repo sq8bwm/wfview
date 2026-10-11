@@ -1,6 +1,7 @@
 #include "yaesuudpbase.h"
 
 #include "logcategories.h"
+#include "mcphooks.h"
 
 // This "base" UDP class handles all connection and encoding/decoding of packets.
 // Each "child" class has it's own constructor.
@@ -34,6 +35,7 @@ void yaesuUdpBase::incoming() {
         if (remoteLen >= 0) {
             localLen = decodePacket(&remoteBuffer, remoteLen);
             if (localLen >= 0) {
+                MCP_NETWORK_RX(this, QByteArray::fromRawData((const char*)localBuffer, int(localLen)));
                 incomingUdp(localBuffer, localLen);
             }
         }
@@ -45,6 +47,7 @@ void yaesuUdpBase::outgoing(void *buf, size_t bufLen)
     //QMutexLocker locker(&mutex);
     if (remoteAddr.isNull())
         return;
+    MCP_NETWORK_TX(this, QByteArray::fromRawData((const char*)buf, int(bufLen)));
     qint64 remoteLen = encodePacket((quint8*) buf, bufLen);
     if (remoteLen < 0)
         return;

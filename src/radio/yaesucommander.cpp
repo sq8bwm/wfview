@@ -4,6 +4,7 @@
 #include "rigidentities.h"
 #include "logcategories.h"
 #include "printhex.h"
+#include "mcphooks.h"
 
 // Copyright 2017-2024 Elliott H. Liggett W6EL and Phil E. Taylor M0VSE
 
@@ -782,6 +783,7 @@ void yaesuCommander::dataForRig(QByteArray d)
 {
     if (portConnected) {
         QMutexLocker locker(&serialMutex);
+        MCP_RADIO_TX(this, d);
         if (port->write(d) != d.size())
         {
             qInfo(logSerial()) << "Error writing to port";
