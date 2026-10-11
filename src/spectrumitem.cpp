@@ -1423,7 +1423,7 @@ QSGNode *SpectrumItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
             const double span = endFreq - startFreq;
 
             QFont font;
-            font.setPointSizeF(axisH * 0.45f);
+            font.setPointSizeF(axisH * 0.54f);
             p.setFont(font);
 
             for (int i = 0; i < ticks; ++i) {
@@ -1440,7 +1440,11 @@ QSGNode *SpectrumItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
                 p.setPen(textColor);
                 QRectF textBounds = p.boundingRect(QRectF(), Qt::AlignCenter, label);
 
-                const float textX = x - textBounds.width() * 0.5f;
+                // Keep the first and last labels inside the item instead of
+                // centring them on the edge ticks, where half would be cut off.
+                const float textX = qBound(textMargin,
+                                           float(x - textBounds.width() * 0.5f),
+                                           float(w - textMargin - textBounds.width()));
                 const float textY = baselineY - textBounds.height() - textMargin;
 
                 p.drawText(QRectF(textX, textY,
