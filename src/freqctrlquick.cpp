@@ -822,8 +822,11 @@ void FreqCtrlQuick::mouseDoubleClickEvent(QMouseEvent *event)
     const QPointF pt = event->position();
 #endif
 
+    // Qt Quick delivers the second click as a press before this event, so
+    // mousePressEvent has already stepped the digit; stepping again here
+    // would skip a value on quick repeated clicks.
     if (isDigitHit(pt)) {
-        mousePressEvent(event);
+        event->accept();
         return;
     }
 
