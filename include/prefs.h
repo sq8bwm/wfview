@@ -48,6 +48,7 @@ enum prefIfItem {
     if_forceVfoMode = 1 << 25,
     if_autoPowerOn = 1 << 26,
     if_peakDecay = 1 << 27,
+    if_spectrumZeroDbBottom = 1 << 28,
     if_all = ~0
 };
 
@@ -289,6 +290,7 @@ struct preferences {
     underlay_t underlayMode = underlayAverage;
     int underlayBufferSize = 80;
     int peakDecay = 50;
+    bool spectrumZeroDbBottom = false; // true: 0 dB at DN 0; false: 0 dB at the rig's amp max
     bool wfAntiAlias;
     bool wfInterpolate;
     int mainWfTheme;

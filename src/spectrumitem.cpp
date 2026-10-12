@@ -1,4 +1,7 @@
 // SpectrumItem.cpp
+#include <cmath>
+#include <iterator>
+#include <limits>
 #include "spectrumitem.h"
 #include "ReceiverController.h"
 
@@ -27,6 +30,7 @@ void SpectrumItem::setFloor (uchar v)
 {
     if (floor == v) return;
     floor = v;
+    clearPeaks();   // underlay was accumulated against the old scale
     emit scaleChanged();
     update();
 }
@@ -35,6 +39,7 @@ void SpectrumItem::setCeiling(uchar v)
 {
     if (ceiling == v) return;
     ceiling = v;
+    clearPeaks();   // underlay was accumulated against the old scale
     emit scaleChanged();
     update();
 }
@@ -43,6 +48,30 @@ void SpectrumItem::setGridStep(uchar v)
 {
     if (gridStep == v) return;
     gridStep = v;
+    emit scaleChanged();
+    update();
+}
+
+void SpectrumItem::setDbPerDN(double v)
+{
+    if (qFuzzyCompare(dbPerDN, v)) return;
+    dbPerDN = v;
+    emit scaleChanged();
+    update();
+}
+
+void SpectrumItem::setAmpMax(int v)
+{
+    if (ampMax == v) return;
+    ampMax = v;
+    emit scaleChanged();
+    update();
+}
+
+void SpectrumItem::setZeroDbAtBottom(bool v)
+{
+    if (zeroDbAtBottom == v) return;
+    zeroDbAtBottom = v;
     emit scaleChanged();
     update();
 }
@@ -642,10 +671,71 @@ static void updateBackgroundNode(QSGGeometryNode *node,
     node->markDirty(QSGNode::DirtyGeometry | QSGNode::DirtyMaterial);
 }
 
+struct AmpGridLine {
+    float  y;    // pixels from the top of the plot
+    double db;   // relative dB label for this line
+};
+
+// Choose horizontal amplitude grid lines for the visible floor..ceiling range (in DN).
+// Lines sit on round dB values relative to zeroDN (the DN that represents 0 dB),
+// aiming for 7 or 8 lines. A line that would land very close to the top or bottom
+// edge is skipped rather than drawn as a sliver.
+static QVector<AmpGridLine> computeAmpGrid(float plotH,
+                                           double floorDN, double ceilingDN,
+                                           double dbPerDN, double zeroDN,
+                                           double *stepOut)
+{
+    QVector<AmpGridLine> lines;
+    *stepOut = 0.0;
+    if (plotH <= 0.0f || ceilingDN <= floorDN || dbPerDN <= 0.0)
+        return lines;
+
+    const double loDb  = (floorDN   - zeroDN) * dbPerDN;
+    const double hiDb  = (ceilingDN - zeroDN) * dbPerDN;
+    const double range = hiDb - loDb;
+
+    constexpr double targetLines  = 7.5;
+    constexpr double edgeFraction = 0.35;   // of a grid step
+
+    auto build = [&](double step, QVector<AmpGridLine> *out) -> int {
+        const double margin = step * edgeFraction;
+        int n = 0;
+        for (double k = std::ceil((loDb + margin) / step); k * step <= hiDb - margin; k += 1.0) {
+            if (out) {
+                const double db = k * step;
+                const double t  = (db - loDb) / range;   // 0..1 bottom..top
+                out->append({float((1.0 - t) * plotH), db});
+            }
+            ++n;
+        }
+        return n;
+    };
+
+    // Step multipliers, nicest first; niceness breaks ties between equal line counts.
+    static const double mults[] = {1.0, 2.0, 5.0, 2.5, 3.0, 4.0, 6.0, 8.0};
+    const double mag = std::pow(10.0, std::floor(std::log10(range / targetLines)));
+
+    double bestStep  = 0.0;
+    double bestScore = std::numeric_limits<double>::max();
+    for (const double m : {mag / 10.0, mag, mag * 10.0}) {
+        for (int i = 0; i < int(std::size(mults)); ++i) {
+            const double step  = mults[i] * m;
+            const double score = std::abs(build(step, nullptr) - targetLines) + i * 0.01;
+            if (score < bestScore) {
+                bestScore = score;
+                bestStep  = step;
+            }
+        }
+    }
+
+    build(bestStep, &lines);
+    *stepOut = bestStep;
+    return lines;
+}
+
 static void updateGridNode(QSGGeometryNode *node,
-                           float w, float plotH,
-                           double floorDb, double ceilingDb,
-                           double gridStep,
+                           float w,
+                           const QVector<AmpGridLine> &lines,
                            const QColor &color)
 {
     auto *geom = node->geometry();
@@ -656,38 +746,14 @@ static void updateGridNode(QSGGeometryNode *node,
     Q_ASSERT(mat);
     mat->setColor(color);
 
-    if (gridStep <= 0.0 || ceilingDb <= floorDb) {
-        geom->allocate(0);
-        node->markDirty(QSGNode::DirtyGeometry | QSGNode::DirtyMaterial);
-        return;
-    }
-
-    const int count = int((ceilingDb - floorDb) / gridStep) + 1;
-    if (count <= 1) {
-        geom->allocate(0);
-        node->markDirty(QSGNode::DirtyGeometry | QSGNode::DirtyMaterial);
-        return;
-    }
-
-    const int verts = 2 * count;
-    geom->allocate(verts);
+    geom->allocate(2 * lines.size());
 
     auto *v = geom->vertexDataAsPoint2D();
 
-    auto yForDb = [&](double db) -> float {
-        if (ceilingDb <= floorDb)
-            return plotH;
-        double t = (db - floorDb) / (ceilingDb - floorDb); // 0..1 bottom..top
-        t = qBound(0.0, t, 1.0);
-        return float((1.0 - t) * plotH);
-    };
-
     int idx = 0;
-    for (int i = 0; i < count; ++i) {
-        const double db = floorDb + i * gridStep;
-        const float  y  = yForDb(db);
-        v[idx++].set(0.0f, y);
-        v[idx++].set(w,    y);
+    for (const auto &line : lines) {
+        v[idx++].set(0.0f, line.y);
+        v[idx++].set(w,    line.y);
     }
 
     node->markDirty(QSGNode::DirtyGeometry | QSGNode::DirtyMaterial);
@@ -1201,6 +1267,7 @@ QSGNode *SpectrumItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         }
 
         root->axisNode     = new QSGSimpleTextureNode;
+        root->gridLabels   = new QSGSimpleTextureNode;
 
         root->bandShapes   = new QSGGeometryNode;
         {
@@ -1230,6 +1297,7 @@ QSGNode *SpectrumItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         root->appendChildNode(root->frequencyLine);
         root->appendChildNode(root->bandShapes);
         root->appendChildNode(root->axisNode);
+        root->appendChildNode(root->gridLabels);
 
         root->appendChildNode(root->dynamicRoot);
     }
@@ -1259,8 +1327,69 @@ QSGNode *SpectrumItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     // 1) Background
     updateBackgroundNode(root->background, w, h, colors.plotBackground);
 
-    // 2) Grid
-    updateGridNode(root->gridLines, w, plotH, floor, ceiling, gridStep, colors.gridColor);
+    // 2) Grid (amplitude, in relative dB)
+    double gridStepDb = 0.0;
+    const QVector<AmpGridLine> gridLines =
+        computeAmpGrid(plotH, floor, ceiling, dbPerDN,
+                       zeroDbAtBottom ? 0.0 : double(ampMax), &gridStepDb);
+    updateGridNode(root->gridLines, w, gridLines, colors.gridColor);
+
+    // Grid labels: only rebuilt when the scale or size changes.
+    {
+        const QColor labelColor = colors.textColor.isValid() ? colors.textColor : QColor(220, 220, 220);
+        const QString key = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8")
+                                .arg(double(w)).arg(double(plotH)).arg(int(floor)).arg(int(ceiling))
+                                .arg(dbPerDN).arg(ampMax).arg(int(zeroDbAtBottom))
+                                .arg(labelColor.name(QColor::HexArgb));
+
+        if (gridLines.isEmpty() || !window()) {
+            root->gridLabels->setRect(0, 0, 0, 0);
+            root->gridLabelKey.clear();
+        } else if (key != root->gridLabelKey) {
+            QFont font;
+            font.setPointSizeF(qBound(7.0, plotH * 0.04, 9.0));
+            const QFontMetricsF fm(font);
+
+            const int decimals = std::abs(gridStepDb - std::round(gridStepDb)) < 1e-6 ? 0
+                               : std::abs(gridStepDb * 10.0 - std::round(gridStepDb * 10.0)) < 1e-6 ? 1 : 2;
+
+            QStringList labels;
+            qreal labelW = 0.0;
+            for (const auto &line : gridLines) {
+                // Avoid printing "-0 dB"
+                const double db = std::abs(line.db) < 1e-9 ? 0.0 : line.db;
+                labels.append(QString::number(db, 'f', decimals) + QStringLiteral(" dB"));
+                labelW = qMax(labelW, fm.horizontalAdvance(labels.last()));
+            }
+
+            const qreal margin = 3.0;
+            const int imgW = int(std::ceil(labelW + 2.0 * margin));
+            const int imgH = int(std::ceil(plotH));
+
+            QImage img(imgW, imgH, QImage::Format_ARGB32_Premultiplied);
+            img.fill(Qt::transparent);
+
+            QPainter p(&img);
+            p.setRenderHint(QPainter::TextAntialiasing, true);
+            p.setFont(font);
+            p.setPen(labelColor);
+
+            for (int i = 0; i < gridLines.size(); ++i) {
+                // Sit the label just above its line, but keep it inside the plot.
+                const qreal baseline = qMax(fm.ascent(), qreal(gridLines[i].y) - fm.descent() - 1.0);
+                p.drawText(QPointF(margin, baseline), labels[i]);
+            }
+            p.end();
+
+            QSGTexture *tex = window()->createTextureFromImage(img);
+            delete root->gridLabelTexture;
+            root->gridLabelTexture = tex;
+            root->gridLabels->setTexture(tex);
+            root->gridLabels->setOwnsTexture(false);
+            root->gridLabels->setRect(0, 0, imgW, imgH);
+            root->gridLabelKey = key;
+        }
+    }
 
     if (m_underlayMode != underlayNone) {
         // Convert quint16 (100x scale) peaks to quint8 for rendering
@@ -1871,9 +2000,13 @@ QSGNode *SpectrumItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     return root;
 }
 
+// Clears the underlay: peak hold values and the averaging history.
 void SpectrumItem::clearPeaks()
 {
     peaks.fill(0);
+    m_historyCount = 0;
+    m_historyWriteIndex = 0;
+    update();
 }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)

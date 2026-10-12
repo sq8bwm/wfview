@@ -328,6 +328,7 @@ void rigCommander::determineRigCaps()
     rigCaps.spectSeqMax = settings->value("SpectrumSeqMax",0).toUInt();
     rigCaps.spectAmpMax = settings->value("SpectrumAmpMax",0).toUInt();
     rigCaps.spectLenMax = settings->value("SpectrumLenMax",0).toUInt();
+    rigCaps.spectDbPerDN = settings->value("SpectrumDbPerDN",0.5).toDouble();
 
     rigCaps.hasSpectrum = settings->value("HasSpectrum",false).toBool();
     rigCaps.hasLan = settings->value("HasLAN",false).toBool();

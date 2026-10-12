@@ -1376,6 +1376,18 @@ ApplicationWindow {
                                     }
                                     Item { Layout.fillWidth: true }
                                 }
+                                RowLayout {
+                                    spacing: 12
+                                    CheckBox {
+                                        id: spectrumZeroDbBottomChk
+                                        text: qsTr("0dB is bottom")
+                                        checked: optBool("Interface.SpectrumZeroDbBottom", false)
+                                        onClicked: if (controller) controller.setOption("Interface.SpectrumZeroDbBottom", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Label the spectrum amplitude scale with 0 dB at the bottom. When unchecked, 0 dB is the top of the radio's range and lower values are negative.")
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
                             }
                         }
 

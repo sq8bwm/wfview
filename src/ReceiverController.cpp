@@ -1801,6 +1801,7 @@ void ReceiverController::buildUiSpecs()
 void ReceiverController::receiveRigCaps(rigCapabilities* caps)
 {
     rigCaps = caps;
+    emit spectrumCalChanged();
 
     flags |= ShowVFOA | (rigCaps->numVFO > 1 ? ShowVFOB:ShowNothing);
 

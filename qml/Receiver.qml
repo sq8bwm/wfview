@@ -355,6 +355,9 @@ Control {
                     underlayMode: MainController.settings ? Number(MainController.settings.options["Interface.UnderlayMode"]) : 2
                     peakDecay: MainController.settings ? Number(MainController.settings.options["Interface.PeakDecay"]) : 50
                     underlayBufferSize: MainController.settings ? Number(MainController.settings.options["Interface.UnderlayBufferSize"]) : 80
+                    zeroDbAtBottom: MainController.settings ? !!MainController.settings.options["Interface.SpectrumZeroDbBottom"] : false
+                    dbPerDN: controller ? controller.spectrumDbPerDN : 0.5
+                    ampMax: controller ? controller.spectrumAmpMax : 160
                     onTuneRequested: function(freq) {
                         controller.tuneToFrequencyMHz(freq)   // honours "set lower digits to zero"
                         controller.frequencyAChanged() // Signal the controller that frequency has changed

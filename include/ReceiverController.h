@@ -39,6 +39,8 @@ class ReceiverController : public QObject
     Q_PROPERTY(int waterfallLength READ getWaterfallLength WRITE setWaterfallLength NOTIFY waterfallLengthChanged)
     Q_PROPERTY(int plotFloor READ getPlotFloor WRITE setPlotFloor NOTIFY plotScaleChanged)
     Q_PROPERTY(int plotCeiling READ getPlotCeiling WRITE setPlotCeiling NOTIFY plotScaleChanged)
+    Q_PROPERTY(double spectrumDbPerDN READ getSpectrumDbPerDN NOTIFY spectrumCalChanged)
+    Q_PROPERTY(int spectrumAmpMax READ getSpectrumAmpMax NOTIFY spectrumCalChanged)
     Q_PROPERTY(bool waterfallSmooth READ getWaterfallSmooth WRITE setWaterfallSmooth NOTIFY waterfallSmoothChanged)
     Q_PROPERTY(bool waterfallAntiAlias READ getWaterfallAntiAlias WRITE setWaterfallAntiAlias NOTIFY waterfallAntiAliasChanged)
 
@@ -150,6 +152,8 @@ public:
     int getWaterfallLength() const { return waterfallLength; }
     int getPlotFloor() const { return plotFloor; }
     int getPlotCeiling() const { return plotCeiling; }
+    double getSpectrumDbPerDN() const { return rigCaps ? rigCaps->spectDbPerDN : 0.5; }
+    int getSpectrumAmpMax() const { return rigCaps ? int(rigCaps->spectAmpMax) : 160; }
     bool getWaterfallSmooth() const { return waterfallSmooth; }
     bool getWaterfallAntiAlias() const { return waterfallAntiAlias; }
     ushort getRfGain() { return rfGain;}
@@ -363,6 +367,7 @@ signals:
     void themeChanged();
     void waterfallLengthChanged();
     void plotScaleChanged();
+    void spectrumCalChanged();
     void waterfallSmoothChanged();
     void waterfallAntiAliasChanged();
 

@@ -39,6 +39,9 @@ public:
     QSGGeometryNode *pbt = nullptr;
     QSGSimpleTextureNode *axisNode = nullptr;
     QSGTexture *axisTexture = nullptr;
+    QSGSimpleTextureNode *gridLabels = nullptr;
+    QSGTexture *gridLabelTexture = nullptr;
+    QString gridLabelKey;   // inputs used to build gridLabelTexture
     QSGGeometryNode *bandShapes = nullptr;
 
     QSGNode *dynamicRoot = nullptr;   // everything else (axis, bands, spots, overlays)
@@ -47,6 +50,8 @@ public:
     {
         delete axisTexture;
         axisTexture = nullptr;
+        delete gridLabelTexture;
+        gridLabelTexture = nullptr;
     }
 };
 
@@ -60,6 +65,9 @@ class SpectrumItem : public QQuickItem
     Q_PROPERTY(uchar floor   READ getFloor   WRITE setFloor   NOTIFY scaleChanged)
     Q_PROPERTY(uchar ceiling READ getCeiling WRITE setCeiling NOTIFY scaleChanged)
     Q_PROPERTY(uchar gridStep READ getGridStep WRITE setGridStep NOTIFY scaleChanged)
+    Q_PROPERTY(double dbPerDN READ getDbPerDN WRITE setDbPerDN NOTIFY scaleChanged)
+    Q_PROPERTY(int ampMax READ getAmpMax WRITE setAmpMax NOTIFY scaleChanged)
+    Q_PROPERTY(bool zeroDbAtBottom READ getZeroDbAtBottom WRITE setZeroDbAtBottom NOTIFY scaleChanged)
 
     Q_PROPERTY(quint64 center READ getCenter WRITE setCenter NOTIFY centerChanged)
 
@@ -94,6 +102,9 @@ public:
     uchar getFloor()   const { return floor; }
     uchar getCeiling() const { return ceiling; }
     uchar getGridStep() const { return gridStep; }
+    double getDbPerDN() const { return dbPerDN; }
+    int getAmpMax() const { return ampMax; }
+    bool getZeroDbAtBottom() const { return zeroDbAtBottom; }
     double getCenter() const { return quint64(center * 100000.0); }
     void setCenter(quint64 x);
     double getPassbandLow()  const { return passbandLow; }
@@ -118,6 +129,9 @@ public slots:
     void setFloor(uchar v);
     void setCeiling(uchar v);
     void setGridStep(uchar v);
+    void setDbPerDN(double v);
+    void setAmpMax(int v);
+    void setZeroDbAtBottom(bool v);
     void setPassbandLow(qreal x);
     void setPassbandHigh(qreal x);
     void setPbtLow(qreal x);
@@ -195,6 +209,9 @@ private:
     uchar floor   = 0;
     uchar ceiling =   140;
     uchar gridStep = 20;
+    double dbPerDN = 0.5;          // dB per step of spectrum amplitude data (from rig file)
+    int ampMax = 160;              // highest DN the rig reports
+    bool zeroDbAtBottom = false;   // 0 dB at DN 0, otherwise 0 dB at ampMax
 
     double center = 0.0;     // 0..1
     double passbandLow  = 0.0;

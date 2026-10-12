@@ -3985,6 +3985,7 @@ void MainController::receiveRigCaps(rigCapabilities* caps)
         qDebug(logSystem()) << "Has LAN capabilities: " << rigCaps->hasLan;
         qDebug(logSystem()) << "Rig ID received into wfmain: spectLenMax: " << rigCaps->spectLenMax;
         qDebug(logSystem()) << "Rig ID received into wfmain: spectAmpMax: " << rigCaps->spectAmpMax;
+        qDebug(logSystem()) << "Rig ID received into wfmain: spectDbPerDN: " << rigCaps->spectDbPerDN;
         qDebug(logSystem()) << "Rig ID received into wfmain: spectSeqMax: " << rigCaps->spectSeqMax;
         qDebug(logSystem()) << "Rig ID received into wfmain: hasSpectrum: " << rigCaps->hasSpectrum;
 

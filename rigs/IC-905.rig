@@ -11,6 +11,7 @@ NumberOfVFOs=2
 SpectrumSeqMax=11
 SpectrumAmpMax=160
 SpectrumLenMax=475
+SpectrumDbPerDN=0.5
 HasSpectrum=true
 HasLAN=true
 HasEthernet=true

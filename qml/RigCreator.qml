@@ -1834,7 +1834,7 @@ ApplicationWindow {
 
                     SettingsPanel {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 190
+                        Layout.preferredHeight: 220
                         title: qsTr("Spectrum")
                         GridLayout {
                             anchors.fill: parent
@@ -1846,6 +1846,7 @@ ApplicationWindow {
                             Label { text: qsTr("Seq Max") }  TextField { Layout.preferredWidth: 80; text: rig.settings["Rig/SpectrumSeqMax"] ?? "0";     onEditingFinished: rig.settings["Rig/SpectrumSeqMax"] = text }
                             Label { text: qsTr("Amp Max") }  TextField { Layout.preferredWidth: 80; text: rig.settings["Rig/SpectrumAmpMax"] ?? "0";     onEditingFinished: rig.settings["Rig/SpectrumAmpMax"] = text }
                             Label { text: qsTr("Len Max") }  TextField { Layout.preferredWidth: 80; text: rig.settings["Rig/SpectrumLenMax"] ?? "0";     onEditingFinished: rig.settings["Rig/SpectrumLenMax"] = text }
+                            Label { text: qsTr("dB per DN") } TextField { Layout.preferredWidth: 80; text: rig.settings["Rig/SpectrumDbPerDN"] ?? "0.5";  onEditingFinished: rig.settings["Rig/SpectrumDbPerDN"] = text }
                         }
                     }
 

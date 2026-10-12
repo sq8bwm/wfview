@@ -636,7 +636,8 @@ QJsonObject Mcp::rigCapsToJson(const rigCapabilities &caps, const QStringList &s
     o["spectrum"] = QJsonObject{{"hasSpectrum", caps.hasSpectrum},
                                 {"seqMax", int(caps.spectSeqMax)},
                                 {"ampMax", int(caps.spectAmpMax)},
-                                {"lenMax", int(caps.spectLenMax)}};
+                                {"lenMax", int(caps.spectLenMax)},
+                                {"dbPerDN", caps.spectDbPerDN}};
     o["features"] = QJsonObject{{"hasLan", caps.hasLan},
                                 {"hasEthernet", caps.hasEthernet},
                                 {"hasWiFi", caps.hasWiFi},

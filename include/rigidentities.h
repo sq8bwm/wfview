@@ -298,6 +298,7 @@ struct rigCapabilities {
     quint8 spectSeqMax;
     quint16 spectAmpMax;
     quint16 spectLenMax;
+    double spectDbPerDN = 0.5; // dB represented by one step (DN) of spectrum amplitude data
     quint8 numReceiver;
     quint8 numVFO;
 

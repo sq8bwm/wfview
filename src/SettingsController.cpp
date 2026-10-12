@@ -959,6 +959,7 @@ void SettingsController::load()
         prefs.underlayMode = static_cast<underlay_t>(modeVal);
     }
     prefs.peakDecay = qBound(0, settings->value("peakDecay", defPrefs.peakDecay).toInt(), 100);
+    prefs.spectrumZeroDbBottom = settings->value("SpectrumZeroDbBottom", defPrefs.spectrumZeroDbBottom).toBool();
     prefs.wfAntiAlias = settings->value("WFAntiAlias", defPrefs.wfAntiAlias).toBool();
     prefs.wfInterpolate = settings->value("WFInterpolate", defPrefs.wfInterpolate).toBool();
     prefs.mainWflength = (unsigned int)settings->value("MainWFLength", defPrefs.mainWflength).toInt();
@@ -1772,6 +1773,7 @@ void SettingsController::save()
     settings->setValue("underlayMode", prefs.underlayMode);
     settings->setValue("underlayBufferSize", prefs.underlayBufferSize);
     settings->setValue("peakDecay", prefs.peakDecay);
+    settings->setValue("SpectrumZeroDbBottom", prefs.spectrumZeroDbBottom);
     settings->setValue("WFAntiAlias", prefs.wfAntiAlias);
     settings->setValue("WFInterpolate", prefs.wfInterpolate);
     settings->setValue("MainWFTheme", prefs.mainWfTheme);
@@ -2314,6 +2316,7 @@ void SettingsController::setDefPrefs()
     defPrefs.underlayMode = underlayAverage;
     defPrefs.underlayBufferSize = 80;
     defPrefs.peakDecay = 50;
+    defPrefs.spectrumZeroDbBottom = false;
     defPrefs.wfEnable = 2;
     defPrefs.wfAntiAlias = false;
     defPrefs.wfInterpolate = true;
@@ -3344,6 +3347,9 @@ void SettingsController::buildBindings()
 
     WF_I32("Interface.PeakDecay", prefs.peakDecay,
            [this](){ emit ifChanged(prefIfItems(prefIfItem::if_peakDecay)); });
+
+    WF_BOOL("Interface.SpectrumZeroDbBottom", prefs.spectrumZeroDbBottom,
+            [this](){ emit ifChanged(prefIfItems(prefIfItem::if_spectrumZeroDbBottom)); });
 
     WF_BOOL("Interface.WFAntiAlias", prefs.wfAntiAlias,
             [this](){ emit ifChanged(prefIfItems(prefIfItem::if_wfAntiAlias)); });
