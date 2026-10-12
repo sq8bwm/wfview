@@ -78,8 +78,8 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     void setShortcuts(QVector<shortcutPreference>* shortcuts);
-    void beginAppend();
-    void endAppend();
+    void beginPrepend();
+    void endPrepend();
     void beginDuplicate(int index);
     void endDuplicate();
     void beginRemove(int index);

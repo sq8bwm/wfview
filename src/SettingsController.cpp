@@ -198,13 +198,12 @@ void ShortcutSettingsModel::setShortcuts(QVector<shortcutPreference>* shortcuts)
     endResetModel();
 }
 
-void ShortcutSettingsModel::beginAppend()
+void ShortcutSettingsModel::beginPrepend()
 {
-    const int row = m_shortcuts ? m_shortcuts->count() : 0;
-    beginInsertRows(QModelIndex(), row, row);
+    beginInsertRows(QModelIndex(), 0, 0);
 }
 
-void ShortcutSettingsModel::endAppend()
+void ShortcutSettingsModel::endPrepend()
 {
     endInsertRows();
 }
@@ -2722,9 +2721,10 @@ void SettingsController::addShortcut()
     shortcut.action = 0;
     shortcut.value = 0;
     shortcut.receiver = -1;
-    m_shortcutsModel->beginAppend();
-    prefs.shortcuts.append(shortcut);
-    m_shortcutsModel->endAppend();
+    // New shortcuts go at the top so they are visible next to the Add button.
+    m_shortcutsModel->beginPrepend();
+    prefs.shortcuts.prepend(shortcut);
+    m_shortcutsModel->endPrepend();
     markDirty();
     emit shortcutsChanged();
 }
