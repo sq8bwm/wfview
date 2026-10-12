@@ -283,6 +283,7 @@ void FreqCtrlQuick::setup(int NumDigits, qint64 Minf, qint64 Maxf, int MinStep,
     m_Oldfreq = -1;
 
     m_NumDigits = NumDigits ? NumDigits : fmax_to_numdigits(Maxf);
+    m_AutoDigits = (NumDigits == 0);
 
     m_Bands = bands;
 
@@ -362,6 +363,45 @@ void FreqCtrlQuick::setMinFrequency(qint64 freq)
 void FreqCtrlQuick::setMaxFrequency(qint64 freq)
 {
     m_MaxFreq = freq;
+
+    // QML may set freqDigits before maxFrequency, so redo the automatic
+    // digit count now that the real maximum is known.
+    if (m_AutoDigits)
+        applyNumDigits(fmax_to_numdigits(m_MaxFreq));
+}
+
+void FreqCtrlQuick::setFreqDigits(int f)
+{
+    m_AutoDigits = (f == 0);
+    applyNumDigits(m_AutoDigits ? fmax_to_numdigits(m_MaxFreq) : f);
+}
+
+void FreqCtrlQuick::applyNumDigits(int digits)
+{
+    digits = qBound(FCTL_MIN_DIGITS, digits, FCTL_MAX_DIGITS);
+    if (digits == m_NumDigits)
+        return;
+
+    // Digits added beyond the ones setup() initialised need their weights
+    qint64 pwr = 1;
+    for (int i = 0; i < digits; i++)
+    {
+        if (m_DigitInfo[i].weight == 0)
+        {
+            m_DigitInfo[i].weight = pwr;
+            m_DigitInfo[i].incval = pwr;
+            m_DigitInfo[i].val = 0;
+        }
+        m_DigitInfo[i].modified = true;
+        pwr *= 10;
+    }
+
+    m_NumDigits = digits;
+    m_NumSeps = (m_NumDigits - 1) / 3 - m_DigStart / 3;
+    m_Oldfreq = -1;            // force setFrequencyExt to redo the digits
+    setFrequencyExt(m_freq);   // recompute digit values and leading zeros
+    emit freqDigitsChanged();
+    update();
 }
 
 void FreqCtrlQuick::setFrequency(qint64 freq)

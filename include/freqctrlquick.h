@@ -86,23 +86,8 @@ public:
 
     int getFreqDigits() const { return m_NumDigits; }
 
-    void setFreqDigits(int f) {
-        if (!f) {
-            if (m_MaxFreq < 10e6)
-                m_NumDigits = 7;
-            else if (m_MaxFreq < 100e6)
-                m_NumDigits = 8;
-            else if (m_MaxFreq < 1e9)
-                m_NumDigits = 9;
-            else if (m_MaxFreq < 10e9)
-                m_NumDigits = 10;
-            else if (m_MaxFreq < 100e9)
-                m_NumDigits = 11;
-        } else {
-            m_NumDigits = (f < FCTL_MIN_DIGITS) ? FCTL_MIN_DIGITS : (f > FCTL_MAX_DIGITS) ? FCTL_MAX_DIGITS : f;
-        }
-        emit freqDigitsChanged();
-    }
+    // 0 means size the display from maxFrequency
+    void setFreqDigits(int f);
     qint64 getFreqMinStep() const { return m_MinStep; }
 
     void setFreqMinStep(qint64 s)
@@ -217,6 +202,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
+    void applyNumDigits(int digits);
     void beginDirectEntry();
     void cancelDirectEntry();
     bool commitDirectEntry();
@@ -272,6 +258,7 @@ private:
     qint64      m_Oldfreq = 0;
     qint64      m_MinFreq = 0;
     qint64      m_MaxFreq = 0;
+    bool        m_AutoDigits = true;   // digit count follows m_MaxFreq
 
     QColor      m_DigitColor = Qt::white;
     QColor      m_BkColor = Qt::black;
