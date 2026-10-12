@@ -385,6 +385,18 @@ void MeterItem::setDrawLabels(bool d)
     markScaleDirty();
 }
 
+void MeterItem::setCompactLabels(bool c)
+{
+    if (m_compactLabels == c) return;
+    m_compactLabels = c;
+
+    m_mXstart = labelColumnWidth();
+    setImplicitWidth(m_scalePixelWidth + m_mXstart + 15);
+
+    emit drawLabelsChanged();
+    markScaleDirty();
+}
+
 void MeterItem::setFontSize(int size)
 {
     size = qMax(6, size);

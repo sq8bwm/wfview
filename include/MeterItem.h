@@ -29,6 +29,7 @@ class MeterItem : public QQuickPaintedItem
     Q_PROPERTY(bool reverseCompMeter READ reverseCompMeter WRITE setReverseCompMeter NOTIFY reverseCompMeterChanged)
     Q_PROPERTY(bool useGradients READ useGradients WRITE setUseGradients NOTIFY useGradientsChanged)
     Q_PROPERTY(bool drawLabels READ drawLabels WRITE setDrawLabels NOTIFY drawLabelsChanged)
+    Q_PROPERTY(bool compactLabels READ compactLabels WRITE setCompactLabels NOTIFY drawLabelsChanged)
     Q_PROPERTY(int fontSize READ fontSize WRITE setFontSize NOTIFY fontSizeChanged)
     Q_PROPERTY(QString warningText READ warningText WRITE setWarningText NOTIFY warningTextChanged)
     Q_PROPERTY(QColor scaleTextColor READ scaleTextColor WRITE setScaleTextColor NOTIFY scaleColorsChanged)
@@ -71,6 +72,10 @@ public:
 
     bool drawLabels() const { return m_drawLabels; }
     void setDrawLabels(bool d);
+
+    // Narrower label column, sized for short labels like "S" and "PWR"
+    bool compactLabels() const { return m_compactLabels; }
+    void setCompactLabels(bool c);
 
     // Point size for the scale, label and warning text
     int fontSize() const { return m_fontSize; }
@@ -135,6 +140,7 @@ private:
     bool m_reverseCompMeter = true;
     bool m_useGradients = true;
     bool m_drawLabels = true;
+    bool m_compactLabels = false;
     QString m_warningText;
 
     int m_fontSize = 9;
@@ -150,7 +156,11 @@ private:
 
     // Width of the left-hand label column ("S", "PWR", ...), scaled with the
     // font so labels don't run into the scale.
-    int labelColumnWidth() const { return m_drawLabels ? qRound(32.0 * m_fontSize / 6.0) : 0; }
+    int labelColumnWidth() const
+    {
+        if (!m_drawLabels) return 0;
+        return qRound((m_compactLabels ? 22.0 : 32.0) * m_fontSize / 6.0);
+    }
 
     int m_currentRect = 0;
     int m_averageRect = 0;

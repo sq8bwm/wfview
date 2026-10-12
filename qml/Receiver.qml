@@ -169,7 +169,7 @@ Control {
                     parent: root.sMeterOnTop ? header : smeterSlot
                     x: root.sMeterOnTop ? bandDrawerButton.x + bandDrawerButton.width + 5 : 0
                     y: root.sMeterOnTop ? 2 : 0
-                    width: root.sMeterOnTop ? Math.round(300 * root.displayScale) : smeterSlot.width
+                    width: root.sMeterOnTop ? Math.round(285 * root.displayScale) : smeterSlot.width
                     height: root.sMeterOnTop ? Math.round(26 * root.displayScale) : smeterSlot.height
                     meterType: root.controller ? root.controller.meterType : 0
                     // only set the "current" level; MeterItem does peak/avg itself
@@ -180,6 +180,7 @@ Control {
                     scaleHighLineColor: MainController.settings.options["Color.MeterHighScale"]
 
                     drawLabels: true
+                    compactLabels: true
                     // About a third larger with "Larger digits and primary meter"
                     fontSize: root.displayScale > 1 ? 12 : 9
                     function applyExtremities() {
@@ -488,7 +489,7 @@ Control {
                             Item {
                                 id: smeterSlot
                                 visible: !root.sMeterOnTop
-                                Layout.preferredWidth: Math.round(300 * root.displayScale)
+                                Layout.preferredWidth: Math.round(285 * root.displayScale)
                                 Layout.minimumWidth: Math.round(150 * root.displayScale)
                                 Layout.fillHeight: true
                                 Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
@@ -525,6 +526,8 @@ Control {
                                     Button {
                                         id: equalsABButton;
                                         text: qsTr("A=B");
+                                        // Size to the short text instead of the style's minimum width
+                                        implicitWidth: implicitContentWidth + leftPadding + rightPadding
                                         enabled: true
                                         visible: controller && (controller.uiFlags & ReceiverController.ShowEqualsABButton) !== 0
                                         onClicked: if (controller) controller.equalizeVfoAB()
@@ -533,6 +536,8 @@ Control {
                                     Button {
                                         id: vmButton;
                                         text: qsTr("V/M");
+                                        // Size to the short text instead of the style's minimum width
+                                        implicitWidth: implicitContentWidth + leftPadding + rightPadding
                                         checkable: true
                                         checked: controller ? controller.memoryMode : false
                                         visible: controller && (controller.uiFlags & ReceiverController.ShowVMButton) !== 0
