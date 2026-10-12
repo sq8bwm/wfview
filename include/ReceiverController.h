@@ -211,6 +211,7 @@ public:
     Q_INVOKABLE void onWheelTune(int angleDeltaY, int modifiers);
     Q_INVOKABLE void tuneSteps(int steps, int modifiers = 0, bool uniqueQueue = false);
     Q_INVOKABLE void tuneToFrequencyMHz(double freqMHz);
+    Q_INVOKABLE void setExactFrequencyMHz(double freqMHz);
     // Scroll tuning: drop stale radio frequency reports so they don't
     // overwrite the frequency the user is scrolling to.
     Q_INVOKABLE void holdFrequencyUpdates(bool vfoB = false);

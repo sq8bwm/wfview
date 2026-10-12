@@ -469,6 +469,19 @@ void ReceiverController::tuneToFrequencyMHz(double freqMHz)
     setFrequencyA(hz, true);
 }
 
+void ReceiverController::setExactFrequencyMHz(double freqMHz)
+{
+    // Direct frequency entry: use the value as typed, without step rounding.
+    if (freqMHz <= 0.0)
+        return;
+
+    const quint64 hz = quint64(std::llround(freqMHz * 1E6));
+    if (hz == 0)
+        return;
+
+    setFrequencyA(hz, true);
+}
+
 void ReceiverController::holdFrequencyUpdates(bool vfoB)
 {
     if (vfoB)

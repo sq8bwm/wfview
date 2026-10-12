@@ -74,6 +74,7 @@ static constexpr auto shortcutCloseWindow = "app.closeWindow";
 static constexpr auto shortcutOpenMemories = "app.openMemories";
 static constexpr auto shortcutPopoutReceiver = "app.popoutReceiver";
 static constexpr auto shortcutPopinReceiver = "app.popinReceiver";
+static constexpr auto shortcutEnterFrequency = "app.enterFrequency";
 
 static funcs shortcutFuncFromName(const QString& commandName)
 {
@@ -688,7 +689,8 @@ QVariantList MainController::shortcutAppCommandOptions() const
         { tr("Open Memories"), QString::fromLatin1(shortcutOpenMemories) },
         { tr("Open CW Sender"), QString::fromLatin1(shortcutOpenCwSender) },
         { tr("Pop Out Receiver"), QString::fromLatin1(shortcutPopoutReceiver) },
-        { tr("Pop In Receiver"), QString::fromLatin1(shortcutPopinReceiver) }
+        { tr("Pop In Receiver"), QString::fromLatin1(shortcutPopinReceiver) },
+        { tr("Enter Frequency"), QString::fromLatin1(shortcutEnterFrequency) }
     };
     for (const auto& item : appCommands) {
         QVariantMap option;
@@ -728,7 +730,8 @@ void MainController::runShortcutAppAction(const QString& commandName)
         || commandName == QLatin1String(shortcutCloseWindow)
         || commandName == QLatin1String(shortcutOpenMemories)
         || commandName == QLatin1String(shortcutPopoutReceiver)
-        || commandName == QLatin1String(shortcutPopinReceiver))
+        || commandName == QLatin1String(shortcutPopinReceiver)
+        || commandName == QLatin1String(shortcutEnterFrequency))
         return;
     if (commandName == QLatin1String(shortcutQuitApplication)) {
         quitApplication();
@@ -767,7 +770,8 @@ bool MainController::eventFilter(QObject* watched, QEvent* event)
         if (shortcut.command.startsWith(QLatin1String("app."))) {
             int receiver = shortcut.receiver;
             if ((shortcut.command == QLatin1String(shortcutPopoutReceiver)
-                 || shortcut.command == QLatin1String(shortcutPopinReceiver))
+                 || shortcut.command == QLatin1String(shortcutPopinReceiver)
+                 || shortcut.command == QLatin1String(shortcutEnterFrequency))
                 && receiver < 0) {
                 receiver = int(currentReceiver);
             }

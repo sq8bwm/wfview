@@ -3031,7 +3031,7 @@ ApplicationWindow {
                                         readonly property int rowIndex: index
                                         readonly property bool appCommand: String(shortcutCommand).indexOf("app.") === 0
                                         readonly property bool radioCommand: String(shortcutCommand) !== "None" && !appCommand
-                                        readonly property bool receiverAppCommand: String(shortcutCommand) === "app.popoutReceiver" || String(shortcutCommand) === "app.popinReceiver"
+                                        readonly property bool receiverAppCommand: String(shortcutCommand) === "app.popoutReceiver" || String(shortcutCommand) === "app.popinReceiver" || String(shortcutCommand) === "app.enterFrequency"
 
                                         CheckBox {
                                             Layout.preferredWidth: 34

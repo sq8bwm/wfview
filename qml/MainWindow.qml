@@ -413,6 +413,125 @@ ApplicationWindow {
     }
 
 
+    Dialog {
+        id: enterFrequencyDialog
+        title: qsTr("Enter Frequency")
+        width: 320
+        x: Math.round((win.width - width) / 2)
+        y: Math.round((win.height - height) / 2)
+        visible: false
+        modal: true
+        closePolicy: Popup.CloseOnEscape
+
+        property var receiverController: null
+
+        // Size from the layout so the buttons always fit inside the dialog.
+        contentHeight: frequencyLayout.implicitHeight + 32
+
+        background: Rectangle {
+            color: win.palette.window
+            border.color: win.palette.highlight
+            border.width: 1
+            radius: 4
+        }
+
+        function showDialog(receiver) {
+            if (!win.radioConnected)
+                return
+            var i = Number(receiver)
+            var rc = MainController.receiver(i >= 0 ? i : 0)
+            if (!rc)
+                return
+            receiverController = rc
+            frequencyField.text = (Number(rc.frequencyA) / 1e6).toFixed(6)
+            win.show()
+            win.raise()
+            win.requestActivate()
+            win.ensureWindowFitsPopup(enterFrequencyDialog)
+            open()
+        }
+
+        // Text with a decimal point is MHz; whole numbers are kHz. An explicit
+        // "MHz" or "kHz" suffix overrides that. A lone comma with no period is
+        // treated as the decimal separator; otherwise commas are digit grouping.
+        function parseFrequencyMHz(text) {
+            var s = String(text).trim().replace(/\s+/g, "")
+            var unit = ""
+            var suffix = s.match(/(mhz|khz)$/i)
+            if (suffix) {
+                unit = suffix[1].toLowerCase()
+                s = s.slice(0, s.length - suffix[1].length)
+            }
+            if (s.indexOf(".") < 0 && (s.match(/,/g) || []).length === 1)
+                s = s.replace(",", ".")
+            else
+                s = s.replace(/,/g, "")
+            if (!/^\d*\.?\d+$|^\d+\.$/.test(s))
+                return NaN
+            if (unit === "")
+                unit = s.indexOf(".") < 0 ? "khz" : "mhz"
+            return unit === "khz" ? Number(s) / 1000 : Number(s)
+        }
+
+        function submit() {
+            var mhz = parseFrequencyMHz(frequencyField.text)
+            if (!isFinite(mhz) || mhz <= 0) {
+                frequencyField.selectAll()
+                frequencyField.forceActiveFocus()
+                return
+            }
+            if (receiverController)
+                receiverController.setExactFrequencyMHz(mhz)
+            close()
+        }
+
+        onOpened: {
+            frequencyField.forceActiveFocus()
+            frequencyField.selectAll()
+        }
+        onClosed: {
+            receiverController = null
+            win.shrinkAfterDialog()
+        }
+
+        ColumnLayout {
+            id: frequencyLayout
+            anchors.fill: parent
+            anchors.margins: 16
+            spacing: 12
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Enter desired frequency")
+                color: win.palette.windowText
+            }
+
+            TextField {
+                id: frequencyField
+                Layout.fillWidth: true
+                selectByMouse: true
+                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                onAccepted: enterFrequencyDialog.submit()
+                Keys.onEscapePressed: enterFrequencyDialog.close()
+            }
+
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                spacing: 8
+
+                Button {
+                    text: qsTr("Cancel")
+                    onClicked: enterFrequencyDialog.close()
+                }
+                Button {
+                    text: qsTr("Go")
+                    highlighted: true
+                    onClicked: enterFrequencyDialog.submit()
+                }
+            }
+        }
+    }
+
     onClosing: function(close) {
         if (win.shutdownStarted) {
             close.accepted = true
@@ -679,6 +798,10 @@ ApplicationWindow {
         }
         if (command === "app.popinReceiver") {
             popinReceiver(receiver)
+            return
+        }
+        if (command === "app.enterFrequency") {
+            enterFrequencyDialog.showDialog(receiver)
             return
         }
         if (command.indexOf("app.") === 0) {

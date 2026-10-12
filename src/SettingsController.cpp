@@ -303,7 +303,8 @@ SettingsController::SettingsController(QString file, QObject *p) :
         { tr("Open Memories"), QStringLiteral("app.openMemories") },
         { tr("Open CW Sender"), QStringLiteral("app.openCwSender") },
         { tr("Pop Out Receiver"), QStringLiteral("app.popoutReceiver") },
-        { tr("Pop In Receiver"), QStringLiteral("app.popinReceiver") }
+        { tr("Pop In Receiver"), QStringLiteral("app.popinReceiver") },
+        { tr("Enter Frequency"), QStringLiteral("app.enterFrequency") }
     });
 
     QVector<QPair<QString, QString>> radioShortcutOptions;
