@@ -852,6 +852,8 @@ void kenwoodCommander::parseData(QByteArray data)
             short rit = d.mid(16,5).toShort(&ok);
             if (ok) {
                 value.setValue(rit);
+                if (!ritLastStep.isValid() || ritLastStep.elapsed() > ritResyncHoldoffMs)
+                    ritOffset = rit;
                 queue->receiveValue(funcRitFreq,QVariant::fromValue(rit),receiver);
             }
 
@@ -1442,26 +1444,17 @@ void kenwoodCommander::receiveCommand(funcs func, QVariant value, uchar receiver
     {
         // There is no command to directly set the RIT, only up or down commands.
         short rit = value.value<short>();
-        static short old = rit;
-        short diff = 0;
-        diff = rit - old;
+        short diff = rit - ritOffset;
 
-        if (rit < old)
-        {
-            func = funcRITDown;
-        }
-        else if (rit > old)
-        {
-            func = funcRITUp;
-        }
-
-        //qInfo() << "Updating RIT with" << diff << "old" << old << "new" << rit;
-        value.setValue<short>(abs(diff));
+        //qInfo() << "Updating RIT with" << diff << "old" << ritOffset << "new" << rit;
         if (diff == 0)
         {
             return;
         }
-        old = rit;
+        func = (diff < 0) ? funcRITDown : funcRITUp;
+        value.setValue<short>(abs(diff));
+        ritOffset = rit;
+        ritLastStep.start();
     }
 
     // The transceiverStatus command cannot be used to set PTT, this is handled by TX/RX commands.
@@ -1589,6 +1582,11 @@ void kenwoodCommander::receiveCommand(funcs func, QVariant value, uchar receiver
                 } else {
                     payload.append(QString::number(value.value<uchar>()).rightJustified(cmd.bytes, QChar('0')).toLatin1());
                 }
+            }
+            else if(!strcmp(value.typeName(),"short"))
+            {
+                // RIT/XIT step size for RU/RD, already made positive above.
+                payload.append(QString::number(value.value<short>()).rightJustified(cmd.bytes, QChar('0')).toLatin1());
             }
             else if(!strcmp(value.typeName(),"uint"))
             {

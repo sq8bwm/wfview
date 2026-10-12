@@ -1,6 +1,7 @@
 #ifndef MAINCONTROLLER_H
 #define MAINCONTROLLER_H
 
+#include <QElapsedTimer>
 #include <QObject>
 #include <QSettings>
 #include <QThread>
@@ -566,6 +567,10 @@ private:
     int m_modSourceRevision = 0;
     rigInput m_currentModSrc[4];
     int m_ritFrequency = 0;
+    // Restarted on every user RIT change; radio reports arriving within
+    // ritHoldoffMs of it are stale and would make the dial jump back.
+    QElapsedTimer m_ritUserChange;
+    static constexpr int ritHoldoffMs = 100;
     bool m_transmitting = false;
     bool m_rxMuted = false;   // runtime-only RX mute used with TX self-monitor
     // ANR noise-sample collection: runs for anrProfileSeconds unless stopped early.

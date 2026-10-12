@@ -1480,6 +1480,8 @@ void MainController::setRitFrequency(int value)
         value = qBound(cmd.minVal, value, cmd.maxVal);
     }
 
+    m_ritUserChange.start();
+
     if (m_ritFrequency != value) {
         m_ritFrequency = value;
         emit ritFrequencyChanged();
@@ -4794,6 +4796,8 @@ void MainController::receiveValueFromQueue(cacheItem val)
     case funcRitFreq:
     {
         const int value = val.value.value<short>();
+        if (m_ritUserChange.isValid() && m_ritUserChange.elapsed() < ritHoldoffMs)
+            break;
         if (m_ritFrequency != value) {
             m_ritFrequency = value;
             emit ritFrequencyChanged();

@@ -3,6 +3,7 @@
 #include "rigcommander.h"
 #include "rtpaudio.h"
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QSerialPort>
 
 #define audioLevelBufferSize (4)
@@ -110,6 +111,12 @@ private:
     connectionType_t connType = connectionLAN;
 
     bool aiModeEnabled=false;
+    // Kenwood RIT can only be stepped with RU/RD, so we track the radio's
+    // offset to work out the step. Reports from the radio resync it, except
+    // just after we sent a step, when they may predate that step.
+    short ritOffset = 0;
+    QElapsedTimer ritLastStep;
+    static constexpr int ritResyncHoldoffMs = 500;
     ushort scopeSplit=0;
 
     networkStatus status;
