@@ -1727,7 +1727,7 @@ Control {
                     Item {
                         id: attCtl
                         Layout.fillWidth: true
-                        implicitHeight: 40
+                        implicitHeight: 48
 
                         readonly property var spec: controller ? controller.uiSpecs["attenuator"] : null
                         visible: spec ? (spec.visible ?? true) : false
@@ -1737,7 +1737,41 @@ Control {
                         readonly property real sStep: spec ? Math.max(1, Number(spec.step ?? 3)) : 3
                         readonly property string unit: spec ? String(spec.unit ?? "dB") : "dB"
 
+                        // Named entries from the rig file (Num/Name). When present the
+                        // slider walks this list and labels each position with its Name.
+                        readonly property var options: (spec && spec.options) ? spec.options : []
+                        readonly property bool useOptions: options.length > 0
+
+                        function valueAt(i) {
+                            return useOptions ? Number(options[i].value) : sFrom + i * sStep;
+                        }
+                        function labelAt(i) {
+                            return useOptions ? String(options[i].text) : String(sFrom + i * sStep) + unit;
+                        }
+                        // Compact tick label: names like "-20 dB" become "-20" so long
+                        // lists stay readable. Attenuation is always shown as negative.
+                        readonly property bool negateDb: true
+                        function tickLabelAt(i) {
+                            const t = labelAt(i);
+                            const m = t.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*dB\s*$/i);
+                            if (!m)
+                                return t;
+                            const n = Number(m[1]);
+                            return String(negateDb ? -Math.abs(n) : n);
+                        }
+                        function indexOfValue(v) {
+                            if (!useOptions)
+                                return Math.round((v - sFrom) / sStep);
+                            let best = 0;
+                            for (let i = 1; i < options.length; ++i) {
+                                if (Math.abs(Number(options[i].value) - v) < Math.abs(Number(options[best].value) - v))
+                                    best = i;
+                            }
+                            return best;
+                        }
+
                         readonly property int steps: {
+                            if (useOptions) return options.length;
                             if (sTo === sFrom) return 1;
                             return Math.floor(Math.abs((sTo - sFrom) / sStep)) + 1; // inclusive
                         }
@@ -1782,19 +1816,19 @@ Control {
 
                                 onMoved: {
                                     if (!controller || attCtl.syncing) return;
-                                    controller.attenuator = attCtl.sFrom + Math.round(value) * attCtl.sStep;
+                                    controller.attenuator = attCtl.valueAt(Math.round(value));
                                 }
 
                                 HoverHandler { id: h }
                                 ToolTip.visible: h.hovered
                                 ToolTip.delay: 200
-                                ToolTip.text: (attCtl.sFrom + Math.round(attSlider.value) * attCtl.sStep) + attCtl.unit
+                                ToolTip.text: attCtl.labelAt(Math.round(attSlider.value))
                             }
 
                             Canvas {
                                 id: tickCanvas
                                 width: attSlider.width
-                                height: 20
+                                height: 26
 
                                 onPaint: {
                                     const ctx = getContext("2d");
@@ -1813,7 +1847,13 @@ Control {
                                     ctx.font = "10px sans-serif";
                                     ctx.textBaseline = "top";
 
-                                    const labelEvery = attCtl.effectiveLabelEvery;
+                                    let labelEvery = attCtl.effectiveLabelEvery;
+                                    if (attCtl.useOptions && attCtl.labelEvery <= 0) {
+                                        let maxW = 0;
+                                        for (let i = 0; i < n; ++i)
+                                            maxW = Math.max(maxW, ctx.measureText(attCtl.tickLabelAt(i)).width);
+                                        labelEvery = Math.max(1, Math.ceil((maxW + 6) / Math.max(1, drawW / denom)));
+                                    }
 
                                     for (let i = 0; i < n; ++i) {
                                         const x = padL + i * (drawW / denom);
@@ -1824,11 +1864,10 @@ Control {
                                         ctx.fillRect(x, 0, 1, th);
 
                                         // labels: auto density (plus ends)
-                                        const showLabel = isEnd || (i % labelEvery === 0);
+                                        const showLabel = isEnd || (i % labelEvery === 0 && (n - 1 - i) >= labelEvery);
                                         if (!showLabel) continue;
 
-                                        const val = attCtl.sFrom + i * attCtl.sStep;
-                                        const t = String(val);
+                                        const t = attCtl.useOptions ? attCtl.tickLabelAt(i) : String(attCtl.valueAt(i));
                                         const tw = ctx.measureText(t).width;
 
                                         let tx = x - tw / 2;
@@ -1844,6 +1883,7 @@ Control {
                                     target: attCtl
                                     function onStepsChanged() { tickCanvas.requestPaint(); }
                                     function onSFromChanged() { tickCanvas.requestPaint(); }
+                                    function onOptionsChanged() { tickCanvas.requestPaint(); }
                                     function onTickPadLChanged() { tickCanvas.requestPaint(); }
                                     function onTickPadRChanged() { tickCanvas.requestPaint(); }
                                     function onEndTickHChanged() { tickCanvas.requestPaint(); }
@@ -1860,7 +1900,7 @@ Control {
                         function syncFromController() {
                             if (!controller || attCtl.sStep <= 0) return;
                             const v = Number(controller.attenuator);
-                            const idx = Math.round((v - attCtl.sFrom) / attCtl.sStep);
+                            const idx = attCtl.indexOfValue(v);
                             attCtl.syncing = true;
                             attSlider.value = Math.max(0, Math.min(attCtl.steps - 1, idx));
                             attCtl.syncing = false;
@@ -1885,7 +1925,7 @@ Control {
                     Item {
                         id: preCtl
                         Layout.fillWidth: true
-                        implicitHeight: 40
+                        implicitHeight: 48
 
                         readonly property var spec: controller ? controller.uiSpecs["preamp"] : null
                         visible: spec ? (spec.visible ?? true) : false
@@ -1895,7 +1935,41 @@ Control {
                         readonly property real sStep: spec ? Math.max(1, Number(spec.step ?? 1)) : 1
                         readonly property string unit: spec ? String(spec.unit ?? "dB") : "dB"
 
+                        // Named entries from the rig file (Num/Name). When present the
+                        // slider walks this list and labels each position with its Name.
+                        readonly property var options: (spec && spec.options) ? spec.options : []
+                        readonly property bool useOptions: options.length > 0
+
+                        function valueAt(i) {
+                            return useOptions ? Number(options[i].value) : sFrom + i * sStep;
+                        }
+                        function labelAt(i) {
+                            return useOptions ? String(options[i].text) : String(sFrom + i * sStep) + unit;
+                        }
+                        // Compact tick label: names like "-20 dB" become "-20" so long
+                        // lists stay readable. Attenuation is always shown as negative.
+                        readonly property bool negateDb: false
+                        function tickLabelAt(i) {
+                            const t = labelAt(i);
+                            const m = t.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*dB\s*$/i);
+                            if (!m)
+                                return t;
+                            const n = Number(m[1]);
+                            return String(negateDb ? -Math.abs(n) : n);
+                        }
+                        function indexOfValue(v) {
+                            if (!useOptions)
+                                return Math.round((v - sFrom) / sStep);
+                            let best = 0;
+                            for (let i = 1; i < options.length; ++i) {
+                                if (Math.abs(Number(options[i].value) - v) < Math.abs(Number(options[best].value) - v))
+                                    best = i;
+                            }
+                            return best;
+                        }
+
                         readonly property int steps: {
+                            if (useOptions) return options.length;
                             if (sTo === sFrom) return 1;
                             return Math.floor(Math.abs((sTo - sFrom) / sStep)) + 1; // inclusive
                         }
@@ -1940,19 +2014,19 @@ Control {
 
                                 onMoved: {
                                     if (!controller || preCtl.syncing) return;
-                                    controller.preamp = preCtl.sFrom + Math.round(value) * preCtl.sStep;
+                                    controller.preamp = preCtl.valueAt(Math.round(value));
                                 }
 
                                 HoverHandler { id: hPre }
                                 ToolTip.visible: hPre.hovered
                                 ToolTip.delay: 200
-                                ToolTip.text: (preCtl.sFrom + Math.round(preSlider.value) * preCtl.sStep) + preCtl.unit
+                                ToolTip.text: preCtl.labelAt(Math.round(preSlider.value))
                             }
 
                             Canvas {
                                 id: preCanvas
                                 width: preSlider.width
-                                height: 20
+                                height: 26
 
                                 onPaint: {
                                     const ctx = getContext("2d");
@@ -1971,7 +2045,13 @@ Control {
                                     ctx.font = "10px sans-serif";
                                     ctx.textBaseline = "top";
 
-                                    const labelEvery = preCtl.effectiveLabelEvery;
+                                    let labelEvery = preCtl.effectiveLabelEvery;
+                                    if (preCtl.useOptions && preCtl.labelEvery <= 0) {
+                                        let maxW = 0;
+                                        for (let i = 0; i < n; ++i)
+                                            maxW = Math.max(maxW, ctx.measureText(preCtl.tickLabelAt(i)).width);
+                                        labelEvery = Math.max(1, Math.ceil((maxW + 6) / Math.max(1, drawW / denom)));
+                                    }
 
                                     for (let i = 0; i < n; ++i) {
                                         const x = padL + i * (drawW / denom);
@@ -1982,11 +2062,10 @@ Control {
                                         ctx.fillRect(x, 0, 1, th);
 
                                         // labels: auto density (plus ends)
-                                        const showLabel = isEnd || (i % labelEvery === 0);
+                                        const showLabel = isEnd || (i % labelEvery === 0 && (n - 1 - i) >= labelEvery);
                                         if (!showLabel) continue;
 
-                                        const val = preCtl.sFrom + i * preCtl.sStep;
-                                        const t = String(val);
+                                        const t = preCtl.useOptions ? preCtl.tickLabelAt(i) : String(preCtl.valueAt(i));
                                         const tw = ctx.measureText(t).width;
 
                                         let tx = x - tw / 2;
@@ -2001,6 +2080,7 @@ Control {
                                     target: preCtl
                                     function onStepsChanged() { preCanvas.requestPaint(); }
                                     function onSFromChanged() { preCanvas.requestPaint(); }
+                                    function onOptionsChanged() { preCanvas.requestPaint(); }
                                     function onTickPadLChanged() { preCanvas.requestPaint(); }
                                     function onTickPadRChanged() { preCanvas.requestPaint(); }
                                     function onEndTickHChanged() { preCanvas.requestPaint(); }
@@ -2017,7 +2097,7 @@ Control {
                         function syncFromController() {
                             if (!controller || preCtl.sStep <= 0) return;
                             const v = Number(controller.preamp);
-                            const idx = Math.round((v - preCtl.sFrom) / preCtl.sStep);
+                            const idx = preCtl.indexOfValue(v);
                             preCtl.syncing = true;
                             preSlider.value = Math.max(0, Math.min(preCtl.steps - 1, idx));
                             preCtl.syncing = false;

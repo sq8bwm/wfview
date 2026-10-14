@@ -1694,6 +1694,19 @@ void ReceiverController::buildUiSpecs()
         };
     }
 
+    const auto mkGenericOptions = [](const std::vector<genericType> &items) -> QVariantList {
+        QVariantList opts;
+        opts.reserve(static_cast<int>(items.size()));
+
+        for (const auto &a : items) {
+            opts.append(QVariantMap{
+                {"text", a.name},
+                {"value", a.num}
+            });
+        }
+        return opts;
+    };
+
     if (rigCaps->commands.contains(funcAttenuator))
     {
         // Find the step size between attenuator values
@@ -1717,6 +1730,7 @@ void ReceiverController::buildUiSpecs()
             {"to",func.maxVal},
             {"step",step},
             {"unit","dB"},
+            {"options",mkGenericOptions(rigCaps->attenuators)},
             {"visible",true}
         };
     }
@@ -1742,22 +1756,10 @@ void ReceiverController::buildUiSpecs()
             {"to",func.maxVal},
             {"step",step},
             {"unit",""},
+            {"options",mkGenericOptions(rigCaps->preamps)},
             {"visible",true}
         };
     }
-
-    const auto mkAntennaOptions = [](const std::vector<genericType> &ants) -> QVariantList {
-        QVariantList opts;
-        opts.reserve(static_cast<int>(ants.size()));
-
-        for (const auto &a : ants) {
-            opts.append(QVariantMap{
-                {"text", a.name},
-                {"value", a.num}
-            });
-        }
-        return opts;
-    };
 
     const bool hasAntennaCommand = rigCaps->commands.contains(funcAntenna);
     const bool hasRxAntennaCommand = hasAntennaCommand || rigCaps->commands.contains(funcRXAntenna);
@@ -1766,7 +1768,7 @@ void ReceiverController::buildUiSpecs()
     uiSpecs["antenna"] = QVariantMap{
         {"visible", hasAntennaCommand || hasRxAntennaCommand},
         {"rxVisible", hasRxAntennaCommand},
-        {"options", hasAntennaCommand ? mkAntennaOptions(rigCaps->antennas) : QVariantList{}}
+        {"options", hasAntennaCommand ? mkGenericOptions(rigCaps->antennas) : QVariantList{}}
     };
 
 
