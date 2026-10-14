@@ -95,6 +95,7 @@ signals:
     void commReady();
 
     void havePortError(errorType err);
+    void connectionLost();
     void haveStatusUpdate(const networkStatus status);
 
     void haveNetworkAudioLevels(const networkAudioLevels l);

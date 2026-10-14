@@ -3423,6 +3423,7 @@ void MainController::startRigConnection()
         connect(rig, &rigCommander::haveStatusUpdate, this, &MainController::receiveStatusUpdate);
         connect(rig, &rigCommander::haveNetworkAudioLevels, this, &MainController::receiveNetworkAudioLevels);
         connect(rig, &rigCommander::havePortError, this, &MainController::receivePortError);
+        connect(rig, &rigCommander::connectionLost, this, &MainController::handleRigConnectionLost);
         connect(rig, &rigCommander::haveAudioData, this, &MainController::routeRxAudioToSinks);
         connect(rig, &rigCommander::externalPttChanged, this, &MainController::handleExternalTransmitRequested);
         connect(rig, &rigCommander::stopsidetone, m_cwSender.get(), &CWSenderController::handleStopSidetone);
@@ -3485,6 +3486,23 @@ void MainController::receiveNetworkAudioLevels(networkAudioLevels levels)
         if (m_selRad)
             m_selRad->audioInputLevel(levels.txAudioPeak);
     }
+}
+
+void MainController::handleRigConnectionLost()
+{
+    if (shuttingDown || connStatus == connectionStatus_t::connDisconnected)
+        return;
+
+    // The radio dropped the connection, so tear down as if the user had
+    // pressed Disconnect. The on-disconnect commands are skipped as there is
+    // no radio to send them to, and the error that arrived just before this
+    // is kept in the footer.
+    qInfo(logSystem()) << "Radio connection lost, disconnecting";
+    const QString footer = m_footerMessageText;
+    m_disconnectPending = false;
+    disconnectRig();
+    setFooterMessageText(footer);
+    emit connStatusChanged();
 }
 
 void MainController::receivePortError(errorType err)

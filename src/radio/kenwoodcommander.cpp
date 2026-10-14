@@ -174,6 +174,12 @@ void kenwoodCommander::lanDisconnected()
 {
     qInfo() << QString("Disconnected from: %0:%1").arg(prefs.ipAddress).arg(prefs.controlLANPort);
     portConnected=false;
+
+    // The radio has dropped the session, so close the audio streams rather
+    // than leaving them running against a dead connection.
+    stopRtpAudio();
+    emit havePortError(errorType(prefs.ipAddress, "Got radio disconnected."));
+    emit connectionLost();
 }
 
 
@@ -183,6 +189,8 @@ void kenwoodCommander::closeComm()
     stopRtpAudio();
     if (port != nullptr && portConnected)
     {
+        // This is a deliberate close, so don't report it as a lost connection.
+        disconnect(port, nullptr, this, nullptr);
         if (port->isOpen())
             port->close();
         delete port;

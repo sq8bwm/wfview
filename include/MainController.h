@@ -402,6 +402,7 @@ private slots:
     void handleExternalTransmitRequested(bool transmit);
     void receiveCommReady();
     void receivePortError(errorType err);
+    void handleRigConnectionLost();
     void ctChanged(SettingsController::prefCtItems items);
     void clusterChanged(SettingsController::prefClusterItems items);
 #if defined(USB_CONTROLLER)
