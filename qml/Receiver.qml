@@ -1205,6 +1205,9 @@ Control {
                     rowSpacing: 8
                     columnSpacing: 8
 
+                    // On/off capabilities from the rig file; controls the rig lacks are hidden.
+                    readonly property var features: (controller && controller.uiSpecs["features"]) ? controller.uiSpecs["features"] : ({})
+
                     // --- IMPORTANT: force column 0 width ---
                     // Put this on EVERY Label in column 0:
 
@@ -1462,11 +1465,13 @@ Control {
                         text: qsTr("IF Shift")
                         Layout.preferredWidth: sideFlick.labelColW
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        visible: drawerGrid.features.ifShift === true
                     }
                     RowLayout {
                         //Layout.preferredWidth: 120
                         Layout.fillWidth: true
                         spacing: 2
+                        visible: drawerGrid.features.ifShift === true
 
                         Slider {
                             WheelArea {}
@@ -1491,11 +1496,13 @@ Control {
                         text: qsTr("Filter width")
                         Layout.preferredWidth: sideFlick.labelColW
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        visible: filterWidthSlider.visible
                     }
                     Slider {
                         WheelArea {}
                         id: filterWidthSlider
                         objectName: "filterWidth"
+                        visible: drawerGrid.features.filterWidth === true
                         value: controller ? controller.filterWidth : 0
                         onMoved: controller.filterWidth = value
                         //Layout.preferredWidth: 120
@@ -1505,9 +1512,11 @@ Control {
 
                     // === NB checkbox + slider ===
                     RowLayout {
+                        id: nbRow
                         Layout.preferredWidth: sideFlick.labelColW
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                         spacing: 0
+                        visible: drawerGrid.features.nb === true || (nbSlider.spec ? nbSlider.spec.visible === true : false)
 
                         Label {
                             text: qsTr("NB")
@@ -1515,6 +1524,7 @@ Control {
 
                         CheckBox {
                             id: nbCheckBox
+                            visible: drawerGrid.features.nb === true
                             checked: controller ? controller.nb : false
                             onCheckedChanged: {
                                 if (controller)
@@ -1533,7 +1543,10 @@ Control {
                         from: spec ? spec.from : 0
                         to: spec ? spec.to : 0
                         onMoved: controller.nbLevel = value
-                        visible: spec ? spec.visible : false
+                        // Keep the grid cell when only the on/off checkbox exists.
+                        visible: nbRow.visible
+                        enabled: spec ? spec.visible === true : false
+                        opacity: enabled ? 1.0 : 0.0
 
                         HoverHandler {
                             id: hoverNb
@@ -1547,9 +1560,11 @@ Control {
 
 
                     RowLayout {
+                        id: nrRow
                         Layout.preferredWidth: sideFlick.labelColW
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                         spacing: 0
+                        visible: drawerGrid.features.nr === true || (nrSlider.spec ? nrSlider.spec.visible === true : false)
 
                         Label {
                             text: qsTr("NR")
@@ -1557,6 +1572,7 @@ Control {
 
                         CheckBox {
                             id: nrCheckBox
+                            visible: drawerGrid.features.nr === true
                             checked: controller ? controller.nr : false
                             onCheckedChanged: {
                                 if (controller)
@@ -1575,7 +1591,10 @@ Control {
                         from: spec ? spec.from : 0
                         to: spec ? spec.to : 0
                         onMoved: controller.nrLevel = value
-                        visible: spec ? spec.visible : false
+                        // Keep the grid cell when only the on/off checkbox exists.
+                        visible: nrRow.visible
+                        enabled: spec ? spec.visible === true : false
+                        opacity: enabled ? 1.0 : 0.0
 
                         HoverHandler {
                             id: hoverNr
@@ -1591,6 +1610,7 @@ Control {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         implicitHeight: extraControlsRow.implicitHeight
+                        visible: drawerGrid.features.ipPlus === true || drawerGrid.features.mn === true || drawerGrid.features.ds === true
 
                         RowLayout {
                             id: extraControlsRow
@@ -1600,6 +1620,7 @@ Control {
                             CheckBox {
                                 // IP Plus
                                 id: ipPlusCheckBox
+                                visible: drawerGrid.features.ipPlus === true
                                 text: qsTr("IP+")
                                 checked: controller ? controller.ipPlus : false
                                 onCheckedChanged: {
@@ -1612,6 +1633,7 @@ Control {
                             CheckBox {
                                 // Manual Notch
                                 id: mnCheckBox
+                                visible: drawerGrid.features.mn === true
                                 text: qsTr("MN")
                                 checked: controller ? controller.mn : false
                                 onCheckedChanged: {
@@ -1624,6 +1646,7 @@ Control {
                             CheckBox {
                                 // Digi-Sel
                                 id: dsCheckBox
+                                visible: drawerGrid.features.ds === true
                                 text: qsTr("DS")
                                 checked: controller ? controller.ds : false
                                 onCheckedChanged: {

@@ -9,7 +9,7 @@
 
 
 ReceiverController::ReceiverController(int rxIndex, QString region, QObject *parent)
-    : QObject(parent), region(region), receiver(rxIndex)
+    : QObject(parent), receiver(rxIndex), region(region)
 {
     qInfo() << "Creating new Receiver(" << rxIndex <<")";
 
@@ -1432,6 +1432,9 @@ void ReceiverController::buildUiSpecs()
         return;
     }
 
+    // Start fresh so specs from a previously connected rig don't linger.
+    uiSpecs.clear();
+
     QVariantList values;
 
     values.clear();
@@ -1716,7 +1719,7 @@ void ReceiverController::buildUiSpecs()
         {
             step = 1;
         } else {
-            for (int i = 1; i < rigCaps->attenuators.size(); ++i) {
+            for (size_t i = 1; i < rigCaps->attenuators.size(); ++i) {
                 const int delta = rigCaps->attenuators[i].num - rigCaps->attenuators[i - 1].num;
                 if (delta <= 0)
                     continue;
@@ -1742,7 +1745,7 @@ void ReceiverController::buildUiSpecs()
         {
             step = 1;
         } else {
-            for (int i = 1; i < rigCaps->preamps.size(); ++i) {
+            for (size_t i = 1; i < rigCaps->preamps.size(); ++i) {
                 const int delta = rigCaps->preamps[i].num - rigCaps->preamps[i - 1].num;
                 if (delta <= 0)
                     continue;
@@ -1791,6 +1794,18 @@ void ReceiverController::buildUiSpecs()
             {"visible",true}
         };
     }
+
+    // Simple on/off controls in the side panel; QML hides any the rig doesn't support.
+    const auto has = [this](funcs f) { return rigCaps->commands.contains(f); };
+    uiSpecs["features"] = QVariantMap{
+        {"nb", has(funcNoiseBlanker)},
+        {"nr", has(funcNoiseReduction)},
+        {"ipPlus", has(funcIPPlus)},
+        {"mn", has(funcManualNotch)},
+        {"ds", has(funcDigiSel)},
+        {"ifShift", has(funcIFShift)},
+        {"filterWidth", has(funcFilterWidth)}
+    };
 
 
     emit uiSpecsChanged();
