@@ -1072,7 +1072,13 @@ ApplicationWindow {
 
     Component {
             id: rigCreatorComponent
-            RigCreator { }
+            RigCreator {
+                id: rigCreatorWin
+                onWindowClosed: {
+                    win.rigCreatorWindows = win.rigCreatorWindows.filter(function(w) { return w !== rigCreatorWin })
+                    rigCreatorWin.destroy()
+                }
+            }
     }
 
     Component {

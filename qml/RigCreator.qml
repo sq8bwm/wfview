@@ -18,6 +18,17 @@ ApplicationWindow {
     color: palette.window
     property bool forceClose: false
     property bool closeAfterSaveDialog: false
+    // Build the tables once the window is first shown, and never tear them down on hide:
+    // unloading ~18 tables one by one stalled the GUI for seconds on close.
+    property bool contentReady: false
+
+    // Emitted once the window has actually closed, so the owner can destroy it
+    signal windowClosed()
+
+    onVisibleChanged: {
+        if (visible)
+            contentReady = true
+    }
 
     readonly property bool _sysTheme: MainController.settings.options["Interface.UseSystemTheme"] === true
 
@@ -90,13 +101,12 @@ ApplicationWindow {
     }
 
     onClosing: function(event) {
-        if (forceClose)
-            return
-
-        if (rig.dirty) {
+        if (!forceClose && rig.dirty) {
             event.accepted = false
             unsavedDialog.open()
+            return
         }
+        Qt.callLater(rigCreator.windowClosed)
     }
 
     // File dialog to open a file
@@ -224,8 +234,11 @@ ApplicationWindow {
         }
 
         onDiscarded: {
+            // Discard does not close the dialog by itself; close it first and let the
+            // window close on the next event loop pass so the dialog clears immediately.
+            unsavedDialog.close()
             forceClose = true
-            rigCreator.close()
+            Qt.callLater(rigCreator.close)
         }
 
         onRejected: closeAfterSaveDialog = false
@@ -908,13 +921,30 @@ ApplicationWindow {
 
                             Component {
                                 id: comboEditor
+                                // Lightweight cell: just text until clicked. A real ComboBox per
+                                // visible cell (with ~400 command choices) made scrolling very slow.
                                 Item {
+                                    id: comboRoot
                                     anchors.fill: parent
 
                                     property var choicesRef: editorLoader.colDef.choices || []
                                     property var valueRef: editorLoader.cellValueRef
                                     property bool searchable: editorLoader.colDef.searchable === true
                                     property string choiceFilter: ""
+
+                                    readonly property string displayText: {
+                                        var v = valueRef
+                                        var sv = String((v !== undefined && v !== null) ? v : "")
+                                        for (var i = 0; i < choicesRef.length; ++i) {
+                                            var it = choicesRef[i]
+                                            if (!it)
+                                                continue
+                                            var t = (it.text !== undefined && it.text !== null) ? String(it.text) : ""
+                                            if (it.value === v || t === sv)
+                                                return t
+                                        }
+                                        return sv
+                                    }
 
                                     function filterChoices() {
                                         if (!searchable || choiceFilter.trim().length === 0)
@@ -938,83 +968,91 @@ ApplicationWindow {
                                         return out
                                     }
 
-                                    function syncCurrent() {
-                                        if (!cb || cb.count <= 0) return
-
-                                        var v = valueRef
-
-                                        for (var i = 0; i < cb.count; ++i) {
-                                            var it = cb.model[i]
-                                            if (it && it.value === v) {
-                                                cb.currentIndex = i
-                                                return
-                                            }
-                                        }
-
-                                        var sv = String((v !== undefined && v !== null) ? v : "")
-
-                                        for (var j = 0; j < cb.count; ++j) {
-                                            var it2 = cb.model[j]
-                                            var t = (it2 && it2.text !== undefined && it2.text !== null) ? it2.text : ""
-                                            if (it2 && String(t) === sv) {
-                                                cb.currentIndex = j
-                                                return
-                                            }
-                                        }
-
-                                        cb.currentIndex = -1
+                                    // Called by the delegate when it is pooled/reused
+                                    function closeModesPopup() {
+                                        if (comboPopup.opened)
+                                            comboPopup.close()
                                     }
 
-
-                                    ComboBox {
-                                        id: cb
+                                    Rectangle {
                                         anchors.fill: parent
-                                        model: choicesRef
-                                        textRole: "text"
-                                        valueRole: "value"
+                                        color: comboMouse.containsMouse ? rigCreator.palette.button : "transparent"
+                                        border.color: comboPopup.visible ? rigCreator.palette.highlight : "transparent"
+                                        border.width: 1
+                                        radius: 2
+                                    }
 
-                                        Component.onCompleted: Qt.callLater(syncCurrent)
-                                        onCountChanged: Qt.callLater(syncCurrent)
-                                        onActivated: {
-                                            editorLoader.cellDataRef.display = currentValue
-                                            choiceFilter = ""
+                                    Text {
+                                        anchors.left: parent.left
+                                        anchors.leftMargin: 6
+                                        anchors.right: comboArrow.left
+                                        anchors.rightMargin: 4
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: comboRoot.displayText
+                                        color: panel.textColor
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Text {
+                                        id: comboArrow
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: 6
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "▾"
+                                        color: panel.textColor
+                                        opacity: 0.7
+                                    }
+
+                                    MouseArea {
+                                        id: comboMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: comboPopup.opened ? comboPopup.close() : comboPopup.open()
+                                    }
+
+                                    Popup {
+                                        id: comboPopup
+                                        y: comboRoot.height
+                                        width: comboRoot.searchable ? Math.max(comboRoot.width, 260) : comboRoot.width
+                                        height: Math.min(360, popupLoader.implicitHeight + topPadding + bottomPadding)
+                                        padding: 4
+                                        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+
+                                        onOpened: {
+                                            comboRoot.choiceFilter = ""
+                                            if (comboRoot.searchable && popupLoader.item)
+                                                popupLoader.item.focusSearch()
                                         }
+                                        onClosed: comboRoot.choiceFilter = ""
 
-                                        popup: Popup {
-                                            id: comboPopup
-                                            y: cb.height
-                                            width: searchable ? Math.max(cb.width, 260) : cb.width
-                                            height: Math.min(360, popupColumn.implicitHeight + topPadding + bottomPadding)
-                                            padding: 4
-                                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+                                        // Only build the list while the popup is showing
+                                        contentItem: Loader {
+                                            id: popupLoader
+                                            active: comboPopup.visible
+                                            sourceComponent: Column {
+                                                width: comboPopup.availableWidth
+                                                spacing: 4
 
-                                            onOpened: {
-                                                if (searchable) {
-                                                    choiceFilter = ""
+                                                function focusSearch() {
                                                     searchField.text = ""
                                                     searchField.forceActiveFocus()
                                                 }
-                                            }
-
-                                            contentItem: Column {
-                                                id: popupColumn
-                                                width: comboPopup.availableWidth
-                                                spacing: 4
 
                                                 TextField {
                                                     id: searchField
                                                     width: parent.width
-                                                    visible: searchable
+                                                    visible: comboRoot.searchable
                                                     placeholderText: qsTr("Search commands")
                                                     selectByMouse: true
-                                                    onTextChanged: choiceFilter = text
+                                                    onTextChanged: comboRoot.choiceFilter = text
                                                 }
 
                                                 ListView {
                                                     width: parent.width
                                                     height: Math.min(300, Math.max(1, count) * 28)
                                                     clip: true
-                                                    model: searchable ? filterChoices() : choicesRef
+                                                    model: comboRoot.searchable ? comboRoot.filterChoices() : comboRoot.choicesRef
 
                                                     delegate: ItemDelegate {
                                                         width: ListView.view.width
@@ -1025,23 +1063,18 @@ ApplicationWindow {
                                                         }
                                                         highlighted: {
                                                             var item = modelData
-                                                            return item && item.value === valueRef
+                                                            return item && item.value === comboRoot.valueRef
                                                         }
                                                         onClicked: {
                                                             var item = modelData
                                                             editorLoader.cellDataRef.display = item && item.value !== undefined ? item.value : item
-                                                            choiceFilter = ""
                                                             comboPopup.close()
-                                                            Qt.callLater(syncCurrent)
                                                         }
                                                     }
                                                 }
                                             }
                                         }
                                     }
-
-                                    onChoicesRefChanged: Qt.callLater(syncCurrent)
-                                    onValueRefChanged: Qt.callLater(syncCurrent)
                                 }
                             }
 
@@ -1500,7 +1533,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 160; prefH: 220
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Inputs")
@@ -1518,7 +1551,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 160; prefH: 220
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Scope Modes")
@@ -1535,7 +1568,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 160; prefH: 220
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Widths")
@@ -1553,7 +1586,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 260; prefH: 220
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Modes")
@@ -1576,7 +1609,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 750; prefH: 320
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 title: qsTr("Commands")
                                 model: commandsProxy
@@ -1600,7 +1633,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 900 ; prefH: 360
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Bands")
@@ -1628,7 +1661,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 220; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Tuning Steps")
@@ -1646,7 +1679,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 590; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Periodic Commands")
@@ -1672,7 +1705,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 120; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Antennas");
@@ -1686,7 +1719,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 120; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Attenuators");
@@ -1700,7 +1733,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 170; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Filters");
@@ -1714,7 +1747,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 200; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Spans")
@@ -1728,7 +1761,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 120; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Preamps")
@@ -1742,7 +1775,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 110; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("CTCSS");
@@ -1757,7 +1790,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 90; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("DTCS");
@@ -1771,7 +1804,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 250; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Meters");
@@ -1790,7 +1823,7 @@ ApplicationWindow {
                     FlowPanel { prefW: 120; prefH: 260
                         Loader {
                             anchors.fill: parent
-                            active: rigCreator.visible && !rig.loading
+                            active: rigCreator.contentReady && !rig.loading
                             sourceComponent: TablePanel {
                                 anchors.fill: parent
                                 title: qsTr("Roofing");
