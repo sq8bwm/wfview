@@ -128,7 +128,7 @@ ApplicationWindow {
     }
 
     function showAudioProcessing() {
-        settingsStack.currentIndex = 10
+        settingsStack.currentIndex = 11
         showOnScreen()
     }
 
@@ -455,6 +455,7 @@ ApplicationWindow {
                     { title: qsTr("Controllers") },
                     { title: qsTr("DX Cluster") },
                     { title: qsTr("Shortcuts") },
+                    { title: qsTr("Macros") },
                     { title: qsTr("Experimental") }
                 ]
 
@@ -3155,7 +3156,138 @@ ApplicationWindow {
                 }
 
                 // =========================
-                // Page 9: Experimental
+                // Page 9: Macros
+                // =========================
+                Loader {
+                    id: macrosPageLoader
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    active: settingsStack.currentIndex === 9
+                    sourceComponent: macrosPageComponent
+                }
+
+                Component {
+                    id: macrosPageComponent
+
+                ScrollView {
+                    id: macrosPage
+                    clip: true
+
+                    ColumnLayout {
+                        width: macrosPage.availableWidth
+                        spacing: 10
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr("A macro sends up to %1 commands in order. Each macro is also a wfview command on the Shortcuts page, and can show a button on the main window.").arg(controller ? controller.macroMaxSteps : 20)
+                            wrapMode: Text.WordWrap
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Button {
+                                text: qsTr("Add Macro")
+                                onClicked: {
+                                    if (!controller)
+                                        return
+                                    macroEditor.openMacro(controller.addMacro())
+                                }
+                            }
+                            Item { Layout.fillWidth: true }
+                            Label { text: qsTr("Minimum time between commands (ms)") }
+                            SpinBox {
+                                from: 20
+                                to: 1000
+                                stepSize: 10
+                                editable: true
+                                value: controller ? controller.macroSpacingMs : 100
+                                onValueModified: if (controller) controller.macroSpacingMs = value
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("No step is followed by a shorter wait than this, whatever its own delay.")
+                            }
+                        }
+
+                        GroupBox {
+                            title: qsTr("Macros")
+                            Layout.fillWidth: true
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 6
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    Label { text: qsTr("#"); Layout.preferredWidth: 40 }
+                                    Label { text: qsTr("Name"); Layout.fillWidth: true }
+                                    Label { text: qsTr("Steps"); Layout.preferredWidth: 50 }
+                                    Label { text: qsTr("Show Button"); Layout.preferredWidth: 100 }
+                                    Item { Layout.preferredWidth: 80 }
+                                    Item { Layout.preferredWidth: 80 }
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    visible: !controller || controller.macros.length === 0
+                                    text: qsTr("No macros yet. Use Add Macro to create one.")
+                                    opacity: 0.7
+                                }
+
+                                Repeater {
+                                    model: controller ? controller.macros : []
+
+                                    delegate: RowLayout {
+                                        id: macroRow
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        readonly property var macro: modelData
+
+                                        Label {
+                                            Layout.preferredWidth: 40
+                                            text: String(macroRow.macro.id)
+                                        }
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: String(macroRow.macro.name)
+                                            elide: Text.ElideRight
+                                        }
+                                        Label {
+                                            Layout.preferredWidth: 50
+                                            text: String(macroRow.macro.steps ? macroRow.macro.steps.length : 0)
+                                        }
+                                        CheckBox {
+                                            Layout.preferredWidth: 100
+                                            checked: Boolean(macroRow.macro.showButton)
+                                            onClicked: if (controller) controller.setMacroShowButton(macroRow.macro.id, checked)
+                                        }
+                                        Button {
+                                            Layout.preferredWidth: 80
+                                            text: qsTr("Edit")
+                                            onClicked: macroEditor.openMacro(macroRow.macro.id)
+                                        }
+                                        Button {
+                                            Layout.preferredWidth: 80
+                                            text: qsTr("Delete")
+                                            onClicked: {
+                                                deleteMacroConfirm.macroId = macroRow.macro.id
+                                                deleteMacroConfirm.macroName = String(macroRow.macro.name)
+                                                deleteMacroConfirm.open()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Item { Layout.fillHeight: true }
+                    }
+                }
+                }
+
+                // =========================
+                // Page 10: Experimental
                 // =========================
                 Item {
                     id: experimental
@@ -3304,7 +3436,7 @@ ApplicationWindow {
                 }
 
                 // =========================
-                // Page 10: Audio Processing
+                // Page 11: Audio Processing
                 // =========================
                 ScrollView {
                     id: audioProcessing
@@ -3543,6 +3675,39 @@ ApplicationWindow {
         onAccepted: MainController.resetUsbControllers()
     }
 
+    MacroEditor {
+        id: macroEditor
+        controller: window.controller
+    }
+
+    Dialog {
+        id: deleteMacroConfirm
+        property int macroId: -1
+        property string macroName: ""
+        title: qsTr("Delete macro")
+        width: 420
+        x: Math.round((window.width - width) / 2)
+        y: Math.round((window.height - height) / 2)
+        modal: true
+        standardButtons: Dialog.Yes | Dialog.No
+
+        background: Rectangle {
+            color: window.palette.window
+            border.color: window.palette.highlight
+            border.width: 1
+            radius: 4
+        }
+
+        contentItem: Label {
+            width: deleteMacroConfirm.availableWidth
+            text: qsTr("Delete macro %1, \"%2\"?").arg(deleteMacroConfirm.macroId).arg(deleteMacroConfirm.macroName)
+            color: window.palette.text
+            wrapMode: Text.WordWrap
+        }
+
+        onAccepted: if (controller) controller.deleteMacro(macroId)
+    }
+
     Dialog {
         id: revertSettingsConfirm
         title: qsTr("Revert settings")
@@ -3579,5 +3744,5 @@ ApplicationWindow {
     Shortcut { sequence: "Shift+F6"; onActivated: settingsStack.currentIndex = 6 }
     Shortcut { sequence: "Shift+F7"; onActivated: settingsStack.currentIndex = 7 }
     Shortcut { sequence: "Shift+F8"; onActivated: settingsStack.currentIndex = 8 }
-    Shortcut { sequence: "Shift+F9"; onActivated: settingsStack.currentIndex = 9 }
+    Shortcut { sequence: "Shift+F9"; onActivated: settingsStack.currentIndex = 10 }
 }

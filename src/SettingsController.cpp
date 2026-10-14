@@ -76,6 +76,35 @@ static QVariantMap shortcutToMap(const shortcutPreference& shortcut)
     };
 }
 
+static QVariantMap macroToMap(const macroPreference& macro)
+{
+    QVariantList steps;
+    steps.reserve(macro.steps.size());
+    for (const macroStep& step : macro.steps) {
+        steps.append(QVariantMap {
+            { QStringLiteral("command"), step.command },
+            { QStringLiteral("parameter"), step.parameter },
+            { QStringLiteral("delayMs"), step.delayMs }
+        });
+    }
+    return {
+        { QStringLiteral("id"), macro.id },
+        { QStringLiteral("name"), macro.name },
+        { QStringLiteral("showButton"), macro.showButton },
+        { QStringLiteral("steps"), steps }
+    };
+}
+
+static macroStep macroStepFromValues(const QString& command, const QString& parameter, int delayMs)
+{
+    macroStep step;
+    step.command = command.trimmed().isEmpty() ? QStringLiteral("None") : command.trimmed();
+    // Raw commands and parameters are single-line text.
+    step.parameter = parameter.simplified().left(256);
+    step.delayMs = qBound(macroStepDelayMinMs, delayMs, macroStepDelayMaxMs);
+    return step;
+}
+
 static QString normalizedShortcutSequence(const QString& sequence)
 {
     QString normalized = sequence.trimmed();
@@ -290,21 +319,6 @@ SettingsController::SettingsController(QString file, QObject *p) :
     m_shortcutsModel = std::make_unique<ShortcutSettingsModel>();
     m_shortcutAppCommandModel = std::make_unique<ShortcutOptionModel>();
     m_shortcutRadioCommandModel = std::make_unique<ShortcutOptionModel>();
-
-    m_shortcutAppCommandModel->setOptions({
-        { tr("None"), QStringLiteral("None") },
-        { tr("Debug Window"), QStringLiteral("app.debug") },
-        { tr("Raise Main Window"), QStringLiteral("app.raiseMainWindow") },
-        { tr("Open Settings"), QStringLiteral("app.openSettings") },
-        { tr("Toggle Fullscreen"), QStringLiteral("app.toggleFullscreen") },
-        { tr("Quit wfview"), QStringLiteral("app.quit") },
-        { tr("Close Window"), QStringLiteral("app.closeWindow") },
-        { tr("Open Memories"), QStringLiteral("app.openMemories") },
-        { tr("Open CW Sender"), QStringLiteral("app.openCwSender") },
-        { tr("Pop Out Receiver"), QStringLiteral("app.popoutReceiver") },
-        { tr("Pop In Receiver"), QStringLiteral("app.popinReceiver") },
-        { tr("Enter Frequency"), QStringLiteral("app.enterFrequency") }
-    });
 
     QVector<QPair<QString, QString>> radioShortcutOptions;
     radioShortcutOptions.reserve(int(funcLastFunc));
@@ -1048,6 +1062,41 @@ void SettingsController::load()
     settings->endGroup();
     if (prefs.shortcuts.isEmpty())
         prefs.shortcuts = defPrefs.shortcuts;
+
+    settings->beginGroup("Macros");
+    prefs.macroSpacingMs = qBound(macroSpacingMinMs,
+                                  settings->value(QStringLiteral("SpacingMs"), defPrefs.macroSpacingMs).toInt(),
+                                  macroSpacingMaxMs);
+    prefs.macroRawWarningShown = settings->value(QStringLiteral("RawWarningShown"), false).toBool();
+    prefs.macroNextId = qMax(1, settings->value(QStringLiteral("NextId"), 1).toInt());
+    prefs.macros.clear();
+    const int macroCount = settings->beginReadArray(QStringLiteral("Macro"));
+    for (int i = 0; i < macroCount; ++i) {
+        settings->setArrayIndex(i);
+        macroPreference macro;
+        macro.id = settings->value(QStringLiteral("Id"), 0).toInt();
+        if (macro.id <= 0 || macroIndex(macro.id) >= 0)
+            macro.id = prefs.macroNextId;
+        prefs.macroNextId = qMax(prefs.macroNextId, macro.id + 1);
+        macro.name = sanitizeMacroName(settings->value(QStringLiteral("Name")).toString());
+        if (macro.name.isEmpty())
+            macro.name = tr("Macro %1").arg(macro.id);
+        macro.showButton = settings->value(QStringLiteral("ShowButton"), false).toBool();
+        const int stepCount = settings->beginReadArray(QStringLiteral("Step"));
+        for (int j = 0; j < stepCount && j < macroMaxSteps; ++j) {
+            settings->setArrayIndex(j);
+            macro.steps.append(macroStepFromValues(settings->value(QStringLiteral("Command")).toString(),
+                                                   settings->value(QStringLiteral("Parameter")).toString(),
+                                                   settings->value(QStringLiteral("DelayMs"),
+                                                                   macroStepDelayDefaultMs).toInt()));
+        }
+        settings->endArray();
+        prefs.macros.append(macro);
+    }
+    settings->endArray();
+    settings->endGroup();
+    refreshShortcutAppCommandOptions();
+    emit macrosChanged();
 
     // Load in the color presets. The default values are already loaded.
 
@@ -1856,6 +1905,31 @@ void SettingsController::save()
         settings->setValue(QStringLiteral("Action"), shortcut.action);
         settings->setValue(QStringLiteral("Value"), shortcut.value);
         settings->setValue(QStringLiteral("Receiver"), shortcut.receiver);
+    }
+    settings->endArray();
+    settings->endGroup();
+
+    settings->beginGroup("Macros");
+    settings->remove(QString());
+    settings->setValue(QStringLiteral("SpacingMs"), prefs.macroSpacingMs);
+    settings->setValue(QStringLiteral("RawWarningShown"), prefs.macroRawWarningShown);
+    settings->setValue(QStringLiteral("NextId"), prefs.macroNextId);
+    settings->beginWriteArray(QStringLiteral("Macro"), prefs.macros.size());
+    for (int i = 0; i < prefs.macros.size(); ++i) {
+        settings->setArrayIndex(i);
+        const macroPreference& macro = prefs.macros.at(i);
+        settings->setValue(QStringLiteral("Id"), macro.id);
+        settings->setValue(QStringLiteral("Name"), macro.name);
+        settings->setValue(QStringLiteral("ShowButton"), macro.showButton);
+        settings->beginWriteArray(QStringLiteral("Step"), macro.steps.size());
+        for (int j = 0; j < macro.steps.size(); ++j) {
+            settings->setArrayIndex(j);
+            const macroStep& step = macro.steps.at(j);
+            settings->setValue(QStringLiteral("Command"), step.command);
+            settings->setValue(QStringLiteral("Parameter"), step.parameter);
+            settings->setValue(QStringLiteral("DelayMs"), step.delayMs);
+        }
+        settings->endArray();
     }
     settings->endArray();
     settings->endGroup();
@@ -2808,6 +2882,145 @@ int SettingsController::shortcutAppCommandIndex(const QString& command) const
 int SettingsController::shortcutRadioCommandIndex(const QString& command) const
 {
     return m_shortcutRadioCommandModel ? m_shortcutRadioCommandModel->indexOfValue(command) : -1;
+}
+
+void SettingsController::refreshShortcutAppCommandOptions()
+{
+    if (!m_shortcutAppCommandModel)
+        return;
+
+    QVector<QPair<QString, QString>> options = {
+        { tr("None"), QStringLiteral("None") },
+        { tr("Debug Window"), QStringLiteral("app.debug") },
+        { tr("Raise Main Window"), QStringLiteral("app.raiseMainWindow") },
+        { tr("Open Settings"), QStringLiteral("app.openSettings") },
+        { tr("Toggle Fullscreen"), QStringLiteral("app.toggleFullscreen") },
+        { tr("Quit wfview"), QStringLiteral("app.quit") },
+        { tr("Close Window"), QStringLiteral("app.closeWindow") },
+        { tr("Open Memories"), QStringLiteral("app.openMemories") },
+        { tr("Open CW Sender"), QStringLiteral("app.openCwSender") },
+        { tr("Pop Out Receiver"), QStringLiteral("app.popoutReceiver") },
+        { tr("Pop In Receiver"), QStringLiteral("app.popinReceiver") },
+        { tr("Enter Frequency"), QStringLiteral("app.enterFrequency") }
+    };
+    for (const macroPreference& macro : std::as_const(prefs.macros))
+        options.append({ tr("Macro %1: %2").arg(macro.id).arg(macro.name),
+                         QStringLiteral("app.macro.%1").arg(macro.id) });
+    m_shortcutAppCommandModel->setOptions(options);
+}
+
+int SettingsController::macroIndex(int id) const
+{
+    for (int i = 0; i < prefs.macros.size(); ++i) {
+        if (prefs.macros.at(i).id == id)
+            return i;
+    }
+    return -1;
+}
+
+QVariantList SettingsController::macros() const
+{
+    QVariantList list;
+    list.reserve(prefs.macros.size());
+    for (const macroPreference& macro : prefs.macros)
+        list.append(macroToMap(macro));
+    return list;
+}
+
+QVariantMap SettingsController::macro(int id) const
+{
+    const int index = macroIndex(id);
+    return index < 0 ? QVariantMap() : macroToMap(prefs.macros.at(index));
+}
+
+QString SettingsController::sanitizeMacroName(const QString& name) const
+{
+    QString clean;
+    clean.reserve(name.size());
+    for (const QChar ch : name) {
+        if (ch.isPrint())
+            clean.append(ch);
+        else if (ch.isSpace())
+            clean.append(QLatin1Char(' '));
+    }
+    return clean.simplified().left(macroMaxNameLength).trimmed();
+}
+
+void SettingsController::setMacroSpacingMs(int ms)
+{
+    ms = qBound(macroSpacingMinMs, ms, macroSpacingMaxMs);
+    if (prefs.macroSpacingMs == ms)
+        return;
+    prefs.macroSpacingMs = ms;
+    markDirty();
+    emit macrosChanged();
+}
+
+void SettingsController::setMacroRawWarningShown(bool shown)
+{
+    if (prefs.macroRawWarningShown == shown)
+        return;
+    prefs.macroRawWarningShown = shown;
+    markDirty();
+    emit macrosChanged();
+}
+
+int SettingsController::addMacro()
+{
+    macroPreference macro;
+    macro.id = prefs.macroNextId++;
+    macro.name = tr("Macro %1").arg(macro.id);
+    prefs.macros.append(macro);
+    refreshShortcutAppCommandOptions();
+    markDirty();
+    emit macrosChanged();
+    return macro.id;
+}
+
+void SettingsController::deleteMacro(int id)
+{
+    const int index = macroIndex(id);
+    if (index < 0)
+        return;
+    prefs.macros.removeAt(index);
+    refreshShortcutAppCommandOptions();
+    markDirty();
+    emit macrosChanged();
+}
+
+void SettingsController::updateMacro(int id, const QString& name, bool showButton, const QVariantList& steps)
+{
+    const int index = macroIndex(id);
+    if (index < 0)
+        return;
+
+    macroPreference& macro = prefs.macros[index];
+    macro.name = sanitizeMacroName(name);
+    if (macro.name.isEmpty())
+        macro.name = tr("Macro %1").arg(macro.id);
+    macro.showButton = showButton;
+    macro.steps.clear();
+    for (const QVariant& value : steps) {
+        if (macro.steps.size() >= macroMaxSteps)
+            break;
+        const QVariantMap map = value.toMap();
+        macro.steps.append(macroStepFromValues(map.value(QStringLiteral("command")).toString(),
+                                               map.value(QStringLiteral("parameter")).toString(),
+                                               map.value(QStringLiteral("delayMs"), macroStepDelayDefaultMs).toInt()));
+    }
+    refreshShortcutAppCommandOptions();
+    markDirty();
+    emit macrosChanged();
+}
+
+void SettingsController::setMacroShowButton(int id, bool show)
+{
+    const int index = macroIndex(id);
+    if (index < 0 || prefs.macros.at(index).showButton == show)
+        return;
+    prefs.macros[index].showButton = show;
+    markDirty();
+    emit macrosChanged();
 }
 
 void SettingsController::updateDefaultClusterPrefs()

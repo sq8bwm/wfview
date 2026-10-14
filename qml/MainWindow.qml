@@ -51,6 +51,10 @@ ApplicationWindow {
 
     property int flowSpacing: mainControlSpacing
     property bool cmdTwoColumns: false
+    readonly property var macroButtons: {
+        const macros = MainController.settings ? MainController.settings.macros : []
+        return macros.filter(m => m.showButton)
+    }
     property int scopeFlowPaneWidth: 320
     property bool _flowLayoutInitialized: false
 
@@ -1861,6 +1865,20 @@ ApplicationWindow {
                         visible: win.radioConnected && (mainControlSpecs.canMemories ?? false)
                         enabled: win.radioConnected && (mainControlSpecs.canMemories ?? false)
                         onClicked: win.openMemoriesWindow()
+                    }
+
+                    Repeater {
+                        model: win.macroButtons
+                        delegate: Button {
+                            text: String(modelData.name)
+                            Layout.preferredWidth: 120
+                            enabled: MainController.runningMacroId < 0
+                            highlighted: MainController.runningMacroId === modelData.id
+                            onClicked: MainController.runMacro(modelData.id)
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 500
+                            ToolTip.text: qsTr("Run macro %1").arg(modelData.id)
+                        }
                     }
                 }
                 } // commandButtonsWrapper

@@ -37,6 +37,7 @@ class MainController : public QObject {
     Q_OBJECT
 
     Q_PROPERTY(MemoriesModel* memoriesModel READ memoriesModel NOTIFY memoriesModelChanged)
+    Q_PROPERTY(int runningMacroId READ runningMacroId NOTIFY runningMacroChanged)
     Q_PROPERTY(bool slowLoad READ slowLoad WRITE setSlowLoad NOTIFY slowLoadChanged)
 
     Q_PROPERTY(CWSenderController* cwSender READ cwSender CONSTANT)
@@ -265,6 +266,11 @@ public:
     Q_INVOKABLE QVariantList shortcutRadioCommandOptions() const;
     Q_INVOKABLE void runShortcutCommand(const QString& commandName, int action, int value, int receiver);
     Q_INVOKABLE void runShortcutAppAction(const QString& commandName);
+    Q_INVOKABLE QVariantList macroCommandOptions() const;
+    Q_INVOKABLE QString macroRawCommandHint() const;
+    Q_INVOKABLE void runMacro(int macroId);
+    Q_INVOKABLE void stopMacro();
+    int runningMacroId() const { return m_runningMacroId; }
     Q_INVOKABLE QVariantMap optionalMeterExtremities(int meterType) const;
     Q_INVOKABLE bool isOptionalMeterAvailable(int meterType) const;
     Q_INVOKABLE void setOptionalMeterType(int slot, int meterType);
@@ -317,6 +323,7 @@ signals:
     void radioStatusTextChanged();
     void rigModelNameChanged();
     void appShortcutActivated(QString commandName, int receiver);
+    void runningMacroChanged();
     void receiverCountChanged();
     void receiverDetachedChanged(int index, bool detached);
     void detachedChanged();
@@ -612,6 +619,19 @@ private:
     bool waitingToSetRadioClock = false;
     uchar currentReceiver = 0;
     bool freqLock = false;
+
+    void runNextMacroStep();
+    void executeMacroStep(const macroStep& step);
+    bool executeMacroRadioStep(funcs func, const QString& parameter, QString* error);
+    bool sendMacroRawCommand(const QString& text, QString* error);
+    QTimer m_macroTimer;
+    QVector<macroStep> m_macroSteps;
+    int m_macroStepIndex = 0;
+    int m_runningMacroId = -1;
+    // State captured when a macro starts, for the restore commands.
+    uchar m_macroStartReceiver = 0;
+    modeInfo m_macroStartMode;
+    int m_macroStartTxPower = -1;
 
 #if defined(USB_CONTROLLER)
     usbController *usbControllerDev = nullptr;

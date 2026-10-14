@@ -814,6 +814,20 @@ void ReceiverController::setMode(uchar m, bool u)
 }
 
 
+// Sends a complete mode (including data mode and filter) saved earlier.
+void ReceiverController::restoreModeInfo(const modeInfo& m)
+{
+    if (!rigCaps || !queue || m.mk == modeUnknown)
+        return;
+
+    vfoCommandType t = queue->getVfoCommand(vfoA,receiver,true);
+    queue->addUnique(priorityImmediate,queueItem(t.modeFunc,QVariant::fromValue<modeInfo>(m),false,t.receiver));
+    if (t.modeFunc == funcModeSet)
+        queue->addUnique(priorityImmediate,queueItem(funcDataModeWithFilter,QVariant::fromValue(m),false,t.receiver));
+    if (rigCaps->manufacturer == manufIcom)
+        queue->addUnique(priorityHighest,funcRoofingFilter,false,t.receiver);
+}
+
 void ReceiverController::setDataMode(uchar m, bool u)
 {
     if (!u || mode.data == m)

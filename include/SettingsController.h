@@ -650,6 +650,11 @@ class SettingsController : public QObject {
     Q_PROPERTY(QAbstractListModel* shortcutsModel READ shortcutsModel CONSTANT)
     Q_PROPERTY(QAbstractListModel* shortcutAppCommandModel READ shortcutAppCommandModel CONSTANT)
     Q_PROPERTY(QAbstractListModel* shortcutRadioCommandModel READ shortcutRadioCommandModel CONSTANT)
+    Q_PROPERTY(QVariantList macros READ macros NOTIFY macrosChanged)
+    Q_PROPERTY(int macroSpacingMs READ macroSpacingMs WRITE setMacroSpacingMs NOTIFY macrosChanged)
+    Q_PROPERTY(bool macroRawWarningShown READ macroRawWarningShown WRITE setMacroRawWarningShown NOTIFY macrosChanged)
+    Q_PROPERTY(int macroMaxSteps READ macroMaxStepCount CONSTANT)
+    Q_PROPERTY(int macroMaxNameLength READ macroMaxNameChars CONSTANT)
 
     Q_PROPERTY(ClusterSettingsModel* clusterModel READ clusterModel CONSTANT)
     Q_PROPERTY(ServerUsersModel* serverUsersModel READ serverUsersModel CONSTANT)
@@ -673,6 +678,13 @@ public:
     QVariantList radioProfiles() const { return m_radioProfiles; }
     int currentRadioProfileIndex() const { return m_currentRadioProfileIndex; }
     QVariantList shortcuts() const;
+    QVariantList macros() const;
+    int macroSpacingMs() const { return prefs.macroSpacingMs; }
+    void setMacroSpacingMs(int ms);
+    bool macroRawWarningShown() const { return prefs.macroRawWarningShown; }
+    void setMacroRawWarningShown(bool shown);
+    int macroMaxStepCount() const { return macroMaxSteps; }
+    int macroMaxNameChars() const { return macroMaxNameLength; }
 
     preferences* getPrefs() { return &prefs;}
     udpPreferences* getUdpPrefs() { return &udpPrefs;}
@@ -711,6 +723,12 @@ public:
     Q_INVOKABLE void resetShortcutsToDefault();
     Q_INVOKABLE int shortcutAppCommandIndex(const QString& command) const;
     Q_INVOKABLE int shortcutRadioCommandIndex(const QString& command) const;
+    Q_INVOKABLE int addMacro();
+    Q_INVOKABLE void deleteMacro(int id);
+    Q_INVOKABLE QVariantMap macro(int id) const;
+    Q_INVOKABLE void updateMacro(int id, const QString& name, bool showButton, const QVariantList& steps);
+    Q_INVOKABLE void setMacroShowButton(int id, bool show);
+    Q_INVOKABLE QString sanitizeMacroName(const QString& name) const;
     Q_INVOKABLE QVariantList serverListenAddressOptions() const;
     Q_INVOKABLE void saveLocalAFGain(int gain);
     Q_INVOKABLE QVariantMap restoredMainWindowGeometry() const;
@@ -758,12 +776,15 @@ signals:
     void radioProfilesChanged();
     void currentRadioProfileIndexChanged();
     void shortcutsChanged();
+    void macrosChanged();
 
 private:
     void setDefPrefs();
 
     void buildUiSpecs();
     void updateDefaultClusterPrefs();
+    void refreshShortcutAppCommandOptions();
+    int macroIndex(int id) const;
 
     struct Binding {
         std::function<QVariant()> get;

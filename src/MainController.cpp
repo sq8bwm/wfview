@@ -15,6 +15,7 @@
 #include <QKeySequence>
 #include <QMutexLocker>
 #include <QPointer>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTimer>
 #include <algorithm>
@@ -75,6 +76,13 @@ static constexpr auto shortcutOpenMemories = "app.openMemories";
 static constexpr auto shortcutPopoutReceiver = "app.popoutReceiver";
 static constexpr auto shortcutPopinReceiver = "app.popinReceiver";
 static constexpr auto shortcutEnterFrequency = "app.enterFrequency";
+static constexpr auto macroCommandPrefix = "app.macro.";
+static constexpr auto macroRawCommand = "raw";
+static constexpr auto macroPttOn = "ptt.on";
+static constexpr auto macroPttOff = "ptt.off";
+static constexpr auto macroPttToggle = "ptt.toggle";
+static constexpr auto macroRestoreMode = "restore.mode";
+static constexpr auto macroRestoreTxPower = "restore.txPower";
 
 static funcs shortcutFuncFromName(const QString& commandName)
 {
@@ -113,6 +121,95 @@ static int fixedFrequencyShortcutHz(const QString& sequence, int configuredValue
         return qMax(1, qAbs(configuredValue));
 
     return 0;
+}
+
+static bool isMacroLevelFunc(funcs func)
+{
+    switch (func) {
+    case funcAfGain:
+    case funcRfGain:
+    case funcSquelch:
+    case funcRFPower:
+    case funcMicGain:
+    case funcLANModLevel:
+    case funcUSBModLevel:
+    case funcACCAModLevel:
+    case funcACCBModLevel:
+    case funcCompressorLevel:
+    case funcNBLevel:
+    case funcNRLevel:
+    case funcDriveGain:
+    case funcMonitorGain:
+    case funcVoxGain:
+    case funcAntiVoxGain:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool isMacroFrequencyFunc(funcs func)
+{
+    return func == funcFreq || func == funcSelectedFreq || func == funcFreqSet
+           || func == funcVFOFrequency || func == funcUnselectedFreq;
+}
+
+static bool isMacroModeFunc(funcs func)
+{
+    return func == funcMode || func == funcModeSet || func == funcSelectedMode || func == funcUnselectedMode;
+}
+
+static bool parseMacroBool(const QString& text, bool* out)
+{
+    const QString t = text.trimmed().toLower();
+    if (t == QLatin1String("on") || t == QLatin1String("true") || t == QLatin1String("yes")
+        || t == QLatin1String("enable") || t == QLatin1String("enabled") || t == QLatin1String("1")) {
+        *out = true;
+        return true;
+    }
+    if (t == QLatin1String("off") || t == QLatin1String("false") || t == QLatin1String("no")
+        || t == QLatin1String("disable") || t == QLatin1String("disabled") || t == QLatin1String("0")) {
+        *out = false;
+        return true;
+    }
+    return false;
+}
+
+// Accepts "7.215" (MHz), "7215 kHz", "7215000 Hz" or "7.215 MHz". A bare number above
+// 100000 is taken as Hz so a pasted Hz value also works.
+static bool parseMacroFrequencyHz(const QString& text, quint64* hz)
+{
+    QString t = text.trimmed().toLower().remove(QLatin1Char(' ')).remove(QLatin1Char(','));
+    double scale = 0;
+    if (t.endsWith(QLatin1String("mhz"))) {
+        t.chop(3);
+        scale = 1e6;
+    } else if (t.endsWith(QLatin1String("khz"))) {
+        t.chop(3);
+        scale = 1e3;
+    } else if (t.endsWith(QLatin1String("hz"))) {
+        t.chop(2);
+        scale = 1;
+    } else if (t.endsWith(QLatin1Char('m'))) {
+        t.chop(1);
+        scale = 1e6;
+    } else if (t.endsWith(QLatin1Char('k'))) {
+        t.chop(1);
+        scale = 1e3;
+    }
+
+    bool ok = false;
+    const double value = t.toDouble(&ok);
+    if (!ok || value <= 0)
+        return false;
+    if (scale == 0)
+        scale = value > 100000 ? 1 : 1e6;
+
+    const double result = std::round(value * scale);
+    if (result < 1 || result > 1e12)
+        return false;
+    *hz = quint64(result);
+    return true;
 }
 
 static bool focusedControlAcceptsTextInput()
@@ -184,6 +281,8 @@ MainController::MainController(QString settingsFile, QString logFileName, bool d
     connect(queue, &cachingQueue::finished, queue, &cachingQueue::deleteLater);
     // Make sure we know about any changes to rigCaps
     connect(queue, &cachingQueue::rigCapsUpdated, this, &MainController::receiveRigCaps);
+    m_macroTimer.setSingleShot(true);
+    connect(&m_macroTimer, &QTimer::timeout, this, &MainController::runNextMacroStep);
     radioClockSyncTimer.setSingleShot(true);
     connect(&radioClockSyncTimer, &QTimer::timeout, this, &MainController::sendRadioClockSync);
 
@@ -722,6 +821,13 @@ QVariantList MainController::shortcutRadioCommandOptions() const
 
 void MainController::runShortcutAppAction(const QString& commandName)
 {
+    if (commandName.startsWith(QLatin1String(macroCommandPrefix))) {
+        bool ok = false;
+        const int macroId = commandName.mid(int(qstrlen(macroCommandPrefix))).toInt(&ok);
+        if (ok)
+            runMacro(macroId);
+        return;
+    }
     if (commandName == QLatin1String(shortcutDebugWindow))
         return;
     if (commandName == QLatin1String(shortcutRaiseMainWindow)
@@ -741,6 +847,458 @@ void MainController::runShortcutAppAction(const QString& commandName)
         showCWSender();
         return;
     }
+}
+
+QString MainController::macroRawCommandHint() const
+{
+    if (rigCaps && rigCaps->manufacturer != manufIcom)
+        return tr("CAT command, e.g. FA00007215000;");
+    return tr("CI-V command bytes, e.g. 0x14 0x0A 0x01 0x28");
+}
+
+QVariantList MainController::macroCommandOptions() const
+{
+    QVariantList options;
+    const auto add = [&options](const QString& text, const QString& value, const QString& category,
+                                bool hasParameter, const QString& hint) {
+        options.append(QVariantMap {
+            { QStringLiteral("text"), text },
+            { QStringLiteral("value"), value },
+            { QStringLiteral("category"), category },
+            { QStringLiteral("hasParameter"), hasParameter },
+            { QStringLiteral("hint"), hint }
+        });
+    };
+
+    add(tr("None"), QStringLiteral("None"), tr("General"), false, QString());
+    add(tr("Raw radio command"), QString::fromLatin1(macroRawCommand), tr("General"), true, macroRawCommandHint());
+
+    if (!rigCaps || (rigCaps->hasTransmit && rigCaps->commands.contains(funcTransceiverStatus))) {
+        add(tr("Transmit (PTT on)"), QString::fromLatin1(macroPttOn), tr("Transmit"), false, QString());
+        add(tr("Receive (PTT off)"), QString::fromLatin1(macroPttOff), tr("Transmit"), false, QString());
+        add(tr("Toggle PTT"), QString::fromLatin1(macroPttToggle), tr("Transmit"), false, QString());
+    }
+
+    add(tr("Restore mode"), QString::fromLatin1(macroRestoreMode), tr("Restore"), false, QString());
+    if (!rigCaps || rigCaps->commands.contains(funcRFPower))
+        add(tr("Restore TX power"), QString::fromLatin1(macroRestoreTxPower), tr("Restore"), false, QString());
+
+    // Macros cannot call other macros, so a macro can never start itself.
+    const QVariantList appOptions = shortcutAppCommandOptions();
+    for (const QVariant& value : appOptions) {
+        const QVariantMap option = value.toMap();
+        add(option.value(QStringLiteral("text")).toString(), option.value(QStringLiteral("value")).toString(),
+            tr("wfview"), false, QString());
+    }
+
+    QStringList modeNames;
+    if (rigCaps) {
+        for (const modeInfo& mode : rigCaps->modes)
+            modeNames.append(mode.name);
+    }
+
+    for (int i = int(funcNone) + 1; i < int(funcLastFunc); ++i) {
+        const funcs func = funcs(i);
+        const QString text = funcString[i];
+        if (text.startsWith(QLatin1String("+<")))
+            continue;
+        // With a radio connected, offer only what its rig file can set.
+        if (rigCaps && (!rigCaps->commands.contains(func) || !rigCaps->commands.value(func).setCmd))
+            continue;
+
+        const funcType type = rigCaps ? rigCaps->commands.value(func) : funcType();
+        QString hint;
+        if (isMacroFrequencyFunc(func))
+            hint = tr("Frequency in MHz, e.g. 7.215");
+        else if (isMacroModeFunc(func))
+            hint = modeNames.isEmpty() ? tr("Mode, e.g. LSB") : tr("Mode: %1").arg(modeNames.join(QStringLiteral(", ")));
+        else if (func == funcAntenna)
+            hint = tr("Antenna number, e.g. 2");
+        else if (func == funcTunerStatus)
+            hint = tr("on, off, or tune");
+        else if (func == funcTransceiverStatus)
+            hint = tr("on (transmit) or off (receive)");
+        else if (isMacroLevelFunc(func))
+            hint = tr("Percent, e.g. 25%");
+        else if (type.maxVal == 1 && type.minVal == 0)
+            hint = tr("on or off");
+        else if (type.maxVal > type.minVal)
+            hint = tr("Value %1 to %2, or a percent such as 50%").arg(type.minVal).arg(type.maxVal);
+        else
+            hint = tr("Value, or blank to send the command alone");
+        add(text, text, tr("Radio"), true, hint);
+    }
+
+    return options;
+}
+
+void MainController::runMacro(int macroId)
+{
+    if (!prefs)
+        return;
+    if (m_runningMacroId >= 0) {
+        qInfo(logSystem()) << "Macro" << macroId << "not started; macro" << m_runningMacroId << "is still running";
+        return;
+    }
+
+    for (const macroPreference& macro : std::as_const(prefs->macros)) {
+        if (macro.id != macroId)
+            continue;
+        if (macro.steps.isEmpty())
+            return;
+        qInfo(logSystem()) << "Running macro" << macro.id << macro.name << "with" << macro.steps.size() << "steps";
+        m_macroSteps = macro.steps;
+        m_macroStepIndex = 0;
+        m_macroStartReceiver = currentReceiver;
+        m_macroStartMode = currentReceiver < receivers.size() && receivers[currentReceiver]
+                               ? receivers[currentReceiver]->getModeInfo() : modeInfo();
+        // Use the cache rather than m_txPower, which is 0 until the radio reports a value.
+        m_macroStartTxPower = -1;
+        if (queue && rigCaps && rigCaps->commands.contains(funcRFPower)) {
+            const QVariant power = queue->getCache(funcRFPower, 0).value;
+            if (power.isValid())
+                m_macroStartTxPower = int(power.value<ushort>());
+        }
+        m_runningMacroId = macro.id;
+        emit runningMacroChanged();
+        runNextMacroStep();
+        return;
+    }
+}
+
+void MainController::stopMacro()
+{
+    m_macroTimer.stop();
+    m_macroSteps.clear();
+    m_macroStepIndex = 0;
+    if (m_runningMacroId < 0)
+        return;
+    m_runningMacroId = -1;
+    emit runningMacroChanged();
+}
+
+void MainController::runNextMacroStep()
+{
+    if (m_runningMacroId < 0 || m_macroStepIndex >= m_macroSteps.size()) {
+        stopMacro();
+        return;
+    }
+
+    const macroStep step = m_macroSteps.at(m_macroStepIndex++);
+    executeMacroStep(step);
+
+    // A step may have stopped the macro (for example by quitting or disconnecting).
+    if (m_runningMacroId < 0 || m_macroStepIndex >= m_macroSteps.size()) {
+        stopMacro();
+        return;
+    }
+    m_macroTimer.start(qMax(step.delayMs, prefs ? prefs->macroSpacingMs : macroSpacingDefaultMs));
+}
+
+void MainController::executeMacroStep(const macroStep& step)
+{
+    if (step.command.isEmpty() || step.command == QLatin1String("None"))
+        return;
+
+    if (step.command.startsWith(QLatin1String("app."))) {
+        if (step.command.startsWith(QLatin1String(macroCommandPrefix))) {
+            qWarning(logSystem()) << "Macro step skipped: macros cannot run other macros";
+            return;
+        }
+        emit appShortcutActivated(step.command, int(currentReceiver));
+        return;
+    }
+
+    // Same path as the main window's Transmit button, so the PTT setting is respected.
+    if (step.command == QLatin1String(macroPttOn) || step.command == QLatin1String(macroPttOff)
+        || step.command == QLatin1String(macroPttToggle)) {
+        if (!rigCaps || !rigCaps->hasTransmit) {
+            qWarning(logSystem()) << "Macro step" << step.command << "skipped: radio cannot transmit";
+            return;
+        }
+        if (step.command == QLatin1String(macroPttToggle))
+            toggleTransmit();
+        else
+            setTransmit(step.command == QLatin1String(macroPttOn));
+        return;
+    }
+
+    if (step.command == QLatin1String(macroRestoreMode)) {
+        if (m_macroStartReceiver >= receivers.size() || !receivers[m_macroStartReceiver]
+            || m_macroStartMode.mk == modeUnknown) {
+            qWarning(logSystem()) << "Macro step Restore mode skipped: mode was unknown when the macro started";
+            return;
+        }
+        receivers[m_macroStartReceiver]->restoreModeInfo(m_macroStartMode);
+        return;
+    }
+
+    if (step.command == QLatin1String(macroRestoreTxPower)) {
+        if (m_macroStartTxPower < 0 || !rigCaps || !rigCaps->commands.contains(funcRFPower)) {
+            qWarning(logSystem()) << "Macro step Restore TX power skipped: TX power was unknown when the macro started";
+            return;
+        }
+        setTxPower(m_macroStartTxPower);
+        return;
+    }
+
+    QString error;
+    bool ok = false;
+    if (step.command == QLatin1String(macroRawCommand)) {
+        ok = sendMacroRawCommand(step.parameter, &error);
+    } else {
+        const funcs func = shortcutFuncFromName(step.command);
+        if (func == funcNone)
+            error = tr("unknown command");
+        else
+            ok = executeMacroRadioStep(func, step.parameter, &error);
+    }
+
+    if (!ok)
+        qWarning(logSystem()) << "Macro step" << step.command << step.parameter << "skipped:" << error;
+}
+
+bool MainController::executeMacroRadioStep(funcs func, const QString& parameter, QString* error)
+{
+    if (!rigCaps || !queue || receivers.isEmpty()) {
+        *error = tr("no radio connected");
+        return false;
+    }
+    if (!rigCaps->commands.contains(func)) {
+        *error = tr("the rig file has no such command");
+        return false;
+    }
+
+    const uchar rx = uchar(qBound(0, int(currentReceiver), int(receivers.size()) - 1));
+    const QString param = parameter.trimmed();
+
+    if (isMacroFrequencyFunc(func)) {
+        quint64 hz = 0;
+        if (!parseMacroFrequencyHz(param, &hz)) {
+            *error = tr("frequency must be in MHz, e.g. 7.215");
+            return false;
+        }
+        if (freqLock) {
+            *error = tr("frequency is locked");
+            return false;
+        }
+        if (func == funcUnselectedFreq) {
+            queue->add(priorityImmediate, queueItem(func, QVariant::fromValue(freqt(hz, double(hz) / 1E6, inactiveVFO)),
+                                                    false, rx));
+        } else {
+            receivers[rx]->setExactFrequencyMHz(double(hz) / 1E6);
+        }
+        return true;
+    }
+
+    if (isMacroModeFunc(func)) {
+        const QString wanted = QString(param).remove(QLatin1Char('-')).remove(QLatin1Char(' ')).toUpper();
+        for (const modeInfo& mode : rigCaps->modes) {
+            const QString name = QString(mode.name).remove(QLatin1Char('-')).remove(QLatin1Char(' ')).toUpper();
+            if (wanted.isEmpty() || name != wanted)
+                continue;
+            if (func == funcUnselectedMode) {
+                modeInfo requested = mode;
+                requested.filter = 1;
+                requested.data = 0;
+                requested.VFO = inactiveVFO;
+                queue->add(priorityImmediate, queueItem(func, QVariant::fromValue(requested), false, rx));
+            } else {
+                receivers[rx]->setMode(uchar(mode.mk), true);
+            }
+            return true;
+        }
+        *error = tr("the radio has no mode named \"%1\"").arg(param);
+        return false;
+    }
+
+    if (func == funcAntenna) {
+        antennaInfo antenna { 0, false };
+        const QVariant current = queue->getCache(funcAntenna, rx).value;
+        if (current.canConvert<antennaInfo>())
+            antenna = current.value<antennaInfo>();
+
+        bool ok = false;
+        const int number = param.toInt(&ok);
+        bool found = false;
+        for (int i = 0; i < int(rigCaps->antennas.size()); ++i) {
+            const genericType& item = rigCaps->antennas[size_t(i)];
+            if ((ok && number == i + 1) || item.name.compare(param, Qt::CaseInsensitive) == 0) {
+                antenna.antenna = item.num;
+                found = true;
+                break;
+            }
+        }
+        if (!found && ok && number >= 1 && rigCaps->antennas.empty()) {
+            antenna.antenna = quint8(number - 1);
+            found = true;
+        }
+        if (!found) {
+            *error = tr("unknown antenna \"%1\"").arg(param);
+            return false;
+        }
+        const vfoCommandType t = queue->getVfoCommand(vfoA, rx, true);
+        queue->add(priorityImmediate, queueItem(funcAntenna, QVariant::fromValue(antenna), false, t.receiver));
+        return true;
+    }
+
+    if (func == funcTunerStatus) {
+        bool enabled = false;
+        if (param.compare(QLatin1String("tune"), Qt::CaseInsensitive) == 0 || param == QLatin1String("2"))
+            tuneNow();
+        else if (parseMacroBool(param, &enabled))
+            setTunerEnabled(enabled);
+        else {
+            *error = tr("use on, off, or tune");
+            return false;
+        }
+        return true;
+    }
+
+    if (func == funcTransceiverStatus) {
+        bool transmit = false;
+        if (!parseMacroBool(param, &transmit)) {
+            *error = tr("use on or off");
+            return false;
+        }
+        setTransmit(transmit);
+        return true;
+    }
+
+    // Commands that take no value (or a read) are sent on their own.
+    if (param.isEmpty()) {
+        queue->add(priorityImmediate, func, false, rx);
+        return true;
+    }
+
+    const funcType type = rigCaps->commands.value(func);
+    const QVariant current = queue->getCache(func, rx).value;
+    int valueType = current.isValid() ? current.userType()
+                                      : ((isMacroLevelFunc(func) || type.maxVal > 255) ? int(QMetaType::UShort)
+                                                                                         : int(QMetaType::UChar));
+
+    if (valueType == QMetaType::QString) {
+        queue->add(priorityImmediate, queueItem(func, QVariant::fromValue<QString>(param), false, rx));
+        return true;
+    }
+
+    bool boolValue = false;
+    const bool isBoolText = parseMacroBool(param, &boolValue);
+    if (valueType == QMetaType::Bool) {
+        if (!isBoolText) {
+            *error = tr("use on or off");
+            return false;
+        }
+        queue->add(priorityImmediate, queueItem(func, QVariant::fromValue<bool>(boolValue), false, rx));
+        return true;
+    }
+
+    QString number = param;
+    const bool percent = number.endsWith(QLatin1Char('%')) || isMacroLevelFunc(func);
+    if (number.endsWith(QLatin1Char('%')))
+        number.chop(1);
+    bool ok = false;
+    double v = isBoolText ? (boolValue ? 1 : 0) : number.trimmed().toDouble(&ok);
+    if (!isBoolText && !ok) {
+        *error = tr("value must be a number");
+        return false;
+    }
+    if (percent && !isBoolText) {
+        if (v < 0 || v > 100) {
+            *error = tr("percent must be from 0 to 100");
+            return false;
+        }
+        const int minimum = type.maxVal > type.minVal ? type.minVal : 0;
+        const int maximum = type.maxVal > type.minVal ? type.maxVal : 255;
+        v = minimum + (maximum - minimum) * v / 100.0;
+    }
+    v = std::round(v);
+
+    QVariant value;
+    switch (valueType) {
+    case QMetaType::UChar:
+        if (v < 0 || v > 255)
+            break;
+        value = QVariant::fromValue<uchar>(uchar(v));
+        break;
+    case QMetaType::UShort:
+        if (v < 0 || v > 65535)
+            break;
+        value = QVariant::fromValue<ushort>(ushort(v));
+        break;
+    case QMetaType::Short:
+        if (v < -32768 || v > 32767)
+            break;
+        value = QVariant::fromValue<short>(short(v));
+        break;
+    case QMetaType::Int:
+        value = QVariant::fromValue<int>(int(v));
+        break;
+    case QMetaType::UInt:
+        if (v < 0)
+            break;
+        value = QVariant::fromValue<uint>(uint(v));
+        break;
+    case QMetaType::Double:
+        value = QVariant::fromValue<double>(v);
+        break;
+    default:
+        *error = tr("this command uses %1 values, which macros cannot set; use a raw command")
+                     .arg(QString::fromLatin1(current.typeName()));
+        return false;
+    }
+    if (!value.isValid()) {
+        *error = tr("value is out of range");
+        return false;
+    }
+
+    queue->add(priorityImmediate, queueItem(func, value, false, rx));
+    return true;
+}
+
+bool MainController::sendMacroRawCommand(const QString& text, QString* error)
+{
+    if (!rigCaps || !queue) {
+        *error = tr("no radio connected");
+        return false;
+    }
+
+    QByteArray data;
+    if (rigCaps->manufacturer == manufIcom) {
+        // "0x20 0x42 0x21" and "20 42 21" both become 20 42 21.
+        QString hex = text;
+        hex.remove(QRegularExpression(QStringLiteral("\\b0[xX]")));
+        hex.remove(QRegularExpression(QStringLiteral("[\\s,:]")));
+        static const QRegularExpression hexOnly(QStringLiteral("^([0-9A-Fa-f]{2})+$"));
+        if (!hexOnly.match(hex).hasMatch()) {
+            *error = tr("raw Icom commands must be pairs of hex digits");
+            return false;
+        }
+        data = QByteArray::fromHex(hex.toLatin1());
+
+        // Wrap bare command bytes in a CI-V frame addressed to this radio.
+        if (!data.startsWith(QByteArray("\xFE\xFE", 2))) {
+            const quint16 civ = prefs && prefs->radioCIVAddr ? prefs->radioCIVAddr : rigCaps->modelID;
+            QByteArray frame("\xFE\xFE", 2);
+            frame.append(char(civ & 0xff));
+            frame.append(char(compCivAddr));
+            data.prepend(frame);
+        }
+        if (!data.endsWith(char(0xFD)))
+            data.append(char(0xFD));
+    } else {
+        data = text.trimmed().toLatin1();
+        if (data.isEmpty()) {
+            *error = tr("empty command");
+            return false;
+        }
+        if (!data.endsWith(';'))
+            data.append(';');
+    }
+
+    qInfo(logSystem()) << "Macro sending raw command" << data.toHex(' ');
+    queue->add(priorityImmediate, queueItem(data, 0));
+    return true;
 }
 
 bool MainController::eventFilter(QObject* watched, QEvent* event)
@@ -3283,6 +3841,8 @@ void MainController::connectionHandler()
 
 void MainController::disconnectRig()
 {
+    stopMacro();
+
     // disconnect and delete
     resetTxAudioOwnership();
     stopUsbAudioBridge();

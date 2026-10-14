@@ -238,6 +238,8 @@ public slots:
     void setScopeMode(uchar m, bool u=true);
     void setScopeSpan(uchar m, bool u=true);
     void setMode(uchar m, bool u=true);
+    modeInfo getModeInfo() const { return mode; }
+    void restoreModeInfo(const modeInfo& m);
     void setDataMode(uchar m, bool u=true);
     void setFilter(uchar m, bool u=true);
     void setFilterShape(uchar m, bool u=true);

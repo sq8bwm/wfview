@@ -19,6 +19,30 @@ struct shortcutPreference {
     int receiver = -1;
 };
 
+constexpr int macroMaxSteps = 20;
+constexpr int macroMaxNameLength = 12;
+constexpr int macroStepDelayMinMs = 50;
+constexpr int macroStepDelayMaxMs = 5000;
+constexpr int macroStepDelayDefaultMs = 200;
+constexpr int macroSpacingMinMs = 20;
+constexpr int macroSpacingMaxMs = 1000;
+constexpr int macroSpacingDefaultMs = 100;
+
+// command is "None", an "app." command, a funcString name, or "raw".
+struct macroStep {
+    QString command = QStringLiteral("None");
+    QString parameter;
+    int delayMs = macroStepDelayDefaultMs;
+};
+
+// id is stable so shortcuts ("app.macro.<id>") survive deleting other macros.
+struct macroPreference {
+    int id = 0;
+    QString name;
+    bool showButton = false;
+    QVector<macroStep> steps;
+};
+
 enum prefIfItem {
     if_useFullScreen = 1 << 0,
     if_useSystemTheme = 1 << 1,
@@ -347,6 +371,10 @@ struct preferences {
     bool automaticSidebandSwitching = true;
     bool enableUSBControllers;
     QVector<shortcutPreference> shortcuts;
+    QVector<macroPreference> macros;
+    int macroNextId = 1;
+    int macroSpacingMs = macroSpacingDefaultMs;
+    bool macroRawWarningShown = false;
 
     // LAN:
     bool enableLAN;
