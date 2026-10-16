@@ -346,6 +346,20 @@ struct preferences {
     bool miniRxButtons = true;
     bool reverseWheel = false;   // invert mouse-wheel direction on sliders and dials
     bool sMeterOnTop = false;
+    // Vintage meters. Styles: 0 Modern, 1 Analog, 2 Analog Cream, 3 LCD, 4 LCD Arc.
+    // A non-Modern meterStyle replaces the two additional meters with one vintage
+    // meter fed by meter2Type (primary) and meter3Type (secondary).
+    // Meter choice 1 (meterS) means S+Power: S on receive, Po on transmit.
+    int meterStyle = 0;
+    bool popoutMeter = false;
+    int popoutMeterStyle = 1;
+    bool popoutSecondaryVfo = false;
+    int popoutMeterPrimary = 1;
+    int popoutMeterSecondary = 0;
+    int popoutMeter2Primary = 1;
+    int popoutMeter2Secondary = 0;
+    int popoutMeterWidth = 0;   // 0 = default size
+    int popoutMeterHeight = 0;
     bool largeFreqDisplay = false; // 50% larger frequency digits and S/power meter
     bool largeOptionalMeters = false; // 50% larger additional meters
     QString freqFont; // frequency display font: built-in short name or system family

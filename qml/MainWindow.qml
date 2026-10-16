@@ -33,6 +33,9 @@ ApplicationWindow {
     readonly property bool largeOptionalMeters: settingAsBool(MainController.settings.options["Interface.LargeOptionalMeters"], false)
     readonly property int optionalMeterWidth: largeOptionalMeters ? 450 : 300
     readonly property int optionalMeterHeight: largeOptionalMeters ? 60 : 40
+    // 0 Modern (two additional meters), 1 Analog, 2 Analog Cream, 3 LCD, 4 LCD Arc
+    // (one vintage meter showing Meter2Type as primary and Meter3Type as secondary)
+    readonly property int meterStyle: Number(MainController.settings.options["Interface.MeterStyle"] || 0)
     // Optional meter slots showing audio (TX Mod = 10, RX Audio = 11, Audio = 12)
     // replace the vertical level bars next to the Vol / Mic sliders.
     readonly property var optionalMeterChoices: [
@@ -141,15 +144,30 @@ ApplicationWindow {
         property int slot: 2
         readonly property string optionKey: slot === 2 ? "Interface.Meter2Type" : "Interface.Meter3Type"
         readonly property int meterChoice: Number(MainController.settings.options[optionKey] || 0)
-        readonly property double meterLevel: slot === 2 ? MainController.optionalMeter2Level : MainController.optionalMeter3Level
+        // Choice 1 is S+Power: the active receiver's primary meter (S on receive, Po on transmit).
+        readonly property var activeRx: {
+            const count = MainController.receiverCount
+            for (let i = 0; i < count; ++i) {
+                const r = MainController.receiver(i)
+                if (r && r.active)
+                    return r
+            }
+            return count > 0 ? MainController.receiver(0) : null
+        }
+        readonly property int effectiveType: meterChoice === 1 ? (activeRx ? Number(activeRx.meterType) : 1) : meterChoice
+        readonly property double meterLevel: meterChoice === 1 ? (activeRx ? activeRx.meter : 0)
+                                           : (slot === 2 ? MainController.optionalMeter2Level : MainController.optionalMeter3Level)
 
         width: 300
         height: 40
 
         function applyExtremities() {
-            const ext = MainController.optionalMeterExtremities(meterChoice)
+            const ext = MainController.optionalMeterExtremities(effectiveType)
             if (ext.valid) {
                 optionalMeter.setMeterExtremities(ext.low, ext.high, ext.red)
+                optionalMeter.warningText = ""
+            } else if (effectiveType === 1) {
+                optionalMeter.setMeterExtremities(-54, 60, 0)
                 optionalMeter.warningText = ""
             } else {
                 optionalMeter.clearMeterExtremities()
@@ -161,7 +179,7 @@ ApplicationWindow {
             id: optionalMeter
             anchors.fill: parent
             visible: optionalMeterSlot.meterChoice !== 0
-            meterType: optionalMeterSlot.meterChoice
+            meterType: optionalMeterSlot.effectiveType
             current: optionalMeterSlot.meterLevel
             drawLabels: true
             fontSize: win.largeOptionalMeters ? 12 : 9
@@ -182,14 +200,18 @@ ApplicationWindow {
 
             Label {
                 anchors.centerIn: parent
-                text: qsTr("Double-click to add meter")
+                text: qsTr("Double-click or right-click to add meter")
                 color: win.palette.windowText
             }
         }
 
         MouseArea {
             anchors.fill: parent
-            acceptedButtons: Qt.LeftButton
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: function(mouse) {
+                if (mouse.button === Qt.RightButton)
+                    meterMenu.open()
+            }
             onDoubleClicked: meterMenu.open()
         }
 
@@ -202,26 +224,64 @@ ApplicationWindow {
             closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
             padding: 4
 
-            ColumnLayout {
-                spacing: 2
-                Repeater {
-                    model: MainController.optionalMeterOptions()
-                    Button {
-                        Layout.fillWidth: true
-                        text: modelData.text === "" ? qsTr("None") : modelData.text
-                        enabled: modelData.available
-                        checkable: true
-                        checked: optionalMeterSlot.meterChoice === modelData.value
-                        onClicked: {
-                            MainController.setOptionalMeterType(optionalMeterSlot.slot, modelData.value)
-                            meterMenu.close()
+            RowLayout {
+                spacing: 12
+
+                ColumnLayout {
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 2
+                    Repeater {
+                        model: MainController.optionalMeterOptions()
+                        Button {
+                            Layout.fillWidth: true
+                            text: modelData.text === "" ? qsTr("None") : modelData.text
+                            enabled: modelData.available
+                            checkable: true
+                            checked: optionalMeterSlot.meterChoice === modelData.value
+                            onClicked: {
+                                MainController.setOptionalMeterType(optionalMeterSlot.slot, modelData.value)
+                                meterMenu.close()
+                            }
+                        }
+                    }
+                }
+
+                // Same style picker as the vintage meter's menu. A vintage
+                // style replaces both additional meters with one meter.
+                ColumnLayout {
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 2
+
+                    Label {
+                        text: qsTr("Style")
+                        font.bold: true
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
+                    Repeater {
+                        model: [
+                            { text: qsTr("Modern"), value: 0 },
+                            { text: qsTr("Analog"), value: 1 },
+                            { text: qsTr("Analog Cream"), value: 2 },
+                            { text: qsTr("LCD"), value: 3 },
+                            { text: qsTr("LCD Arc"), value: 4 }
+                        ]
+                        Button {
+                            Layout.fillWidth: true
+                            text: modelData.text
+                            checkable: true
+                            checked: win.meterStyle === modelData.value
+                            onClicked: {
+                                MainController.settings.setOption("Interface.MeterStyle", modelData.value)
+                                meterMenu.close()
+                            }
                         }
                     }
                 }
             }
         }
 
-        onMeterChoiceChanged: applyExtremities()
+        onEffectiveTypeChanged: applyExtremities()
         Connections {
             target: MainController
             function onUiSpecsChanged() { optionalMeterSlot.applyExtremities() }
@@ -279,6 +339,13 @@ ApplicationWindow {
         ToolTip.visible: audioLevelHover.hovered
         ToolTip.text: audioLevelBar.label + ": " + audioLevelBar.value
         ToolTip.delay: 300
+    }
+
+    MeterPopoutWindow {
+        id: meterPopoutWindow
+        radioConnected: win.radioConnected
+        windowTextColor: win.palette.windowText
+        windowColor: win.palette.window
     }
 
     LoggingWindow {
@@ -1518,7 +1585,7 @@ ApplicationWindow {
 
                     ColumnLayout {
                         spacing: 1
-                        visible: win.radioConnected
+                        visible: win.radioConnected && win.meterStyle === 0
 
                         Repeater {
                             model: [2, 3]
@@ -1530,6 +1597,22 @@ ApplicationWindow {
                                 Layout.preferredHeight: win.optionalMeterHeight
                             }
                         }
+                    }
+
+                    // Vintage style: one meter replaces both additional meters.
+                    MeterPanel {
+                        visible: win.radioConnected && win.meterStyle > 0
+                        Layout.preferredWidth: win.optionalMeterWidth
+                        Layout.preferredHeight: Math.round(win.optionalMeterWidth / 2.1)
+                        panelStyle: win.meterStyle
+                        primaryChoice: win.optionalMeterChoices[0]
+                        secondaryChoice: win.optionalMeterChoices[1]
+                        // Already polled through the Meter2Type/Meter3Type slots.
+                        consumerId: ""
+                        windowTextColor: win.palette.windowText
+                        onPrimaryChosen: function(value) { MainController.setOptionalMeterType(2, value) }
+                        onSecondaryChosen: function(value) { MainController.setOptionalMeterType(3, value) }
+                        onStyleChosen: function(value) { MainController.settings.setOption("Interface.MeterStyle", value) }
                     }
 
                     Item { Layout.fillHeight: true }

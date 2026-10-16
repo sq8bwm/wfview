@@ -2,6 +2,7 @@
 #define MAINCONTROLLER_H
 
 #include <QElapsedTimer>
+#include <QHash>
 #include <QObject>
 #include <QSettings>
 #include <QThread>
@@ -101,6 +102,7 @@ public:
     Q_PROPERTY(bool voxEnabled READ voxEnabled WRITE setVoxEnabled NOTIFY voxEnabledChanged)
     Q_PROPERTY(double optionalMeter2Level READ optionalMeter2Level NOTIFY optionalMetersChanged)
     Q_PROPERTY(double optionalMeter3Level READ optionalMeter3Level NOTIFY optionalMetersChanged)
+    Q_PROPERTY(int meterLevelsRevision READ meterLevelsRevision NOTIFY meterLevelsChanged)
     Q_PROPERTY(QVariantMap repeaterState READ repeaterState NOTIFY repeaterStateChanged)
     Q_PROPERTY(QVariantList repeaterToneModel READ repeaterToneOptions NOTIFY repeaterModelsChanged)
     Q_PROPERTY(QVariantList repeaterDtcsModel READ repeaterDtcsOptions NOTIFY repeaterModelsChanged)
@@ -219,6 +221,7 @@ public:
     bool voxEnabled() const { return m_voxEnabled; }
     double optionalMeter2Level() const { return m_optionalMeter2Level; }
     double optionalMeter3Level() const { return m_optionalMeter3Level; }
+    int meterLevelsRevision() const { return m_meterLevelsRevision; }
 
     MemoriesModel* memoriesModel() const { return m_memoriesModel; }
     bool slowLoad() const { return m_slowLoad; }
@@ -274,6 +277,13 @@ public:
     Q_INVOKABLE QVariantMap optionalMeterExtremities(int meterType) const;
     Q_INVOKABLE bool isOptionalMeterAvailable(int meterType) const;
     Q_INVOKABLE void setOptionalMeterType(int slot, int meterType);
+    // Shared meter polling: each consumer (meter slot, vintage meter, pop-out)
+    // names the meter it shows; a meter is polled while anyone wants it.
+    // meterNone releases. meterS (S+Power) follows the primary meter, so it
+    // needs no extra polling.
+    Q_INVOKABLE void requestMeter(const QString& consumer, int meterType);
+    // Last level received for a meter type, shared by every meter showing it.
+    Q_INVOKABLE double meterLevel(int meterType) const;
     Q_INVOKABLE QVariantList modSourceOptions(int dataMode) const;
     Q_INVOKABLE int modSourceReg(int dataMode) const;
     Q_INVOKABLE bool modSourceSupported(int dataMode) const;
@@ -383,6 +393,7 @@ signals:
     void compressorEnabledChanged();
     void voxEnabledChanged();
     void optionalMetersChanged();
+    void meterLevelsChanged();
     void clusterOutputTextChanged();
     void repeaterStateChanged();
     void repeaterModelsChanged();
@@ -457,6 +468,13 @@ private:
     void updatePrimaryMeterForTransmit(bool transmitting);
     void configureOptionalMeter(int slot, meter_t meterType);
     void receiveOptionalMeter(meter_t meterType, double level);
+    funcs meterPollCommand(meter_t meterType) const;
+    static uchar meterPollReceiver(meter_t meterType);
+    bool meterRequested(funcs command, uchar receiver) const;
+    bool meterTypeRequested(meter_t meterType) const;
+    bool primaryMeterUses(funcs command, uchar receiver) const;
+    void applyMeterRequest(const QString& consumer, meter_t meterType);
+    void refreshMeterRequests();
     QVariantMap uiSpecs;
     QVariantMap repeaterState() const;
 
@@ -614,6 +632,9 @@ private:
     bool m_repeaterLastSplitPlus = false;
     double m_optionalMeter2Level = 0.0;
     double m_optionalMeter3Level = 0.0;
+    QHash<QString, meter_t> m_meterRequests;
+    QHash<int, double> m_meterLevels;
+    int m_meterLevelsRevision = 0;
     QTimer radioClockSyncTimer;
     timekind radioClockTime;
     datekind radioClockDate;
