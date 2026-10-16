@@ -1771,16 +1771,15 @@ Control {
                         function labelAt(i) {
                             return useOptions ? String(options[i].text) : String(sFrom + i * sStep) + unit;
                         }
-                        // Compact tick label: names like "-20 dB" become "-20" so long
-                        // lists stay readable. Attenuation is always shown as negative.
-                        readonly property bool negateDb: true
+                        // Compact tick label: names like "-20 dB" become "20" so long
+                        // lists stay readable. The dB value is always shown unsigned.
                         function tickLabelAt(i) {
                             const t = labelAt(i);
                             const m = t.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*dB\s*$/i);
                             if (!m)
                                 return t;
                             const n = Number(m[1]);
-                            return String(negateDb ? -Math.abs(n) : n);
+                            return String(Math.abs(n));
                         }
                         function indexOfValue(v) {
                             if (!useOptions)
@@ -1969,16 +1968,15 @@ Control {
                         function labelAt(i) {
                             return useOptions ? String(options[i].text) : String(sFrom + i * sStep) + unit;
                         }
-                        // Compact tick label: names like "-20 dB" become "-20" so long
-                        // lists stay readable. Attenuation is always shown as negative.
-                        readonly property bool negateDb: false
+                        // Compact tick label: names like "-20 dB" become "20" so long
+                        // lists stay readable. The dB value is always shown unsigned.
                         function tickLabelAt(i) {
                             const t = labelAt(i);
                             const m = t.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*dB\s*$/i);
                             if (!m)
                                 return t;
                             const n = Number(m[1]);
-                            return String(negateDb ? -Math.abs(n) : n);
+                            return String(Math.abs(n));
                         }
                         function indexOfValue(v) {
                             if (!useOptions)
