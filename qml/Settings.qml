@@ -2147,12 +2147,39 @@ ApplicationWindow {
                             Item { Layout.fillWidth: true }
                         }
 
-                        RowLayout {
-                            spacing: 8
-                            Label { text: qsTr("Manual PTT Toggle"); enabled: window.connStatus === 2 }
-                            Button { id: pttOnBtn; text: qsTr("PTT On"); enabled: window.connStatus === 2; onClicked: MainController.setTransmit(true) }
-                            Button { id: pttOffBtn; text: qsTr("PTT Off"); enabled: window.connStatus === 2; onClicked: MainController.setTransmit(false) }
-                            Item { Layout.fillWidth: true }
+                        GroupBox {
+                            id: pttGroup
+                            title: qsTr("PTT")
+                            Layout.fillWidth: true
+
+                            RowLayout {
+                                anchors.fill: parent
+                                spacing: 8
+                                Label { text: qsTr("Manual PTT Toggle"); enabled: window.connStatus === 2 }
+                                Button { id: pttOnBtn; text: qsTr("PTT On"); enabled: window.connStatus === 2; onClicked: MainController.setTransmit(true) }
+                                Button { id: pttOffBtn; text: qsTr("PTT Off"); enabled: window.connStatus === 2; onClicked: MainController.setTransmit(false) }
+                                CheckBox {
+                                    id: pttTimeoutChk
+                                    Layout.leftMargin: 16
+                                    text: qsTr("PTT Timeout")
+                                    checked: optBool("Controls.PTTTimeoutEnabled", true)
+                                    onClicked: if (controller) controller.setOption("Controls.PTTTimeoutEnabled", checked)
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Sets a timer (within wfview) for the maximum transmission length.\nNot actually a radio setting.")
+                                }
+                                SpinBox {
+                                    id: pttTimeoutSpin
+                                    from: 30
+                                    to: 999
+                                    value: controller ? (Number(controller.options["Controls.PTTTimeoutSeconds"]) || 300) : 300
+                                    editable: true
+                                    enabled: pttTimeoutChk.checked
+                                    Accessible.name: "PTT Timeout Seconds"
+                                    onValueModified: if (controller) controller.setOption("Controls.PTTTimeoutSeconds", value)
+                                }
+                                Label { text: qsTr("seconds"); enabled: pttTimeoutChk.checked }
+                                Item { Layout.fillWidth: true }
+                            }
                         }
 
                         Item { Layout.fillHeight: true }

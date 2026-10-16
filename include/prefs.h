@@ -181,6 +181,7 @@ enum prefCtItem {
     ct_enableUSBControllers = 1 << 3,
     ct_USBControllersSetup = 1 << 4,
     ct_USBControllersReset = 1 << 5,
+    ct_pttTimeout = 1 << 6,
     ct_all = ~0
 };
 
@@ -367,6 +368,8 @@ struct preferences {
 
     // Controls:
     bool enablePTT;
+    bool pttTimeoutEnabled = true;
+    int pttTimeoutSeconds = 300;
     bool niceTS;
     bool automaticSidebandSwitching = true;
     bool enableUSBControllers;

@@ -819,6 +819,57 @@ ApplicationWindow {
         function onAppShortcutActivated(commandName, receiver) {
             win.runConfiguredAppShortcut(commandName, receiver)
         }
+        function onPttTimeoutExpired(seconds) {
+            pttTimeoutDialog.showDialog()
+        }
+    }
+
+    Dialog {
+        id: pttTimeoutDialog
+        title: qsTr("PTT Timeout")
+        width: 420
+        x: Math.round((win.width - width) / 2)
+        y: Math.round((win.height - height) / 2)
+        visible: false
+        modal: true
+        standardButtons: Dialog.Ok
+
+        background: Rectangle {
+            color: win.palette.window
+            border.color: win.palette.highlight
+            border.width: 1
+            radius: 4
+        }
+
+        function showDialog() {
+            win.ensureWindowFitsPopup(pttTimeoutDialog)
+            open()
+            forceActiveFocus()
+        }
+
+        onClosed: win.shrinkAfterDialog()
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 12
+
+            Label {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+                horizontalAlignment: Text.AlignHCenter
+                text: qsTr("PTT Timeout")
+                font.pointSize: Qt.application.font.pointSize * 1.8
+                font.bold: true
+                color: win.palette.windowText
+            }
+            Label {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: qsTr("The PTT timeout can be disabled in Settings \u2192 Radio Settings.")
+                color: win.palette.windowText
+                wrapMode: Text.WordWrap
+            }
+        }
     }
 
     // QWidget had acceptDrops=true

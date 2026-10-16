@@ -1255,6 +1255,8 @@ void SettingsController::load()
     // Misc. user settings (enable PTT, draw peaks, etc)
     settings->beginGroup("Controls");
     prefs.enablePTT = settings->value("EnablePTT", defPrefs.enablePTT).toBool();
+    prefs.pttTimeoutEnabled = settings->value("PTTTimeoutEnabled", defPrefs.pttTimeoutEnabled).toBool();
+    prefs.pttTimeoutSeconds = qBound(30, settings->value("PTTTimeoutSeconds", defPrefs.pttTimeoutSeconds).toInt(), 999);
 
     prefs.niceTS = settings->value("NiceTS", defPrefs.niceTS).toBool();
 
@@ -1961,6 +1963,8 @@ void SettingsController::save()
     // Misc. user settings (enable PTT, draw peaks, etc)
     settings->beginGroup("Controls");
     settings->setValue("EnablePTT", prefs.enablePTT);
+    settings->setValue("PTTTimeoutEnabled", prefs.pttTimeoutEnabled);
+    settings->setValue("PTTTimeoutSeconds", prefs.pttTimeoutSeconds);
     settings->setValue("NiceTS", prefs.niceTS);
     settings->setValue("automaticSidebandSwitching", prefs.automaticSidebandSwitching);
     settings->endGroup();
@@ -2403,6 +2407,8 @@ void SettingsController::setDefPrefs()
     defPrefs.enableLAN = false;
     defPrefs.polling_ms = 0; // 0 = Automatic
     defPrefs.enablePTT = true;
+    defPrefs.pttTimeoutEnabled = true;
+    defPrefs.pttTimeoutSeconds = 300;
     defPrefs.niceTS = true;
     defPrefs.enableRigCtlD = false;
     defPrefs.rigCtlPort = 4533;
@@ -3652,6 +3658,12 @@ void SettingsController::buildBindings()
     // -------------------------
     WF_BOOL("Controls.EnablePTT", prefs.enablePTT,
             [this](){ emit ctChanged(prefCtItems(prefCtItem::ct_enablePTT)); });
+
+    WF_BOOL("Controls.PTTTimeoutEnabled", prefs.pttTimeoutEnabled,
+            [this](){ emit ctChanged(prefCtItems(prefCtItem::ct_pttTimeout)); });
+
+    WF_I32("Controls.PTTTimeoutSeconds", prefs.pttTimeoutSeconds,
+           [this](){ emit ctChanged(prefCtItems(prefCtItem::ct_pttTimeout)); });
 
     WF_BOOL("Controls.NiceTS", prefs.niceTS,
             [this](){ emit ctChanged(prefCtItems(prefCtItem::ct_niceTS)); });

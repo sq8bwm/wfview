@@ -283,6 +283,8 @@ MainController::MainController(QString settingsFile, QString logFileName, bool d
     connect(queue, &cachingQueue::rigCapsUpdated, this, &MainController::receiveRigCaps);
     m_macroTimer.setSingleShot(true);
     connect(&m_macroTimer, &QTimer::timeout, this, &MainController::runNextMacroStep);
+    m_pttTimeoutTimer.setSingleShot(true);
+    connect(&m_pttTimeoutTimer, &QTimer::timeout, this, &MainController::handlePttTimeout);
     radioClockSyncTimer.setSingleShot(true);
     connect(&radioClockSyncTimer, &QTimer::timeout, this, &MainController::sendRadioClockSync);
 
@@ -1997,7 +1999,35 @@ void MainController::setTransmit(bool enabled)
 
     if (rigCaps && rigCaps->commands.contains(funcTransceiverStatus)) {
         queue->add(priorityImmediate, queueItem(funcTransceiverStatus, QVariant::fromValue<bool>(enabled), false, uchar(0)));
+        if (enabled)
+            armPttTimeout();
+        else
+            m_pttTimeoutTimer.stop();
     }
+}
+
+void MainController::armPttTimeout()
+{
+    // Repeated PTT-on requests (e.g. a held controller button) must not extend the timeout.
+    if (!prefs || !prefs->pttTimeoutEnabled || m_pttTimeoutTimer.isActive())
+        return;
+    m_pttTimeoutTimer.start(qBound(30, prefs->pttTimeoutSeconds, 999) * 1000);
+}
+
+void MainController::handlePttTimeout()
+{
+    const int seconds = prefs ? prefs->pttTimeoutSeconds : 0;
+    qWarning(logSystem()) << "PTT Timeout: transmission exceeded" << seconds << "seconds, sending PTT off.";
+
+    if (rigCaps && rigCaps->commands.contains(funcTransceiverStatus))
+        queue->add(priorityImmediate, queueItem(funcTransceiverStatus, QVariant::fromValue<bool>(false), false, uchar(0)));
+
+    handleRigCtlTransmitRequested(false);
+    if (releaseTxAudioOwnership(PttOrigin::Wfview) &&
+        currentAudioRoute().rxSource == RadioRxAudioSource::WfShare)
+        setTxAudioSource(TxAudioInput::None);
+
+    emit pttTimeoutExpired(seconds);
 }
 
 void MainController::tuneNow()
@@ -2804,6 +2834,9 @@ void MainController::handleRigCtlTransmitRequested(bool transmit)
         if (!rigCaps || !rigCaps->hasTransmit)
             return;
 
+        // rigctld has already queued the PTT command itself.
+        armPttTimeout();
+
         const TxAudioInput source = txSourceForPttOrigin(PttOrigin::RigCtl, currentAudioRoute());
         if (source == TxAudioInput::None)
             return;
@@ -2818,6 +2851,7 @@ void MainController::handleRigCtlTransmitRequested(bool transmit)
         return;
     }
 
+    m_pttTimeoutTimer.stop();
     if (releaseTxAudioOwnership(PttOrigin::RigCtl) &&
         currentAudioRoute().rxSource == RadioRxAudioSource::WfShare)
         setTxAudioSource(TxAudioInput::None);
@@ -3189,6 +3223,8 @@ void MainController::quitApplication()
 
 void MainController::ctChanged(SettingsController::prefCtItems items)
 {
+    if (items.testFlag(prefCtItem::ct_pttTimeout) && !prefs->pttTimeoutEnabled)
+        m_pttTimeoutTimer.stop();
     if (items.testFlag(prefCtItem::ct_niceTS)) {
         for (auto *r : std::as_const(receivers)) {
             if (r) r->setTuningFloorZeros(prefs->niceTS);
@@ -3842,6 +3878,7 @@ void MainController::connectionHandler()
 void MainController::disconnectRig()
 {
     stopMacro();
+    m_pttTimeoutTimer.stop();
 
     // disconnect and delete
     resetTxAudioOwnership();
@@ -5360,6 +5397,9 @@ void MainController::receiveValueFromQueue(cacheItem val)
         const bool enabled = val.value.value<bool>();
         if (m_transmitting != enabled) {
             m_transmitting = enabled;
+            // The radio has returned to receive, however that happened.
+            if (!enabled)
+                m_pttTimeoutTimer.stop();
             emit transmittingChanged();
             updatePrimaryMeterForTransmit(enabled);
         }
@@ -5486,6 +5526,8 @@ void MainController::setDefPrefs()
     defprefs->enableLAN = false;
     defprefs->polling_ms = 0; // 0 = Automatic
     defprefs->enablePTT = true;
+    defprefs->pttTimeoutEnabled = true;
+    defprefs->pttTimeoutSeconds = 300;
     defprefs->niceTS = true;
     defprefs->enableRigCtlD = false;
     defprefs->rigCtlPort = 4533;
@@ -5916,6 +5958,8 @@ void MainController::loadSettings(QString settingsFile)
     // Misc. user settings (enable PTT, draw peaks, etc)
     settings->beginGroup("Controls");
     prefs->enablePTT = settings->value("EnablePTT", defprefs->enablePTT).toBool();
+    prefs->pttTimeoutEnabled = settings->value("PTTTimeoutEnabled", defprefs->pttTimeoutEnabled).toBool();
+    prefs->pttTimeoutSeconds = qBound(30, settings->value("PTTTimeoutSeconds", defprefs->pttTimeoutSeconds).toInt(), 999);
 
     prefs->niceTS = settings->value("NiceTS", defprefs->niceTS).toBool();
 

@@ -323,6 +323,7 @@ signals:
     void radioStatusTextChanged();
     void rigModelNameChanged();
     void appShortcutActivated(QString commandName, int receiver);
+    void pttTimeoutExpired(int seconds);
     void runningMacroChanged();
     void receiverCountChanged();
     void receiverDetachedChanged(int index, bool detached);
@@ -407,6 +408,7 @@ private slots:
     void handleTciTransmitRequested(bool transmit);
     void handleRigCtlTransmitRequested(bool transmit);
     void handleExternalTransmitRequested(bool transmit);
+    void handlePttTimeout();
     void receiveCommReady();
     void receivePortError(errorType err);
     void handleRigConnectionLost();
@@ -625,6 +627,10 @@ private:
     bool executeMacroRadioStep(funcs func, const QString& parameter, QString* error);
     bool sendMacroRawCommand(const QString& text, QString* error);
     QTimer m_macroTimer;
+
+    // Software PTT timeout for transmissions started from wfview or rigctld.
+    void armPttTimeout();
+    QTimer m_pttTimeoutTimer;
     QVector<macroStep> m_macroSteps;
     int m_macroStepIndex = 0;
     int m_runningMacroId = -1;
