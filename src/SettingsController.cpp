@@ -962,7 +962,7 @@ void SettingsController::load()
     prefs.scopeScrollY = settings->value("scopeScrollY", defPrefs.scopeScrollY).toInt();
     prefs.decimalSeparator = settings->value("DecimalSeparator", defPrefs.decimalSeparator).toChar();
     prefs.groupSeparator = settings->value("GroupSeparator", defPrefs.groupSeparator).toChar();
-    prefs.forceVfoMode =  settings->value("ForceVfoMode", defPrefs.groupSeparator).toBool();
+    prefs.forceVfoMode =  settings->value("ForceVfoMode", defPrefs.forceVfoMode).toBool();
     prefs.autoPowerOn =  settings->value("AutoPowerOn", defPrefs.autoPowerOn).toBool();
 
     prefs.drawPeaks = settings->value("DrawPeaks", defPrefs.drawPeaks).toBool();
