@@ -529,6 +529,9 @@ private:
 
     QString windowTitle = "wfview";
     QString m_footerMessageText;
+    // Radio/port errors shown in the footer expire after this timer fires.
+    QTimer m_footerErrorTimer;
+    QString m_footerErrorText;
     QString m_radioStatusText;
     QString m_rigModelName;
     QString m_clusterOutputText;

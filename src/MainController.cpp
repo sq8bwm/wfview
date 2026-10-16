@@ -285,6 +285,13 @@ MainController::MainController(QString settingsFile, QString logFileName, bool d
     connect(&m_macroTimer, &QTimer::timeout, this, &MainController::runNextMacroStep);
     m_pttTimeoutTimer.setSingleShot(true);
     connect(&m_pttTimeoutTimer, &QTimer::timeout, this, &MainController::handlePttTimeout);
+    m_footerErrorTimer.setSingleShot(true);
+    connect(&m_footerErrorTimer, &QTimer::timeout, this, [this]() {
+        // Only clear the error if nothing newer has replaced it.
+        if (m_footerMessageText == m_footerErrorText)
+            setFooterMessageText(QString());
+        m_footerErrorText.clear();
+    });
     radioClockSyncTimer.setSingleShot(true);
     connect(&radioClockSyncTimer, &QTimer::timeout, this, &MainController::sendRadioClockSync);
 
@@ -4186,9 +4193,11 @@ void MainController::receivePortError(errorType err)
 
     const QString device = err.device.trimmed();
     if (!message.isEmpty()) {
-        setFooterMessageText(device.isEmpty()
-                                 ? tr("ERROR: %1").arg(message)
-                                 : tr("ERROR: %1: %2").arg(device, message));
+        m_footerErrorText = device.isEmpty()
+                                ? tr("ERROR: %1").arg(message)
+                                : tr("ERROR: %1: %2").arg(device, message);
+        setFooterMessageText(m_footerErrorText);
+        m_footerErrorTimer.start(20000);
     }
 
     if (!prefs || !prefs->wfShareEnabled)
@@ -4604,6 +4613,10 @@ void MainController::receiveRigCaps(rigCapabilities* caps)
         for (int i = 0; i < detached.size(); ++i)
             detached[i] = m_settings->receiverSetting(i, QStringLiteral("Detached"), false).toBool();
         connStatus = connectionStatus_t::connConnected;
+        // A successful connection supersedes any earlier connection errors.
+        m_footerErrorTimer.stop();
+        m_footerErrorText.clear();
+        setFooterMessageText(QString());
         updateAudioRouteState();
         setRigModelName(rigCaps->modelName);
         setWindowTitle(rigCaps->modelName);
