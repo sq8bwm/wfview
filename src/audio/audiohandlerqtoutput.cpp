@@ -37,7 +37,8 @@ bool audioHandlerQtOutput::openDevice() noexcept
         audioDevice->write(silence.constData(), silence.size());
     }
 
-    connect(audioOutput, SIGNAL(destroyed()), audioDevice, SLOT(deleteLater()), Qt::UniqueConnection);
+    // audioDevice is owned by the Qt audio backend and is destroyed inside
+    // ~QAudioSink(), before destroyed() fires. Never delete it here.
 #if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
     qDebug(logAudio()) << "Connected to Qt audio output device" << deviceInfo.deviceName();
 #else

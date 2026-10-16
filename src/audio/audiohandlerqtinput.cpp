@@ -26,7 +26,8 @@ bool audioHandlerQtInput::openDevice() noexcept
     audioDevice = audioInput->start();
     if (!audioDevice) return false;
 
-    connect(audioInput, SIGNAL(destroyed()), audioDevice, SLOT(deleteLater()), Qt::UniqueConnection);
+    // audioDevice is owned by the Qt audio backend and is destroyed inside
+    // ~QAudioSource(), before destroyed() fires. Never delete it here.
     connect(audioDevice, SIGNAL(readyRead()), this, SLOT(onReadyRead()), Qt::UniqueConnection);
 #if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
     qDebug(logAudio()) << "Connected to Qt audio input device" << deviceInfo.deviceName();
