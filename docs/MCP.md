@@ -60,6 +60,7 @@ recording on or off.
 |---|---|
 | `get_overview` | Start here: build, MCP mode, settings file, radio, main-thread health, audio summary, cache and queue sizes, application state. |
 | `get_main_thread_health` | Whether the GUI (or wfserver main) thread is responsive, its round-trip time and the longest stall. |
+| `get_windows` | Top-level windows with title, type, visibility, size, position, size limits and screen, plus each screen's usable area and scale. |
 | `get_settings` | Saved settings as key/value pairs, filterable by group or text. |
 | `get_settings_file` | Path, size, modification time and raw text of the settings file. |
 | `get_connection` | Connection type and status, serial port and baud rate, network addresses and ports, wfshare, rigctld, TCI, cluster and server settings. |

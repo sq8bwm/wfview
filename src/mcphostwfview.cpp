@@ -7,7 +7,10 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QGuiApplication>
 #include <QJsonArray>
+#include <QScreen>
+#include <QWindow>
 #include <QStandardPaths>
 
 namespace
@@ -429,4 +432,125 @@ McpHostResult McpHostWfview::setTransmit(bool on)
     r.data["requested"] = on ? QStringLiteral("transmit") : QStringLiteral("receive");
     r.data["transmittingBefore"] = m_mc->m_transmitting;
     return r;
+}
+
+namespace
+{
+
+QJsonObject rectJson(const QRect &r)
+{
+    return QJsonObject{{"x", r.x()}, {"y", r.y()}, {"width", r.width()}, {"height", r.height()}};
+}
+
+QString visibilityName(QWindow::Visibility v)
+{
+    switch (v)
+    {
+    case QWindow::Hidden:
+        return QStringLiteral("hidden");
+    case QWindow::AutomaticVisibility:
+        return QStringLiteral("automatic");
+    case QWindow::Windowed:
+        return QStringLiteral("windowed");
+    case QWindow::Minimized:
+        return QStringLiteral("minimized");
+    case QWindow::Maximized:
+        return QStringLiteral("maximized");
+    case QWindow::FullScreen:
+        return QStringLiteral("fullscreen");
+    }
+    return QString::number(int(v));
+}
+
+QString windowTypeName(Qt::WindowFlags flags)
+{
+    switch (flags & Qt::WindowType_Mask)
+    {
+    case Qt::Window:
+        return QStringLiteral("window");
+    case Qt::Dialog:
+        return QStringLiteral("dialog");
+    case Qt::Sheet:
+        return QStringLiteral("sheet");
+    case Qt::Drawer:
+        return QStringLiteral("drawer");
+    case Qt::Popup:
+        return QStringLiteral("popup");
+    case Qt::Tool:
+        return QStringLiteral("tool");
+    case Qt::ToolTip:
+        return QStringLiteral("tooltip");
+    case Qt::SplashScreen:
+        return QStringLiteral("splash");
+    default:
+        break;
+    }
+    return QStringLiteral("other");
+}
+
+QString windowLabel(const QWindow *w)
+{
+    if (!w)
+        return QString();
+    if (!w->title().isEmpty())
+        return w->title();
+    if (!w->objectName().isEmpty())
+        return w->objectName();
+    return QString::fromLatin1(w->metaObject()->className());
+}
+
+} // namespace
+
+QJsonObject McpHostWfview::windows()
+{
+    QJsonObject d;
+    d["platform"] = QGuiApplication::platformName();
+
+    QJsonArray screens;
+    for (const QScreen *s : QGuiApplication::screens())
+    {
+        screens.append(QJsonObject{{"name", s->name()},
+                                   {"primary", s == QGuiApplication::primaryScreen()},
+                                   {"geometry", rectJson(s->geometry())},
+                                   {"availableGeometry", rectJson(s->availableGeometry())},
+                                   {"devicePixelRatio", s->devicePixelRatio()},
+                                   {"logicalDpi", s->logicalDotsPerInch()}});
+    }
+    d["screens"] = screens;
+
+    QJsonArray list;
+    int shown = 0;
+    for (const QWindow *w : QGuiApplication::topLevelWindows())
+    {
+        QJsonObject o;
+        o["title"] = w->title();
+        o["objectName"] = w->objectName();
+        o["className"] = QString::fromLatin1(w->metaObject()->className());
+        o["type"] = windowTypeName(w->flags());
+        o["visible"] = w->isVisible();
+        o["visibility"] = visibilityName(w->visibility());
+        o["active"] = w->isActive();
+        o["geometry"] = rectJson(w->geometry());
+        o["frameGeometry"] = rectJson(w->frameGeometry());
+        o["minimumSize"] = QJsonObject{{"width", w->minimumWidth()}, {"height", w->minimumHeight()}};
+        o["maximumSize"] = QJsonObject{{"width", w->maximumWidth()}, {"height", w->maximumHeight()}};
+        o["screen"] = w->screen() ? w->screen()->name() : QString();
+        o["devicePixelRatio"] = w->devicePixelRatio();
+        if (w->transientParent())
+            o["transientParent"] = windowLabel(w->transientParent());
+        if (w->modality() != Qt::NonModal)
+            o["modality"] = w->modality() == Qt::WindowModal ? QStringLiteral("window") : QStringLiteral("application");
+        if (w->isVisible())
+            ++shown;
+        list.append(o);
+    }
+    d["windows"] = list;
+    d["visibleCount"] = shown;
+    d["note"] = QStringLiteral("Sizes and positions are in logical (device-independent) pixels; multiply by "
+                               "devicePixelRatio for physical pixels. geometry is the client area and frameGeometry "
+                               "includes the title bar and borders. Hidden windows are ones QML has created but not "
+                               "shown, such as a closed Settings window. On Wayland, applications cannot learn their "
+                               "window positions, so x and y are not real: shown windows usually report their "
+                               "screen's top-left corner and hidden ones report 0,0. Sizes are still accurate.");
+    return d;
 }

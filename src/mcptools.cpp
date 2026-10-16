@@ -830,6 +830,14 @@ McpTools::McpTools(McpHost *host, const McpAppInfo &info, const std::atomic_bool
              {"resetWorst", schemaBool("Reset the longest-stall record after reading it.")}},
             [this](const QJsonObject &a) { return toolMainThreadHealth(a); });
 
+    addTool("get_windows",
+            "Windows",
+            "Lists the application's top-level windows with their titles, type, visibility, size, position, size "
+            "limits and screen, plus the screens and their usable areas. Use this to check how windows are sized "
+            "and placed.",
+            {{"visibleOnly", schemaBool("Leave out windows that exist but are not shown.")}},
+            [this](const QJsonObject &a) { return toolWindows(a); });
+
     addTool("get_settings",
             "Saved settings",
             "Returns saved settings as key/value pairs read from the settings store, with passwords masked. Changes "
@@ -1276,6 +1284,29 @@ McpToolResult McpTools::toolMainThreadHealth(const QJsonObject &args)
 
     if (args.value("resetWorst").toBool())
         m_host->resetWorstHeartbeatDelay();
+    return r;
+}
+
+McpToolResult McpTools::toolWindows(const QJsonObject &args)
+{
+    McpToolResult r;
+    McpHost *host = m_host;
+    if (!onHost<QJsonObject>([host]() { return host->windows(); }, &r.data))
+    {
+        r.error = hostTimeoutText(hostTimeoutMs);
+        return r;
+    }
+
+    if (args.value("visibleOnly").toBool())
+    {
+        QJsonArray visible;
+        for (const QJsonValue &w : r.data.value("windows").toArray())
+        {
+            if (w.toObject().value("visible").toBool())
+                visible.append(w);
+        }
+        r.data["windows"] = visible;
+    }
     return r;
 }
 

@@ -25,6 +25,7 @@ public:
     bool rigCaps(int radio, rigCapabilities *out, QString *error) override;
 
     McpHostResult settingOptions() override;
+    QJsonObject windows() override;
     McpHostResult setOption(const QString &key, const QJsonValue &value, bool save) override;
     McpHostResult setTransmit(bool on) override;
 

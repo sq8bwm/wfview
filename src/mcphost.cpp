@@ -2,6 +2,8 @@
 
 #include "mcpprobe.h"
 
+#include <QJsonArray>
+
 McpHost::McpHost(QObject *parent)
     : QObject(parent)
 {
@@ -19,6 +21,12 @@ McpHostResult McpHost::settingOptions()
     McpHostResult r;
     r.error = QStringLiteral("%1 has no settings that can be changed by name.").arg(appName());
     return r;
+}
+
+QJsonObject McpHost::windows()
+{
+    return QJsonObject{{"windows", QJsonArray()},
+                       {"note", QStringLiteral("%1 has no windows.").arg(appName())}};
 }
 
 McpHostResult McpHost::setOption(const QString &, const QJsonValue &, bool)

@@ -115,6 +115,7 @@ private:
 
     McpToolResult toolOverview(const QJsonObject &args);
     McpToolResult toolMainThreadHealth(const QJsonObject &args);
+    McpToolResult toolWindows(const QJsonObject &args);
     McpToolResult toolSettings(const QJsonObject &args);
     McpToolResult toolSettingsFile(const QJsonObject &args);
     McpToolResult toolConnection(const QJsonObject &args);

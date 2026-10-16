@@ -141,11 +141,63 @@ ApplicationWindow {
         showOnScreen()
     }
 
+    // Fit the window height to the selected page. Pages are fill-height
+    // Items/Loaders, so measure their content's implicit height instead.
+    property rect _fitArea: Qt.rect(0, 0, 0, 0)
+    property bool _fitAreaWayland: false
+
+    function contentFitHeight() {
+        var page = settingsStack.children[settingsStack.currentIndex]
+        if (!page)
+            return 0
+        // A page (or the item a page Loader holds) may ask for a specific
+        // height, e.g. scrolling pages that should not open at full length.
+        const content = page.item !== undefined && page.item ? page.item : page
+        var pageHeight = 0
+        if (content.preferredFitHeight !== undefined && content.preferredFitHeight > 0) {
+            pageHeight = content.preferredFitHeight
+        } else {
+            pageHeight = page.implicitHeight
+            if (page.children.length > 0)
+                pageHeight = Math.max(pageHeight, page.children[0].implicitHeight)
+        }
+        // Never cut off the category list on short pages.
+        pageHeight = Math.max(pageHeight, settingsList.contentHeight)
+        if (pageHeight <= 0)
+            return 0
+        return Math.ceil(pageHeight + settingsContent.spacing
+                         + bottomButtonsLayout.implicitHeight
+                         + window.contentMargin * 2)
+    }
+
+    function sizeToContent() {
+        var fit = contentFitHeight()
+        if (fit <= 0)
+            return
+        const area = _fitArea
+        if (area.height > 0)
+            fit = Math.min(fit, Math.max(240, area.height - 48))
+        height = fit
+
+        // Keep the bottom edge on screen when the window grows (X11 only;
+        // Wayland clients cannot position their windows).
+        if (visible && area.height > 0 && !_fitAreaWayland) {
+            const bottom = area.y + area.height - 24
+            if (y + height > bottom)
+                y = Math.max(area.y + 24, bottom - height)
+        }
+    }
+
     function showOnScreen(ownerWindow) {
         const platform = String(MainController.platformName())
         const wayland = platform.indexOf("wayland") !== -1
         const targetScreen = ownerWindow && ownerWindow.screen ? ownerWindow.screen : screen
         const rect = targetScreen ? targetScreen.availableGeometry : null
+
+        _fitAreaWayland = wayland
+        if (rect)
+            _fitArea = Qt.rect(rect.x, rect.y, rect.width, rect.height)
+        sizeToContent()
 
         if (rect && !wayland) {
             const margin = 24
@@ -160,6 +212,9 @@ ApplicationWindow {
         show()
         raise()
         requestActivate()
+
+        // Layout implicit sizes may only settle after the first polish.
+        Qt.callLater(sizeToContent)
     }
 
     function commitIntegerOption(key, field, minimum, maximum) {
@@ -484,6 +539,10 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 currentIndex: 0
+                onCurrentIndexChanged: {
+                    if (window.visible)
+                        Qt.callLater(window.sizeToContent)
+                }
 
                 // =========================
                 // Page 0: Radio Access
@@ -3076,7 +3135,20 @@ ApplicationWindow {
                     id: shortcutsPage
                     clip: true
 
+                    // Size the window to show about a dozen shortcuts; the rest scroll.
+                    readonly property int fitRows: 12
+                    readonly property real preferredFitHeight: {
+                        var extraRows = shortcutsRepeater.count - fitRows
+                        var first = shortcutsRepeater.count > 0 ? shortcutsRepeater.itemAt(0) : null
+                        var rowStep = first ? first.implicitHeight + 6 : 0
+                        var h = shortcutsContent.implicitHeight
+                        if (extraRows > 0)
+                            h -= extraRows * rowStep
+                        return h + topPadding + bottomPadding
+                    }
+
                     ColumnLayout {
+                        id: shortcutsContent
                         width: shortcutsPage.availableWidth
                         spacing: 10
 
@@ -3121,6 +3193,7 @@ ApplicationWindow {
                                 }
 
                                 Repeater {
+                                    id: shortcutsRepeater
                                     model: controller ? controller.shortcutsModel : null
 
                                     delegate: RowLayout {

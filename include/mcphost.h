@@ -49,6 +49,10 @@ public:
     // values; secrets are masked. The default reports that there are none.
     virtual McpHostResult settingOptions();
 
+    // Top-level windows with their sizes and positions, and the screens. The
+    // default reports that the application has no windows.
+    virtual QJsonObject windows();
+
     // Writes, only used when the MCP server allows them. The defaults report
     // that the application does not support them.
     virtual McpHostResult setOption(const QString &key, const QJsonValue &value, bool save);

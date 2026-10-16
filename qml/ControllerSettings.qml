@@ -6,6 +6,22 @@ import QtQuick.Dialogs
 Item {
     id: root
     property var controllerController: null
+
+    // Height the controller image should get when the Settings window sizes
+    // itself to this page. The preview is anchored, so report it explicitly.
+    property real preferredPreviewHeight: 360
+    implicitHeight: {
+        if (controllerTabBar.count === 0)
+            return 0
+        var tabOverhead = 0
+        for (var i = 0; i < stackLayout.children.length; ++i) {
+            var tab = stackLayout.children[i]
+            if (tab.overheadHeight !== undefined && tab.index === stackLayout.currentIndex)
+                tabOverhead = tab.overheadHeight
+        }
+        return 10 + controllerTabBar.implicitHeight + 8 + tabOverhead
+                + preferredPreviewHeight + 8 + bottomButtons.implicitHeight + 10
+    }
     property int controllerRevision: 0
     property color currentButtonOnColor: "lightgray"
     property color currentButtonOffColor: "blue"
@@ -156,6 +172,10 @@ Item {
                 required property bool showOrientation
                 required property bool showColor
                 required property bool showTimeout
+
+                // Everything in this tab except the controller preview.
+                readonly property real overheadHeight: topStatus.implicitHeight + 8 + 8
+                                                       + controllerSettingsPanel.implicitHeight
 
                 RowLayout {
                     id: topStatus
