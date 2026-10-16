@@ -2,6 +2,7 @@
 .vs
 .qmake.stash
 .qtc_clangd
+*.swp
 debug
 release
 wfview-debug
