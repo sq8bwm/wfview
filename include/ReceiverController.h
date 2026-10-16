@@ -41,6 +41,7 @@ class ReceiverController : public QObject
     Q_PROPERTY(int plotCeiling READ getPlotCeiling WRITE setPlotCeiling NOTIFY plotScaleChanged)
     Q_PROPERTY(double spectrumDbPerDN READ getSpectrumDbPerDN NOTIFY spectrumCalChanged)
     Q_PROPERTY(int spectrumAmpMax READ getSpectrumAmpMax NOTIFY spectrumCalChanged)
+    Q_PROPERTY(int plotScaleMax READ getPlotScaleMax NOTIFY spectrumCalChanged)
     Q_PROPERTY(bool waterfallSmooth READ getWaterfallSmooth WRITE setWaterfallSmooth NOTIFY waterfallSmoothChanged)
     Q_PROPERTY(bool waterfallAntiAlias READ getWaterfallAntiAlias WRITE setWaterfallAntiAlias NOTIFY waterfallAntiAliasChanged)
 
@@ -154,6 +155,8 @@ public:
     int getPlotCeiling() const { return plotCeiling; }
     double getSpectrumDbPerDN() const { return rigCaps ? rigCaps->spectDbPerDN : 0.5; }
     int getSpectrumAmpMax() const { return rigCaps ? int(rigCaps->spectAmpMax) : 160; }
+    // Highest DN the plot scale may reach: the rig's spectrum maximum once known.
+    int getPlotScaleMax() const { return rigCaps && rigCaps->spectAmpMax > 0 ? int(rigCaps->spectAmpMax) : 255; }
     bool getWaterfallSmooth() const { return waterfallSmooth; }
     bool getWaterfallAntiAlias() const { return waterfallAntiAlias; }
     ushort getRfGain() { return rfGain;}

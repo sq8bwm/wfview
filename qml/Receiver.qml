@@ -1307,7 +1307,7 @@ Control {
                         WheelArea {}
                         id: ceilingSlider
                         from: 0
-                        to: 255
+                        to: controller ? controller.plotScaleMax : 255
                         value: controller ? controller.plotCeiling : 160
                         //Layout.preferredWidth: 120
                         Layout.fillWidth: true
@@ -1338,7 +1338,7 @@ Control {
                         WheelArea {}
                         id: floorSlider
                         from: 0
-                        to: 255
+                        to: controller ? controller.plotScaleMax : 255
                         value: controller ? controller.plotFloor : 0
                         //Layout.preferredWidth: 120
                         Layout.fillWidth: true

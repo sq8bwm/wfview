@@ -925,7 +925,7 @@ void ReceiverController::setWaterfallLength(int v)
 
 void ReceiverController::setPlotFloor(int v)
 {
-    v = qBound(0, v, 255);
+    v = qBound(0, v, getPlotScaleMax());
     if (plotFloor == v)
         return;
 
@@ -935,7 +935,7 @@ void ReceiverController::setPlotFloor(int v)
 
 void ReceiverController::setPlotCeiling(int v)
 {
-    v = qBound(0, v, 255);
+    v = qBound(0, v, getPlotScaleMax());
     if (plotCeiling == v)
         return;
 
@@ -1846,6 +1846,10 @@ void ReceiverController::receiveRigCaps(rigCapabilities* caps)
 {
     rigCaps = caps;
     emit spectrumCalChanged();
+
+    // Settings restored before the rig was known may exceed its spectrum maximum.
+    setPlotFloor(plotFloor);
+    setPlotCeiling(plotCeiling);
 
     flags |= ShowVFOA | (rigCaps->numVFO > 1 ? ShowVFOB:ShowNothing);
 
