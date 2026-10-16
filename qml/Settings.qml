@@ -170,6 +170,16 @@ ApplicationWindow {
                          + window.contentMargin * 2)
     }
 
+    // A page's implicit height is often wrong until its first layout pass
+    // (wrapped text, combo boxes waiting for their models), so follow changes
+    // to it. Stop once the user has resized the window themselves.
+    property real _appliedFitHeight: -1
+    readonly property real pageFitHeight: contentFitHeight()
+    onPageFitHeightChanged: {
+        if (visible && Math.abs(height - _appliedFitHeight) < 1)
+            Qt.callLater(sizeToContent)
+    }
+
     function sizeToContent() {
         var fit = contentFitHeight()
         if (fit <= 0)
@@ -178,6 +188,7 @@ ApplicationWindow {
         if (area.height > 0)
             fit = Math.min(fit, Math.max(240, area.height - 48))
         height = fit
+        _appliedFitHeight = height
 
         // Keep the bottom edge on screen when the window grows (X11 only;
         // Wayland clients cannot position their windows).
@@ -2825,6 +2836,8 @@ ApplicationWindow {
                             title: qsTr("TCP Cluster Connection")
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+                            // Don't let the UDP section below squash the server table.
+                            Layout.minimumHeight: implicitHeight - root.rowH
 
                             label: CheckBox {
                                 id: clusterTcpEnable
@@ -2848,6 +2861,10 @@ ApplicationWindow {
                                     id: root
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
+                                    // The table is anchored inside this Item, so pass its size up.
+                                    implicitHeight: clusterTableColumn.implicitHeight
+                                    // Preferred shows 4 server rows; allow shrinking to 3.
+                                    Layout.minimumHeight: clusterTableColumn.implicitHeight - rowH
                                     readonly property var clusterModel: controller ? controller.clusterModel : null
                                     property int currentRow: -1
 
@@ -2864,6 +2881,7 @@ ApplicationWindow {
                                     readonly property int pad: 6
 
                                     ColumnLayout {
+                                        id: clusterTableColumn
                                         anchors.fill: parent
                                         spacing: 8
 
@@ -2908,6 +2926,7 @@ ApplicationWindow {
                                         // Header (DON'T use RowLayout here; use Row + fixed widths for predictability)
                                         Rectangle {
                                             Layout.fillWidth: true
+                                            Layout.minimumHeight: root.rowH
                                             height: root.rowH
                                             color: "#111"
                                             border.color: "#333"
@@ -2930,6 +2949,9 @@ ApplicationWindow {
                                         ScrollView {
                                             Layout.fillWidth: true
                                             Layout.fillHeight: true
+                                            // Always show a few servers; more scroll.
+                                            Layout.minimumHeight: root.rowH * 3
+                                            Layout.preferredHeight: root.rowH * 4
                                             clip: true
 
                                             // Critical for Qt5: give the content item a width
