@@ -40,7 +40,7 @@ enum FctlUnit {
 #define FCTL_MIN_DIGITS 4
 
 // Built-in font used when no font is set, or the chosen font is unavailable
-#define FCTL_DEFAULT_FONT "LCD Raster"
+#define FCTL_DEFAULT_FONT "Smooth"
 
 class FreqCtrlQuick : public QQuickPaintedItem
 {
