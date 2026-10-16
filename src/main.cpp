@@ -65,11 +65,9 @@
 
 #ifdef WFVIEW_MCP
 #include "mcpprobe.h"
-#include "mcpserver.h"
 #ifdef BUILD_WFSERVER
+#include "mcpserver.h"
 #include "mcphostserver.h"
-#else
-#include "mcphostwfview.h"
 #endif
 #endif
 
@@ -98,6 +96,7 @@
 
 #include "logcategories.h"
 #include "LoggingController.h"
+#include "McpController.h"
 #endif
 
 bool debugMode=false;
@@ -173,7 +172,8 @@ static bool finishMcpArgs()
     return true;
 }
 
-#ifdef WFVIEW_MCP
+// wfview's GUI starts MCP through McpController instead.
+#if defined(WFVIEW_MCP) && defined(BUILD_WFSERVER)
 static std::unique_ptr<McpServer> startMcpServer(McpHost* host)
 {
     McpOptions options;
@@ -1313,33 +1313,33 @@ int main(int argc, char *argv[])
     auto g_mwc = std::make_unique<MainController>(settingsFile, logFilename, debugMode, &a);
     std::cout << "DEBUG: MainController created successfully" << std::endl;
 
-#ifdef WFVIEW_MCP
-    std::unique_ptr<McpHostWfview> mcpHost;
-    std::unique_ptr<McpServer> mcpServer;
-    if (mcpArgs.use) {
-        mcpHost = std::make_unique<McpHostWfview>(g_mwc.get());
-        mcpServer = startMcpServer(mcpHost.get());
-        if (mcpServer) {
-            // Connected before MainController::shutdown below, so MCP stops first.
-            QObject::connect(&a, &QCoreApplication::aboutToQuit, mcpServer.get(), &McpServer::stop);
-        } else {
-            mcpHost.reset();
-            McpProbe::setEnabled(false);
-        }
-    }
-#endif
+    // The MCP server can also be started, stopped and reconfigured from the
+    // Experimental settings page; the command line only sets where it starts.
+    McpController::Options mcpOptions;
+    mcpOptions.enabled = mcpArgs.use;
+    mcpOptions.allowWrite = mcpArgs.allowWrite;
+    mcpOptions.port = mcpArgs.port;
+    mcpOptions.bindAddress = mcpArgs.bind;
+    mcpOptions.token = mcpArgs.token;
+    auto g_mcp = std::make_unique<McpController>(g_mwc.get(), mcpOptions);
+    // Connected before MainController::shutdown below, so MCP stops first.
+    QObject::connect(&a, &QCoreApplication::aboutToQuit, g_mcp.get(), &McpController::shutdown);
 
     QObject::connect(&a, &QCoreApplication::aboutToQuit, g_mwc.get(), &MainController::shutdown);
 
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)   
     qmlRegisterSingletonInstance("WFVIEW", 1, 0, "MainController", g_mwc.get());
     qmlRegisterSingletonInstance("WFVIEW", 1, 0, "Logging", g_log.get());
+    qmlRegisterSingletonInstance("WFVIEW", 1, 0, "Mcp", g_mcp.get());
 #else
     qmlRegisterSingletonType<MainController>("WFVIEW", 1, 0, "MainController",
                                              [](QQmlEngine*, QJSEngine*) -> QObject* { return g_mwc.get(); });
 
     qmlRegisterSingletonType<LoggingController>("WFVIEW", 1, 0, "Logging",
                                                 [](QQmlEngine*, QJSEngine*) -> QObject* { return g_log.get(); });
+
+    qmlRegisterSingletonType<McpController>("WFVIEW", 1, 0, "Mcp",
+                                            [](QQmlEngine*, QJSEngine*) -> QObject* { return g_mcp.get(); });
 #endif
 
     // Guard ensures handler removed before engine/app destructors run

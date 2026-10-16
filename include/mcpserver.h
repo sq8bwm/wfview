@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QString>
 #include <QThread>
+#include <QVariantList>
 
 class McpHost;
 class McpWorker;
@@ -35,6 +36,12 @@ public:
     // are unsafe or the port cannot be opened.
     bool start(QString *error);
     void stop();
+
+signals:
+    // The clients seen since the server started, one map per peer address:
+    // address, name (from MCP initialize), openConnections, requests and
+    // lastSeen (local time). Emitted on the main thread.
+    void clientsChanged(const QVariantList &clients);
 
 private:
     McpOptions m_options;

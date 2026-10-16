@@ -78,6 +78,13 @@ struct AudioSlot
 
 struct Probe
 {
+    // Started on first use: hooks attach whether or not MCP is running, and
+    // may read the clock from any thread.
+    Probe()
+    {
+        clock.start();
+    }
+
     QElapsedTimer clock;
 
     QMutex logMutex;
@@ -181,6 +188,8 @@ QString threadLabel()
 // thread is reading at that moment, this update is skipped.
 void storeStatus(const networkStatus &status)
 {
+    if (!McpProbe::enabled())
+        return;
     Probe &p = probe();
     if (!p.statusMutex.tryLock())
         return;
@@ -192,6 +201,8 @@ void storeStatus(const networkStatus &status)
 
 void storeLevels(const networkAudioLevels &levels)
 {
+    if (!McpProbe::enabled())
+        return;
     Probe &p = probe();
     if (!p.statusMutex.tryLock())
         return;
@@ -311,9 +322,9 @@ QJsonObject trafficJson(const TrafficEntry &e)
 
 void McpProbe::setEnabled(bool on)
 {
-    if (on && !probe().clock.isValid())
-        probe().clock.start();
     s_enabled.store(on, std::memory_order_relaxed);
+    if (!on)
+        stopCapture();
 }
 
 qint64 McpProbe::uptimeMs()
@@ -333,9 +344,12 @@ void McpProbe::logMessage(QtMsgType type, const char *category, const QString &m
         p.log.pop_front();
 }
 
+// Rigs and audio handlers are attached even while MCP is off, so that MCP can
+// be turned on at run time and still see the radio and audio already open.
+// Until then each hook costs an atomic load.
 void McpProbe::attachRig(rigCommander *rig)
 {
-    if (!enabled() || !rig)
+    if (!rig)
         return;
 
     // Lambdas run in the emitting thread; the rig is the context so the
@@ -373,7 +387,7 @@ void McpProbe::attachAudioHandler(audioHandlerBase *handler,
                                   const QAudioFormat &nativeFormat,
                                   const QAudioFormat &radioFormat)
 {
-    if (!enabled() || !handler)
+    if (!handler)
         return;
 
     Probe &p = probe();
@@ -450,6 +464,8 @@ void McpProbe::attachAudioHandler(audioHandlerBase *handler,
         &audioHandlerBase::haveLevels,
         handler,
         [slot](quint16 peak, quint16 rms, quint16 configured, quint16 measured, bool underrun, bool overrun) {
+            if (!enabled())
+                return;
             slot->peak.store(peak, std::memory_order_relaxed);
             slot->rms.store(rms, std::memory_order_relaxed);
             slot->configuredLatency.store(configured, std::memory_order_relaxed);

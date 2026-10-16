@@ -61,6 +61,9 @@ public:
     // Keys or unkeys the transmitter. When keying, MCP unkeys it again after
     // maxSeconds unless a client unkeys it first.
     McpHostResult transmitFor(bool on, int maxSeconds);
+    // Unkeys the transmitter if MCP keyed it and it is still keyed. Call
+    // before stopping the MCP server, so its time limit is not lost with it.
+    void endMcpTransmit();
 
     // Readable from any thread: how long since the main event loop last ran a
     // timer, and the worst delay seen since the last reset.

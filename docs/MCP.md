@@ -34,6 +34,12 @@ same as before.
 Listening on anything other than a loopback address requires a token; wfview refuses to start the
 MCP server otherwise. A build without MCP prints a notice and ignores `--use-mcp`.
 
+In wfview (not wfserver) the same options are under Settings > Experimental > MCP Diagnostics Server,
+where the server can be started, stopped and reconfigured while wfview runs. The options there start
+from the command line and are never saved to the settings file. Every change restarts the server;
+clients carry on with their next request. Turning MCP off unkeys the transmitter if an MCP client keyed
+it. The status field lists the clients seen since the server last started.
+
 The server uses the MCP Streamable HTTP transport at `http://ADDRESS:PORT/mcp`, answering each request
 with JSON.
 

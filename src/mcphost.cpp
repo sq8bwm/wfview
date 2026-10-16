@@ -61,6 +61,15 @@ McpHostResult McpHost::transmitFor(bool on, int maxSeconds)
     return r;
 }
 
+void McpHost::endMcpTransmit()
+{
+    if (!m_transmitTimer.isActive())
+        return;
+    qCWarning(logMcp) << "Unkeying the transmitter: MCP is stopping";
+    m_transmitTimer.stop();
+    setTransmit(false);
+}
+
 void McpHost::transmitEnded()
 {
     m_transmitTimer.stop();

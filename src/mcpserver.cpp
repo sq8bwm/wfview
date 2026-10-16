@@ -5,6 +5,7 @@
 #include "mcpprobe.h"
 #include "mcptools.h"
 
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QHash>
 #include <QHostAddress>
@@ -180,8 +181,13 @@ QJsonObject textContent(const QString &text)
 class McpWorker : public QObject
 {
 public:
-    McpWorker(const McpOptions &options, const QHostAddress &address, McpHost *host, const McpAppInfo &info)
-        : m_options(options)
+    McpWorker(McpServer *owner,
+              const McpOptions &options,
+              const QHostAddress &address,
+              McpHost *host,
+              const McpAppInfo &info)
+        : m_owner(owner)
+        , m_options(options)
         , m_address(address)
         , m_info(info)
         , m_tools(host, info, &stopping)
@@ -209,13 +215,26 @@ private:
     QJsonValue handleMessage(const QJsonValue &message);
     QJsonObject initializeResult(const QJsonObject &params) const;
     QJsonObject callTool(const QJsonObject &params, const QJsonValue &id);
+    void reportClients();
 
+    struct Client
+    {
+        QString name;
+        int openConnections = 0;
+        quint64 requests = 0;
+        QDateTime lastSeen;
+    };
+
+    McpServer *m_owner;
     McpOptions m_options;
     QHostAddress m_address;
     McpAppInfo m_info;
     McpTools m_tools;
     QTcpServer *m_server = nullptr;
     QHash<QTcpSocket *, QByteArray> m_buffers;
+    QHash<QTcpSocket *, QString> m_peers;
+    QHash<QString, Client> m_clients; // by peer address
+    QString m_currentPeer;            // peer of the request being handled
 };
 
 bool McpWorker::listen(QString *error)
@@ -240,8 +259,29 @@ void McpWorker::shutdown()
 {
     // Deleting the server also deletes its sockets.
     m_buffers.clear();
+    m_peers.clear();
     delete m_server;
     m_server = nullptr;
+    m_clients.clear();
+}
+
+void McpWorker::reportClients()
+{
+    QVariantList clients;
+    for (auto it = m_clients.cbegin(); it != m_clients.cend(); ++it)
+    {
+        QVariantMap c;
+        c["address"] = it.key();
+        c["name"] = it->name;
+        c["openConnections"] = it->openConnections;
+        c["requests"] = double(it->requests);
+        c["lastSeen"] = it->lastSeen.toString(QStringLiteral("hh:mm:ss"));
+        clients.append(c);
+    }
+    McpServer *owner = m_owner;
+    // Queued to the main thread; dropped if the server is gone by then.
+    QMetaObject::invokeMethod(
+        owner, [owner, clients]() { emit owner->clientsChanged(clients); }, Qt::QueuedConnection);
 }
 
 void McpWorker::acceptConnections()
@@ -258,13 +298,25 @@ void McpWorker::acceptConnections()
             continue;
         }
 
+        const QString peer = socket->peerAddress().toString();
         m_buffers.insert(socket, QByteArray());
+        m_peers.insert(socket, peer);
+        Client &client = m_clients[peer];
+        ++client.openConnections;
+        client.lastSeen = QDateTime::currentDateTime();
         connect(socket, &QTcpSocket::readyRead, this, [this, socket]() { readSocket(socket); });
         connect(socket, &QTcpSocket::disconnected, this, [this, socket]() {
             m_buffers.remove(socket);
+            auto client = m_clients.find(m_peers.take(socket));
+            if (client != m_clients.end() && client->openConnections > 0)
+            {
+                --client->openConnections;
+                reportClients();
+            }
             socket->deleteLater();
         });
-        qCDebug(logMcp) << "MCP connection from" << socket->peerAddress().toString();
+        qCDebug(logMcp) << "MCP connection from" << peer;
+        reportClients();
     }
 }
 
@@ -334,6 +386,23 @@ bool McpWorker::handleHttp(QTcpSocket *socket, const HttpRequest &request)
 
 void McpWorker::handlePost(QTcpSocket *socket, const HttpRequest &request, bool keepAlive)
 {
+    m_currentPeer = m_peers.value(socket);
+    auto client = m_clients.find(m_currentPeer);
+    if (client != m_clients.end())
+    {
+        ++client->requests;
+        client->lastSeen = QDateTime::currentDateTime();
+    }
+    // Reported after the reply, which may name the client.
+    struct ReportOnExit
+    {
+        McpWorker *worker;
+        ~ReportOnExit()
+        {
+            worker->reportClients();
+        }
+    } report{this};
+
     QJsonParseError parseError;
     const QJsonDocument doc = QJsonDocument::fromJson(request.body, &parseError);
     if (parseError.error != QJsonParseError::NoError)
@@ -442,7 +511,16 @@ QJsonValue McpWorker::handleMessage(const QJsonValue &message)
 
     const QJsonObject params = obj.value("params").toObject();
     if (method == QLatin1String("initialize"))
+    {
+        auto client = m_clients.find(m_currentPeer);
+        if (client != m_clients.end())
+        {
+            const QJsonObject info = params.value("clientInfo").toObject();
+            client->name =
+                QStringLiteral("%1 %2").arg(info.value("name").toString(), info.value("version").toString()).trimmed();
+        }
         return rpcResult(id, initializeResult(params));
+    }
     if (method == QLatin1String("ping"))
         return rpcResult(id, QJsonObject());
     if (method == QLatin1String("tools/list"))
@@ -460,7 +538,7 @@ QJsonObject McpWorker::initializeResult(const QJsonObject &params) const
         supportedProtocolVersions.contains(requested) ? requested : supportedProtocolVersions.first();
     const QJsonObject client = params.value("clientInfo").toObject();
     qCInfo(logMcp) << "MCP client initialized:" << client.value("name").toString()
-                   << client.value("version").toString() << "protocol" << version;
+                   << client.value("version").toString() << "protocol" << version << "from" << m_currentPeer;
 
     const QString instructions =
         QStringLiteral("Live diagnostics from %1, an amateur radio control program, while it runs. Call get_overview "
@@ -556,7 +634,7 @@ bool McpServer::start(QString *error)
     // thread, never creates one on the MCP thread.
     info.queue = cachingQueue::getInstance();
 
-    m_worker = new McpWorker(m_options, address, m_host, info);
+    m_worker = new McpWorker(this, m_options, address, m_host, info);
     m_worker->moveToThread(&m_thread);
     m_thread.setObjectName(QStringLiteral("mcpServer()"));
     // Below normal priority, so MCP never competes with audio or the GUI.

@@ -266,6 +266,7 @@ SOURCES += \
     src/LogModel.cpp \
     src/LoggingController.cpp \
     src/MainController.cpp \
+    src/McpController.cpp \
     src/MemoriesModel.cpp \
     src/MeterItem.cpp \
     src/AnalogMeterItem.cpp \
@@ -358,6 +359,7 @@ HEADERS  += \
     include/LogModel.h \
     include/LoggingController.h \
     include/MainController.h \
+    include/McpController.h \
     include/MemoriesModel.h \
     include/MeterItem.h \
     include/AnalogMeterItem.h \

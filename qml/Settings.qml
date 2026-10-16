@@ -3483,13 +3483,15 @@ ApplicationWindow {
                 // =========================
                 // Page 10: Experimental
                 // =========================
-                Item {
+                ScrollView {
                     id: experimental
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    clip: true
+                    contentWidth: availableWidth
 
                     ColumnLayout {
-                        anchors.fill: parent
+                        width: experimental.availableWidth
                         spacing: 10
 
                         Label {
@@ -3611,6 +3613,135 @@ ApplicationWindow {
                                         text: qsTr("Handshake progress is written to the application log.")
                                         wrapMode: Text.WordWrap
                                     }
+                                }
+                            }
+                        }
+
+                        // MCP options are not saved; they start from the command line
+                        // (--use-mcp etc.) and every change restarts the server.
+                        GroupBox {
+                            title: qsTr("MCP Diagnostics Server")
+                            Layout.fillWidth: true
+
+                            GridLayout {
+                                anchors.fill: parent
+                                columns: 3
+                                columnSpacing: 10
+                                rowSpacing: 8
+
+                                Label {
+                                    text: qsTr("MCP Disabled in this build")
+                                    visible: !Mcp.available
+                                    font.bold: true
+                                    Layout.columnSpan: 3
+                                }
+
+                                CheckBox {
+                                    id: mcpEnabledCheck
+                                    text: qsTr("Enable MCP")
+                                    enabled: Mcp.available
+                                    checked: Mcp.serverEnabled
+                                    onClicked: Mcp.serverEnabled = checked
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Runs a Model Context Protocol (MCP) server inside wfview, so an AI assistant can read live diagnostics: connection state, rig capabilities, the command queue and cache, audio configuration and levels, meters, spectrum, radio and network traffic, the log, settings and main-thread health. Not saved; use --use-mcp to start with it on.")
+                                    Layout.columnSpan: 3
+                                }
+
+                                CheckBox {
+                                    id: mcpWriteCheck
+                                    text: qsTr("MCP Write Access")
+                                    enabled: Mcp.available && mcpEnabledCheck.checked
+                                    checked: Mcp.allowWrite
+                                    onClicked: Mcp.allowWrite = checked
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Also lets MCP clients change the radio and wfview: frequency, mode, settings, raw commands and PTT (transmit). Leave off for read-only diagnostics.")
+                                    Layout.columnSpan: 3
+                                }
+
+                                Label { text: qsTr("Port") }
+                                TextField {
+                                    id: mcpPortField
+                                    Layout.preferredWidth: 100
+                                    enabled: Mcp.available && mcpEnabledCheck.checked
+                                    text: String(Mcp.port)
+                                    validator: IntValidator { bottom: 1; top: 65535 }
+                                    onEditingFinished: Mcp.port = Number(text)
+                                }
+                                Label { text: qsTr("Default MCP port is 8765") }
+
+                                Label {
+                                    text: qsTr("Bind address")
+                                    Layout.alignment: Qt.AlignTop
+                                    topPadding: 8
+                                }
+                                ColumnLayout {
+                                    Layout.columnSpan: 2
+                                    Layout.fillWidth: true
+                                    enabled: Mcp.available && mcpEnabledCheck.checked
+                                    spacing: 0
+
+                                    RadioButton {
+                                        text: qsTr("Local only (127.0.0.1)")
+                                        checked: Mcp.bindMode === 0
+                                        onClicked: Mcp.bindMode = 0
+                                    }
+                                    RadioButton {
+                                        text: qsTr("All (0.0.0.0, needs a token)")
+                                        checked: Mcp.bindMode === 1
+                                        onClicked: Mcp.bindMode = 1
+                                    }
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        RadioButton {
+                                            id: mcpBindCustomRadio
+                                            text: qsTr("Specific address")
+                                            checked: Mcp.bindMode === 2
+                                            onClicked: {
+                                                Mcp.customBindAddress = mcpBindField.text.trim()
+                                                Mcp.bindMode = 2
+                                            }
+                                        }
+                                        TextField {
+                                            id: mcpBindField
+                                            Layout.fillWidth: true
+                                            enabled: mcpBindCustomRadio.checked
+                                            text: Mcp.customBindAddress
+                                            placeholderText: qsTr("IP address of a local interface")
+                                            onEditingFinished: Mcp.customBindAddress = text.trim()
+                                        }
+                                    }
+                                }
+
+                                Label { text: qsTr("Token") }
+                                TextField {
+                                    id: mcpTokenField
+                                    Layout.fillWidth: true
+                                    enabled: Mcp.available && mcpEnabledCheck.checked
+                                    text: Mcp.token
+                                    echoMode: TextInput.Password
+                                    placeholderText: qsTr("optional for local only")
+                                    onEditingFinished: Mcp.token = text
+                                }
+                                Label { text: qsTr("Clients send it as a Bearer token") }
+
+                                Label {
+                                    text: qsTr("Status")
+                                    Layout.alignment: Qt.AlignTop
+                                }
+                                Label {
+                                    Layout.columnSpan: 2
+                                    Layout.fillWidth: true
+                                    text: Mcp.status
+                                    wrapMode: Text.WordWrap
+                                    textFormat: Text.PlainText
+                                }
+
+                                Label {
+                                    Layout.columnSpan: 3
+                                    Layout.fillWidth: true
+                                    visible: Mcp.available
+                                    text: qsTr("Check the log for detailed information.")
+                                    wrapMode: Text.WordWrap
                                 }
                             }
                         }
