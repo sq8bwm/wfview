@@ -2,6 +2,9 @@
     <qresource prefix="/qml">
         <file>MainWindow.qml</file>
         <file>Receiver.qml</file>
+        <file>MeterPanel.qml</file>
+        <file>MeterChoiceMenu.qml</file>
+        <file>MeterPopoutWindow.qml</file>
         <file>RigCreator.qml</file>
         <file>LoggingWindow.qml</file>
         <file>Settings.qml</file>

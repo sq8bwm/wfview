@@ -33,6 +33,15 @@ ApplicationWindow {
 
     property var controller  // 'required' keyword is Qt 6 only
 
+    // Meter faces for Interface.MeterStyle and Interface.PopoutMeterStyle.
+    readonly property var meterStyleChoices: [
+        { text: qsTr("Modern"), value: 0 },
+        { text: qsTr("Analog"), value: 1 },
+        { text: qsTr("Analog Cream"), value: 2 },
+        { text: qsTr("LCD"), value: 3 },
+        { text: qsTr("LCD Arc"), value: 4 }
+    ]
+
     palette {
         window: _sysTheme ? undefined : (controller ? controller.options["Color.Window"] : undefined)
         windowText: _sysTheme ? undefined : (controller ? controller.options["Color.WindowText"] : undefined)
@@ -1402,13 +1411,14 @@ ApplicationWindow {
 
                                 RowLayout {
                                     spacing: 8
-                                    Label { id: secondaryMeterSelectionLabel; text: qsTr("Additional Meter Selection:") }
+                                    Label { id: secondaryMeterSelectionLabel; text: meterStyleRow.currentStyle > 0 ? qsTr("Meter Primary / Secondary:") : qsTr("Additional Meter Selection:") }
                                     ComboBox {
                                         id: meter2selectionCombo;
                                         textRole: "text"
                                         valueRole: "value"
                                         model: [
                                             { text: qsTr("None"), value: 0 },
+                                            { text: qsTr("S+Power"), value: 1 },
                                             { text: qsTr("SWR"), value: 3 },
                                             { text: qsTr("ALC"), value: 5 },
                                             { text: qsTr("Compression"), value: 6 },
@@ -1428,6 +1438,7 @@ ApplicationWindow {
                                         valueRole: "value"
                                         model: [
                                             { text: qsTr("None"), value: 0 },
+                                            { text: qsTr("S+Power"), value: 1 },
                                             { text: qsTr("SWR"), value: 3 },
                                             { text: qsTr("ALC"), value: 5 },
                                             { text: qsTr("Compression"), value: 6 },
@@ -1469,6 +1480,67 @@ ApplicationWindow {
                                         onClicked: if (controller) controller.setOption("Interface.LargeOptionalMeters", checked)
                                         ToolTip.visible: hovered
                                         ToolTip.text: qsTr("Draw the additional meters larger, with a larger font")
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
+
+                                RowLayout {
+                                    id: meterStyleRow
+                                    spacing: 8
+                                    // 0 Modern, 1 Analog, 2 Analog Cream, 3 LCD, 4 LCD Arc
+                                    readonly property int currentStyle: controller ? (Number(controller.options["Interface.MeterStyle"]) || 0) : 0
+                                    Label { text: qsTr("Additional meter style:") }
+                                    ButtonGroup { id: meterStyleGroup }
+                                    Repeater {
+                                        model: window.meterStyleChoices
+                                        RadioButton {
+                                            text: modelData.text
+                                            checked: meterStyleRow.currentStyle === modelData.value
+                                            ButtonGroup.group: meterStyleGroup
+                                            ToolTip.visible: hovered
+                                            ToolTip.text: modelData.value === 0 ? qsTr("Two separate additional meters")
+                                                                                : qsTr("One vintage meter replaces both additional meters; right-click it to choose what it shows")
+                                            onClicked: if (controller) controller.setOption("Interface.MeterStyle", modelData.value)
+                                        }
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
+
+                                RowLayout {
+                                    id: popoutMeterRow
+                                    spacing: 8
+                                    readonly property int currentStyle: {
+                                        if (!controller) return 1
+                                        const v = controller.options["Interface.PopoutMeterStyle"]
+                                        return (v === undefined || v === null || v === "") ? 1 : Number(v)
+                                    }
+                                    CheckBox {
+                                        id: popoutMeterChk
+                                        text: qsTr("Pop-out meter")
+                                        checked: optBool("Interface.PopoutMeter", false)
+                                        onClicked: if (controller) controller.setOption("Interface.PopoutMeter", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Show a meter in its own window; right-click it to choose what it shows")
+                                    }
+                                    ButtonGroup { id: popoutMeterStyleGroup }
+                                    Repeater {
+                                        model: window.meterStyleChoices
+                                        RadioButton {
+                                            text: modelData.text
+                                            enabled: popoutMeterChk.checked
+                                            checked: popoutMeterRow.currentStyle === modelData.value
+                                            ButtonGroup.group: popoutMeterStyleGroup
+                                            onClicked: if (controller) controller.setOption("Interface.PopoutMeterStyle", modelData.value)
+                                        }
+                                    }
+                                    CheckBox {
+                                        text: qsTr("Show secondary VFO meter")
+                                        // Receivers beyond the first only exist once a dual-receiver rig's caps are known.
+                                        enabled: popoutMeterChk.checked && MainController.receiverCount > 1
+                                        checked: optBool("Interface.PopoutSecondaryVfo", false)
+                                        onClicked: if (controller) controller.setOption("Interface.PopoutSecondaryVfo", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Add a meter for the second receiver (dual-receiver radios only)")
                                     }
                                     Item { Layout.fillWidth: true }
                                 }

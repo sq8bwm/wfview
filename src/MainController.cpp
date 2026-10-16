@@ -747,7 +747,7 @@ void MainController::ifChanged(prefIfItems items)
 QVariantList MainController::optionalMeterOptions() const
 {
     const QList<meter_t> types = {
-        meterNone, meterCenter, meterSWR, meterALC, meterComp,
+        meterNone, meterS, meterCenter, meterSWR, meterALC, meterComp,
         meterVoltage, meterCurrent, meterAudio, meterRxAudio, meterTxMod,
         meterdBu, meterdBuEMF, meterdBm
     };
@@ -755,7 +755,8 @@ QVariantList MainController::optionalMeterOptions() const
     QVariantList options;
     for (meter_t type : types) {
         QVariantMap option;
-        option["text"] = meterString[int(type)];
+        // meterS in a meter slot is S+Power: S on receive, Po on transmit.
+        option["text"] = (type == meterS) ? tr("S+Power") : meterString[int(type)];
         option["value"] = int(type);
         option["available"] = isOptionalMeterAvailable(int(type));
         options.push_back(option);
@@ -1544,16 +1545,6 @@ void MainController::setOptionalMeterType(int slot, int meterType)
     if (!m_settings || (slot != 2 && slot != 3))
         return;
 
-    const meter_t oldType = slot == 2 ? (prefs ? prefs->meter2Type : meterNone)
-                                      : (prefs ? prefs->meter3Type : meterNone);
-    const meter_t otherType = slot == 2 ? (prefs ? prefs->meter3Type : meterNone)
-                                        : (prefs ? prefs->meter2Type : meterNone);
-    const funcs oldCommand = meterCommandForType(oldType);
-    const funcs newCommand = meterCommandForType(meter_t(meterType));
-    if (oldCommand != funcNone && oldCommand != newCommand && oldCommand != meterCommandForType(otherType)) {
-        queue->del(oldCommand, (oldType == meterSubS) ? uchar(1) : uchar(0));
-    }
-
     const QString key = slot == 2 ? QStringLiteral("Interface.Meter2Type")
                                   : QStringLiteral("Interface.Meter3Type");
     m_settings->setOption(key, meterType);
@@ -1784,18 +1775,6 @@ void MainController::updatePrimaryMeterForTransmit(bool transmitting)
         }
     }
 
-    // Don't stop polling a meter that an additional meter slot still needs.
-    auto optionalMeterUses = [this](funcs command, uchar receiver) {
-        if (!prefs)
-            return false;
-        for (meter_t type : { prefs->meter2Type, prefs->meter3Type }) {
-            const uchar slotReceiver = (type == meterSubS) ? uchar(1) : uchar(0);
-            if (meterCommandForType(type) == command && slotReceiver == receiver)
-                return true;
-        }
-        return false;
-    };
-
     for (int i = 0; i < receivers.size(); ++i) {
         if (!receivers[i])
             continue;
@@ -1806,7 +1785,8 @@ void MainController::updatePrimaryMeterForTransmit(bool transmitting)
         const funcs newCommand = txMeterApplies ? txCommand : rxCommand;
         const funcs oldCommand = txMeterApplies ? rxCommand : txCommand;
 
-        if (oldCommand != funcNone && oldCommand != newCommand && !optionalMeterUses(oldCommand, receiver))
+        // Don't stop polling a meter that another meter still needs.
+        if (oldCommand != funcNone && oldCommand != newCommand && !meterRequested(oldCommand, receiver))
             queue->del(oldCommand, receiver);
 
         receivers[i]->setPrimaryMeterType(newMeter);
@@ -1821,20 +1801,113 @@ void MainController::configureOptionalMeter(int slot, meter_t meterType)
     if (slot != 2 && slot != 3)
         return;
 
-    const funcs newCommand = meterCommandForType(meterType);
-
     if (slot == 2)
         m_optionalMeter2Level = 0.0;
     else
         m_optionalMeter3Level = 0.0;
 
-    if (meterType != meterNone && newCommand != funcNone && rigCaps && rigCaps->commands.contains(newCommand)) {
-        queue->addUnique(priorityHighest, queueItem(newCommand, true, (meterType == meterSubS) ? uchar(1) : uchar(0)));
+    applyMeterRequest(slot == 2 ? QStringLiteral("slot2") : QStringLiteral("slot3"), meterType);
+}
+
+funcs MainController::meterPollCommand(meter_t meterType) const
+{
+    // S+Power (meterS) is the primary meter, which is always polled.
+    if (meterType == meterS)
+        return funcNone;
+    return meterCommandForType(meterType);
+}
+
+uchar MainController::meterPollReceiver(meter_t meterType)
+{
+    return (meterType == meterSubS) ? uchar(1) : uchar(0);
+}
+
+bool MainController::meterRequested(funcs command, uchar receiver) const
+{
+    for (auto it = m_meterRequests.cbegin(); it != m_meterRequests.cend(); ++it) {
+        if (meterPollCommand(it.value()) == command && meterPollReceiver(it.value()) == receiver)
+            return true;
     }
+    return false;
+}
+
+bool MainController::meterTypeRequested(meter_t meterType) const
+{
+    for (auto it = m_meterRequests.cbegin(); it != m_meterRequests.cend(); ++it) {
+        const meter_t type = it.value();
+        if (type == meterType)
+            return true;
+        if (type == meterAudio && (meterType == meterTxMod || meterType == meterRxAudio))
+            return true;
+    }
+    return false;
+}
+
+bool MainController::primaryMeterUses(funcs command, uchar receiver) const
+{
+    if (!rigCaps)
+        return false;
+    // Mirrors updatePrimaryMeterForTransmit(): S on receive, Po (or S on
+    // radios without a power meter command) on the transmitting receiver.
+    const funcs rxCommand = funcSMeter;
+    const funcs txCommand = rigCaps->commands.contains(funcPowerMeter) ? funcPowerMeter : funcSMeter;
+    const bool txApplies = m_transmitting && receiver == currentReceiver;
+    return command == (txApplies ? txCommand : rxCommand);
+}
+
+void MainController::applyMeterRequest(const QString& consumer, meter_t meterType)
+{
+    const meter_t oldType = m_meterRequests.value(consumer, meterNone);
+    if (meterType == meterNone)
+        m_meterRequests.remove(consumer);
+    else
+        m_meterRequests.insert(consumer, meterType);
+
+    const funcs oldCommand = meterPollCommand(oldType);
+    const uchar oldReceiver = meterPollReceiver(oldType);
+    if (queue && oldCommand != funcNone && !meterRequested(oldCommand, oldReceiver)
+        && !primaryMeterUses(oldCommand, oldReceiver)) {
+        queue->del(oldCommand, oldReceiver);
+    }
+
+    const funcs newCommand = meterPollCommand(meterType);
+    if (queue && newCommand != funcNone && rigCaps && rigCaps->commands.contains(newCommand))
+        queue->addUnique(priorityHighest, queueItem(newCommand, true, meterPollReceiver(meterType)));
+}
+
+void MainController::refreshMeterRequests()
+{
+    if (!queue || !rigCaps)
+        return;
+    for (auto it = m_meterRequests.cbegin(); it != m_meterRequests.cend(); ++it) {
+        const funcs command = meterPollCommand(it.value());
+        if (command != funcNone && rigCaps->commands.contains(command))
+            queue->addUnique(priorityHighest, queueItem(command, true, meterPollReceiver(it.value())));
+    }
+}
+
+void MainController::requestMeter(const QString& consumer, int meterType)
+{
+    if (consumer.isEmpty() || consumer == QLatin1String("slot2") || consumer == QLatin1String("slot3"))
+        return;
+    applyMeterRequest(consumer, meter_t(meterType));
+}
+
+double MainController::meterLevel(int meterType) const
+{
+    if (meter_t(meterType) == meterAudio)
+        return m_meterLevels.value(m_transmitting ? int(meterTxMod) : int(meterRxAudio), 0.0);
+    return m_meterLevels.value(meterType, 0.0);
 }
 
 void MainController::receiveOptionalMeter(meter_t meterType, double level)
 {
+    m_meterLevels.insert(int(meterType), level);
+    if (meterTypeRequested(meterType)) {
+        ++m_meterLevelsRevision;
+        emit meterLevelsChanged();
+    }
+
     bool changed = false;
     if (prefs && (prefs->meter2Type == meterType ||
                   (prefs->meter2Type == meterAudio && ((meterType == meterTxMod && m_transmitting) || (meterType == meterRxAudio && !m_transmitting))))) {
@@ -3887,6 +3960,7 @@ void MainController::disconnectRig()
     // Might as well empty both queue and cache, as both are now invalid.
     queue->clear();
     queue->clearCache();
+    m_meterLevels.clear();
     for (auto *r : std::as_const(receivers)) {
         if (r) r->deleteLater();
     }
@@ -4325,6 +4399,7 @@ void MainController::getInitialRigState()
 
     configureOptionalMeter(2, prefs->meter2Type);
     configureOptionalMeter(3, prefs->meter3Type);
+    refreshMeterRequests();
 
     if (prefs->forceVfoMode) {
         queue->add(priorityImmediate,queueItem(funcSelectVFO,QVariant::fromValue<vfo_t>(vfoA)));
@@ -5557,6 +5632,16 @@ void MainController::setDefPrefs()
     defprefs->miniRxButtons = true;
     defprefs->reverseWheel = false;
     defprefs->sMeterOnTop = false;
+    defprefs->meterStyle = 0;
+    defprefs->popoutMeter = false;
+    defprefs->popoutMeterStyle = 1;
+    defprefs->popoutSecondaryVfo = false;
+    defprefs->popoutMeterPrimary = 1;
+    defprefs->popoutMeterSecondary = 0;
+    defprefs->popoutMeter2Primary = 1;
+    defprefs->popoutMeter2Secondary = 0;
+    defprefs->popoutMeterWidth = 0;
+    defprefs->popoutMeterHeight = 0;
     defprefs->largeFreqDisplay = false;
     defprefs->largeOptionalMeters = false;
     defprefs->freqFont = QStringLiteral(FCTL_DEFAULT_FONT);
@@ -5846,6 +5931,16 @@ void MainController::loadSettings(QString settingsFile)
     prefs->miniRxButtons = settings->value("MiniRxButtons",defprefs->miniRxButtons).toBool();
     prefs->reverseWheel = settings->value("ReverseWheel",defprefs->reverseWheel).toBool();
     prefs->sMeterOnTop = settings->value("SMeterOnTop",defprefs->sMeterOnTop).toBool();
+    prefs->meterStyle = settings->value("MeterStyle", defprefs->meterStyle).toInt();
+    prefs->popoutMeter = settings->value("PopoutMeter", defprefs->popoutMeter).toBool();
+    prefs->popoutMeterStyle = settings->value("PopoutMeterStyle", defprefs->popoutMeterStyle).toInt();
+    prefs->popoutSecondaryVfo = settings->value("PopoutSecondaryVfo", defprefs->popoutSecondaryVfo).toBool();
+    prefs->popoutMeterPrimary = settings->value("PopoutMeterPrimary", defprefs->popoutMeterPrimary).toInt();
+    prefs->popoutMeterSecondary = settings->value("PopoutMeterSecondary", defprefs->popoutMeterSecondary).toInt();
+    prefs->popoutMeter2Primary = settings->value("PopoutMeter2Primary", defprefs->popoutMeter2Primary).toInt();
+    prefs->popoutMeter2Secondary = settings->value("PopoutMeter2Secondary", defprefs->popoutMeter2Secondary).toInt();
+    prefs->popoutMeterWidth = settings->value("PopoutMeterWidth", defprefs->popoutMeterWidth).toInt();
+    prefs->popoutMeterHeight = settings->value("PopoutMeterHeight", defprefs->popoutMeterHeight).toInt();
     prefs->largeFreqDisplay = settings->value("LargeFreqDisplay",defprefs->largeFreqDisplay).toBool();
     prefs->largeOptionalMeters = settings->value("LargeOptionalMeters",defprefs->largeOptionalMeters).toBool();
     prefs->freqFont = settings->value("FreqFont",defprefs->freqFont).toString();

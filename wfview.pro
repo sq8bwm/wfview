@@ -268,6 +268,7 @@ SOURCES += \
     src/MainController.cpp \
     src/MemoriesModel.cpp \
     src/MeterItem.cpp \
+    src/AnalogMeterItem.cpp \
     src/ReceiverController.cpp \
     src/RigCreatorController.cpp \
     src/SelectRadioController.cpp \
@@ -359,6 +360,7 @@ HEADERS  += \
     include/MainController.h \
     include/MemoriesModel.h \
     include/MeterItem.h \
+    include/AnalogMeterItem.h \
     include/ReceiverController.h \
     include/RigCreatorController.h \
     include/SelectRadioController.h \

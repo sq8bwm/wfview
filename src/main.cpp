@@ -93,6 +93,7 @@
 
 
 #include "MeterItem.h"
+#include "AnalogMeterItem.h"
 #include "DebugController.h"
 
 #include "logcategories.h"
@@ -1361,6 +1362,7 @@ int main(int argc, char *argv[])
     qmlRegisterType<WaterfallItem>("WFVIEW", 1, 0, "WaterfallItem");
     qmlRegisterType<FreqCtrlQuick>("WFVIEW", 1, 0, "FreqCtrlQuick");
     qmlRegisterType<MeterItem>("WFVIEW", 1, 0, "Meter");
+    qmlRegisterType<AnalogMeterItem>("WFVIEW", 1, 0, "AnalogMeter");
 
 
     // Helpers
