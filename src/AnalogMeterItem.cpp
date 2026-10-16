@@ -665,8 +665,8 @@ QColor AnalogMeterItem::dotColor(const Palette &c) const
 void AnalogMeterItem::drawNeedleFace(QPainter *p, const Palette &c) const
 {
     const bool cream = m_style == StyleAnalogCream;
-    const double big = 15.0;
-    const double small = 11.0;
+    const double bigPx = 15.0;
+    const double smallPx = 11.0;
 
     //
     // Arc A: S above, Po below
@@ -683,16 +683,16 @@ void AnalogMeterItem::drawNeedleFace(QPainter *p, const Palette &c) const
             const bool major = ((db + 54) / 6) % 2 == 1;
             drawTick(p, kArcA, fracS(db), major ? 9.0 : 5.0, fg, major ? 2.0 : 1.4);
             if (major)
-                drawText(p, kArcA + 20.0, fracS(db), QString::number((db + 54) / 6), fg, big, true);
+                drawText(p, kArcA + 20.0, fracS(db), QString::number((db + 54) / 6), fg, bigPx, true);
         }
         for (int db = 10; db <= 60; db += 10) {
             const bool major = db % 20 == 0;
             drawTick(p, kArcA, fracS(db), major ? 9.0 : 5.0, hi, major ? 2.0 : 1.4);
             if (major)
-                drawText(p, kArcA + 20.0, fracS(db), QString("+%1").arg(db), hi, big, true);
+                drawText(p, kArcA + 20.0, fracS(db), QString("+%1").arg(db), hi, bigPx, true);
         }
-        drawText(p, kArcA + 18.0, -0.035, "S", fg, big, true);
-        drawText(p, kArcA + 18.0, 1.075, "dB", hi, small, true);
+        drawText(p, kArcA + 18.0, -0.035, "S", fg, bigPx, true);
+        drawText(p, kArcA + 18.0, 1.075, "dB", hi, smallPx, true);
     }
 
     {
@@ -705,17 +705,17 @@ void AnalogMeterItem::drawNeedleFace(QPainter *p, const Palette &c) const
             drawTick(p, kArcA, fracPo(w), -6.0, fg, 1.4);
             const bool crowded = (w == 5 || w == 25) && m_powerFullScale > 100;
             if (!crowded) {
-                drawText(p, kArcA - 16.0, fracPo(w), numText(w), fg, small);
+                drawText(p, kArcA - 16.0, fracPo(w), numText(w), fg, smallPx);
                 lastFrac = fracPo(w);
             }
         }
         if (lastFrac < 1.0 - 1e-6) {
             drawTick(p, kArcA, 1.0, -6.0, fg, 1.4);
             if (roomForEndMark(lastFrac, 1.0))
-                drawText(p, kArcA - 16.0, 1.0, numText(m_powerFullScale), fg, small);
+                drawText(p, kArcA - 16.0, 1.0, numText(m_powerFullScale), fg, smallPx);
         }
-        drawText(p, kArcA - 16.0, -0.045, cream ? "PWR" : "Po", fg, small * (cream ? 0.85 : 1.0));
-        drawText(p, kArcA - 16.0, 1.04, "W", fg, small);
+        drawText(p, kArcA - 16.0, -0.045, cream ? "PWR" : "Po", fg, smallPx * (cream ? 0.85 : 1.0));
+        drawText(p, kArcA - 16.0, 1.04, "W", fg, smallPx);
     }
 
     //
@@ -731,11 +731,11 @@ void AnalogMeterItem::drawNeedleFace(QPainter *p, const Palette &c) const
         };
         for (const auto &m : swrMarks) {
             drawTick(p, kArcB, fracSwr(m.v), 6.0, fg, 1.6);
-            drawText(p, kArcB + 15.0, fracSwr(m.v), m.t, fg, small);
+            drawText(p, kArcB + 15.0, fracSwr(m.v), m.t, fg, smallPx);
         }
         drawTick(p, kArcB, 1.0, 6.0, fg, 1.6);
-        drawText(p, kArcB + 15.0, 1.0, QString(QChar(0x221E)), fg, big);
-        drawText(p, kArcB + 14.0, -0.05, "SWR", fg, small * 0.9);
+        drawText(p, kArcB + 15.0, 1.0, QString(QChar(0x221E)), fg, bigPx);
+        drawText(p, kArcB + 14.0, -0.05, "SWR", fg, smallPx * 0.9);
     }
 
     {
@@ -744,16 +744,16 @@ void AnalogMeterItem::drawNeedleFace(QPainter *p, const Palette &c) const
         double lastFrac = 0.0;
         for (double a = 0; a <= m_currentFullScale + 0.01; a += idStep) {
             drawTick(p, kArcB, fracId(a), -5.0, fg, 1.4);
-            drawText(p, kArcB - 14.0, fracId(a), numText(a), fg, small);
+            drawText(p, kArcB - 14.0, fracId(a), numText(a), fg, smallPx);
             lastFrac = fracId(a);
         }
         if (lastFrac < 1.0 - 1e-6) {
             drawTick(p, kArcB, 1.0, -5.0, fg, 1.4);
             if (roomForEndMark(lastFrac, 1.0))
-                drawText(p, kArcB - 14.0, 1.0, numText(m_currentFullScale), fg, small);
+                drawText(p, kArcB - 14.0, 1.0, numText(m_currentFullScale), fg, smallPx);
         }
-        drawText(p, kArcB - 14.0, -0.04, cream ? "ID" : "Id", fg, small);
-        drawText(p, kArcB - 14.0, 1.04, "A", fg, small);
+        drawText(p, kArcB - 14.0, -0.04, cream ? "ID" : "Id", fg, smallPx);
+        drawText(p, kArcB - 14.0, 1.04, "A", fg, smallPx);
     }
 
     //
@@ -766,16 +766,16 @@ void AnalogMeterItem::drawNeedleFace(QPainter *p, const Palette &c) const
         for (int db = 0; db <= 30; db += 10) {
             drawTick(p, kArcC + 4.0, fracComp(db), 5.0, acc, 1.6);
             if (db > 0)
-                drawText(p, kArcC + 16.0, fracComp(db), QString::number(db), acc, small);
+                drawText(p, kArcC + 16.0, fracComp(db), QString::number(db), acc, smallPx);
         }
-        drawText(p, kArcC + 16.0, fracComp(30) + 0.07, "dB", acc, small);
-        drawText(p, kArcC + 16.0, 0.0, "COMP", acc, small * 0.85);
+        drawText(p, kArcC + 16.0, fracComp(30) + 0.07, "dB", acc, smallPx);
+        drawText(p, kArcC + 16.0, 0.0, "COMP", acc, smallPx * 0.85);
     }
 
     {
         const QColor hi = ink(c.high, ScaleAlc);
         drawArc(p, kArcC - 4.0, fracAlc(0), fracAlc(1), hi, 5.0);
-        drawText(p, kArcC - 17.0, fracAlc(0.5), "ALC", hi, small * 0.9);
+        drawText(p, kArcC - 17.0, fracAlc(0.5), "ALC", hi, smallPx * 0.9);
     }
 
     {
@@ -785,9 +785,9 @@ void AnalogMeterItem::drawNeedleFace(QPainter *p, const Palette &c) const
         drawTick(p, kArcC, fracVd(m_vdHigh), -6.0, fg, 1.6);
         if (m_vdRed > m_vdLow && m_vdRed < m_vdHigh)
             drawTick(p, kArcC, fracVd(m_vdRed), -6.0, ink(c.high, ScaleVd), 2.0);
-        drawText(p, kArcC - 15.0, fracVd(m_vdLow), numText(m_vdLow), fg, small);
-        drawText(p, kArcC - 15.0, fracVd(m_vdHigh), QString("%1 V").arg(numText(m_vdHigh)), fg, small);
-        drawText(p, kArcC - 15.0, fracVd(m_vdLow) - 0.1, cream ? "VD" : "Vd", fg, small);
+        drawText(p, kArcC - 15.0, fracVd(m_vdLow), numText(m_vdLow), fg, smallPx);
+        drawText(p, kArcC - 15.0, fracVd(m_vdHigh), QString("%1 V").arg(numText(m_vdHigh)), fg, smallPx);
+        drawText(p, kArcC - 15.0, fracVd(m_vdLow) - 0.1, cream ? "VD" : "Vd", fg, smallPx);
     }
 }
 
