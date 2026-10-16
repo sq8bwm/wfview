@@ -705,7 +705,7 @@ Item {
                     Layout.fillWidth: true
                     model: root.controllerController ? root.controllerController.commandModel : null
                     textRole: "text"
-                    valueRole: "index"
+                    valueRole: "commandIndex"
                 }
             }
 
@@ -724,7 +724,7 @@ Item {
                     Layout.fillWidth: true
                     model: root.controllerController ? root.controllerController.commandModel : null
                     textRole: "text"
-                    valueRole: "index"
+                    valueRole: "commandIndex"
                 }
             }
 
@@ -743,7 +743,7 @@ Item {
                     Layout.fillWidth: true
                     model: root.controllerController ? root.controllerController.knobCommandModel : null
                     textRole: "text"
-                    valueRole: "index"
+                    valueRole: "commandIndex"
                 }
             }
 
@@ -834,19 +834,28 @@ Item {
                 }
             }
 
-            Button {
-                text: qsTr("Apply")
+            RowLayout {
                 Layout.alignment: Qt.AlignRight
-                onClicked: {
-                    if (!root.controllerController)
-                        return
-                    root.controllerController.applyButtonConfig(
-                        onEventCombo.currentValue,
-                        offEventCombo.currentValue,
-                        knobEventCombo.currentValue,
-                        toggleCheckbox.checked,
-                        ledSpinner.value)
-                    configPopup.close()
+                spacing: 10
+
+                Button {
+                    text: qsTr("Cancel")
+                    onClicked: configPopup.close()
+                }
+
+                Button {
+                    text: qsTr("Apply")
+                    onClicked: {
+                        if (!root.controllerController)
+                            return
+                        root.controllerController.applyButtonConfig(
+                            onEventCombo.currentValue,
+                            offEventCombo.currentValue,
+                            knobEventCombo.currentValue,
+                            toggleCheckbox.checked,
+                            ledSpinner.value)
+                        configPopup.close()
+                    }
                 }
             }
         }

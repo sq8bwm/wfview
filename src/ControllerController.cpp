@@ -315,7 +315,7 @@ QHash<int, QByteArray> CommandModel::roleNames() const
 {
     QHash<int, QByteArray> roles;
     roles[TextRole] = "text";
-    roles[IndexRole] = "index";
+    roles[IndexRole] = "commandIndex"; // Not "index": that would shadow the delegate row index
     roles[IsSeparatorRole] = "isSeparator";
     return roles;
 }
