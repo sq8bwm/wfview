@@ -496,13 +496,43 @@ Control {
                             }
 
 
-                            Button {
-                                id: vfoButton;
-                                text: controller && controller.vfoBSelected ? "VFOB" : "VFOA";
-                                checkable: true
-                                checked: controller ? controller.vfoBSelected : false
-                                visible: controller && (controller.uiFlags & ReceiverController.ShowVfoButton) !== 0
-                                onClicked: if (controller) controller.selectVfoB(checked)
+                            // Shows which VFO we believe is active; clicking selects it on the radio
+                            RowLayout {
+                                id: vfoSelector
+                                spacing: 2
+                                Layout.alignment: Qt.AlignVCenter
+                                visible: controller && (controller.uiFlags & ReceiverController.ShowVFOButton) !== 0
+
+                                function selectVfo(vfoB) {
+                                    if (controller)
+                                        controller.selectVfoB(vfoB)
+                                    // Clicking breaks the checked bindings, so restore them
+                                    vfoARadio.checked = Qt.binding(function() { return !(controller && controller.vfoBSelected) })
+                                    vfoBRadio.checked = Qt.binding(function() { return controller ? controller.vfoBSelected : false })
+                                }
+
+                                ButtonGroup { id: vfoGroup }
+
+                                Label {
+                                    text: qsTr("VFO:")
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                RadioButton {
+                                    id: vfoARadio
+                                    text: qsTr("A")
+                                    ButtonGroup.group: vfoGroup
+                                    checked: !(controller && controller.vfoBSelected)
+                                    onClicked: vfoSelector.selectVfo(false)
+                                }
+
+                                RadioButton {
+                                    id: vfoBRadio
+                                    text: qsTr("B")
+                                    ButtonGroup.group: vfoGroup
+                                    checked: controller ? controller.vfoBSelected : false
+                                    onClicked: vfoSelector.selectVfo(true)
+                                }
                             }
 
                             Item {
