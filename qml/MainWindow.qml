@@ -49,7 +49,9 @@ ApplicationWindow {
     readonly property bool radioConnected: Number(MainController.connStatus) === 2
     readonly property bool waylandPlatform: String(MainController.platformName()).indexOf("wayland") !== -1
     readonly property var mainControlSpecs: MainController.uiSpecs["mainControls"] || ({})
-    readonly property var firstReceiver: MainController.receiverCount > 0 ? MainController.receiver(0) : null
+    // The receiver the radio has selected (Main/Sub); the tuning dial follows it
+    readonly property var dialReceiver: MainController.receiverCount > 0
+                                        ? MainController.receiver(Math.min(MainController.currentReceiver, MainController.receiverCount - 1)) : null
     readonly property bool _sysTheme: MainController.settings.options["Interface.UseSystemTheme"] === true
 
     property int flowSpacing: mainControlSpacing
@@ -1647,8 +1649,8 @@ ApplicationWindow {
                         WheelArea {
                             customHandler: true
                             onWheeled: function(angleDelta, modifiers) {
-                                if (firstReceiver)
-                                    firstReceiver.onWheelTune(angleDelta, modifiers)
+                                if (dialReceiver)
+                                    dialReceiver.onWheelTune(angleDelta, modifiers)
                             }
                         }
                         id: freqDial
@@ -1664,9 +1666,9 @@ ApplicationWindow {
                         stepSize: 10
                         wrap: true
                         visible: win.radioConnected
-                        enabled: firstReceiver !== null
+                        enabled: dialReceiver !== null
                         onMoved: {
-                            if (syncing || !firstReceiver)
+                            if (syncing || !dialReceiver)
                                 return
 
                             const fullSweep = to - from
@@ -1699,7 +1701,7 @@ ApplicationWindow {
                                 else if (fastMoveCount >= 2 && elapsed <= 90)
                                     multiplier = 2
 
-                                firstReceiver.tuneSteps(direction * multiplier, 0, true)
+                                dialReceiver.tuneSteps(direction * multiplier, 0, true)
                                 lastDirection = direction
                                 lastMoveTime = now
                             }

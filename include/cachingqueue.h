@@ -127,6 +127,7 @@ private:
     funcs checkCommandAvailable(funcs cmd, bool set=false);
     rigStateType rigState;
     QByteArray yaesuData;
+    bool vfoFreqSwappedLocked() const;
 
 protected:
     cachingQueue(QObject* parent = nullptr) : QThread(parent) {};
@@ -169,6 +170,8 @@ public:
     rigCapabilities* getRigCaps() { return rigCaps; }
     vfoCommandType getVfoCommand(vfo_t vfo, uchar rx, bool set=false);
     rigStateType getState() { QMutexLocker locker(&mutex); return rigState ;}
+    // True when VFO B is active on a rig whose Selected/Unselected Freq commands are fixed to VFO A/B
+    bool vfoFreqSwapped() { QMutexLocker locker(&mutex); return vfoFreqSwappedLocked(); }
 };
 
 Q_DECLARE_METATYPE(queueItem)

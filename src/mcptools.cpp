@@ -662,7 +662,8 @@ QJsonObject Mcp::rigCapsToJson(const rigCapabilities &caps, const QStringList &s
                                 {"hasVFOAB", caps.hasVFOAB},
                                 {"hasAdvancedRptrToneCmds", caps.hasAdvancedRptrToneCmds},
                                 {"hasQuickSplitCommand", caps.hasQuickSplitCommand},
-                                {"hasCommand29", caps.hasCommand29}};
+                                {"hasCommand29", caps.hasCommand29},
+                                {"absoluteVFOFreq", caps.absoluteVFOFreq}};
     o["counts"] = QJsonObject{{"modes", int(caps.modes.size())},
                               {"commands", int(caps.commands.size())},
                               {"inputs", int(caps.inputs.size())},

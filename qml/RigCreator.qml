@@ -1849,7 +1849,7 @@ ApplicationWindow {
 
                     SettingsPanel {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 220
+                        Layout.preferredHeight: 252
                         title: qsTr("Features")
                         ColumnLayout {
                             anchors.fill: parent
@@ -1861,6 +1861,18 @@ ApplicationWindow {
                             CheckBox { text: qsTr("Has Transmit"); checked: (rig.settings["Rig/HasTransmit"] ?? false); onToggled: rig.settings["Rig/HasTransmit"] = checked }
                             CheckBox { text: qsTr("Has FD Comms"); checked: (rig.settings["Rig/HasFDComms"] ?? false);  onToggled: rig.settings["Rig/HasFDComms"] = checked }
                             CheckBox { text: qsTr("Has Cmd 29");   checked: (rig.settings["Rig/HasCommand29"] ?? false);onToggled: rig.settings["Rig/HasCommand29"] = checked }
+                            CheckBox {
+                                text: qsTr("Absolute VFO Freq")
+                                checked: (rig.settings["Rig/AbsoluteVFOFreq"] ?? false)
+                                onToggled: rig.settings["Rig/AbsoluteVFOFreq"] = checked
+                                ToolTip.visible: hovered
+                                ToolTip.delay: 500
+                                ToolTip.text: qsTr("Enable when the Selected Freq and Unselected Freq commands always address VFO A and VFO B "
+                                                   + "(for example Kenwood FA/FB), rather than the active and inactive VFO.\n"
+                                                   + "When VFO B is selected, wfview then sends tuning to the Unselected Freq command "
+                                                   + "and shows its replies as the active frequency.\n"
+                                                   + "Leave off when the radio's frequency commands follow the active VFO (for example Icom 0x25).")
+                            }
                             Item { Layout.fillHeight: true }
                         }
                     }

@@ -1090,6 +1090,17 @@ void rigCtlClient::updateVfoList()
         vfoList |= 1 << 28;
 }
 
+vfoCommandType rigCtlClient::getRigVfoCommand(vfo_t vfo, uchar rx, bool set)
+{
+    // rigctld names the actual VFO, but the queue addresses the active (vfoA) or other (vfoB) VFO.
+    // Translate for rigs whose freq commands are fixed to VFO A/B, so VFOB reaches B while it is active.
+    if (rigCaps != nullptr && rigCaps->absoluteVFOFreq && (vfo == vfoA || vfo == vfoB)) {
+        const vfo_t active = (queue->getState().vfo == vfoB) ? vfoB : vfoA;
+        vfo = (vfo == active) ? vfoA : vfoB;
+    }
+    return queue->getVfoCommand(vfo, rx, set);
+}
+
 rigStateType rigCtlClient::vfoFromName(QString vfo) {
 
     rigStateType state = queue->getState();
@@ -1316,7 +1327,7 @@ int rigCtlClient::getCommand(QStringList& response, bool extended, const command
             }
 
             {
-                const vfoCommandType vfoCommand = queue->getVfoCommand(state.vfo, state.receiver, true);
+                const vfoCommandType vfoCommand = getRigVfoCommand(state.vfo, state.receiver, true);
                 func = vfoCommand.freqFunc;
                 state.receiver = vfoCommand.receiver;
             }
@@ -1359,7 +1370,7 @@ int rigCtlClient::getCommand(QStringList& response, bool extended, const command
 
             // We have VFO, Mode and PB
             {
-                const vfoCommandType vfoCommand = queue->getVfoCommand(state.vfo, state.receiver, true);
+                const vfoCommandType vfoCommand = getRigVfoCommand(state.vfo, state.receiver, true);
                 func = vfoCommand.modeFunc;
                 state.receiver = vfoCommand.receiver;
             }
@@ -1432,11 +1443,11 @@ int rigCtlClient::getCommand(QStringList& response, bool extended, const command
             state = vfoFromName(params[0]);
 
         if (func == funcFreqGet) {
-            const vfoCommandType vfoCommand = queue->getVfoCommand(state.vfo, state.receiver, false);
+            const vfoCommandType vfoCommand = getRigVfoCommand(state.vfo, state.receiver, false);
             func = vfoCommand.freqFunc;
             state.receiver = vfoCommand.receiver;
         } else if (func == funcModeGet) {
-            const vfoCommandType vfoCommand = queue->getVfoCommand(state.vfo, state.receiver, false);
+            const vfoCommandType vfoCommand = getRigVfoCommand(state.vfo, state.receiver, false);
             func = vfoCommand.modeFunc;
             state.receiver = vfoCommand.receiver;
         }
@@ -1554,7 +1565,7 @@ int rigCtlClient::getCommand(QStringList& response, bool extended, const command
                 state.receiver=1;
             }
 
-            const vfoCommandType freqCommand = queue->getVfoCommand(state.vfo, state.receiver, false);
+            const vfoCommandType freqCommand = getRigVfoCommand(state.vfo, state.receiver, false);
             const funcs freqFunc = freqCommand.freqFunc;
             const funcs modeFunc = freqCommand.modeFunc;
             state.receiver = freqCommand.receiver;
@@ -2058,7 +2069,7 @@ int rigCtlClient::power2mW(QStringList& response, bool extended, const commandSt
             if (freq == 0)
             {
                 // Frequency was zero, so get cached freq
-                freq = queue->getCache(queue->getVfoCommand(state.vfo,state.receiver,false).freqFunc,state.receiver).value.value<freqt>().Hz;
+                freq = queue->getCache(getRigVfoCommand(state.vfo, state.receiver, false).freqFunc,state.receiver).value.value<freqt>().Hz;
             }
             for (auto &b: rigCaps->bands)
             {
@@ -2098,7 +2109,7 @@ int rigCtlClient::mW2power(QStringList& response, bool extended, const commandSt
             if (freq == 0)
             {
                 // Frequency was zero, so get cached freq
-                freq = queue->getCache(queue->getVfoCommand(state.vfo,state.receiver,false).freqFunc,state.receiver).value.value<freqt>().Hz;
+                freq = queue->getCache(getRigVfoCommand(state.vfo, state.receiver, false).freqFunc,state.receiver).value.value<freqt>().Hz;
             }
             for (auto &b: rigCaps->bands)
             {

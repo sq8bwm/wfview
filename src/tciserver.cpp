@@ -823,6 +823,10 @@ void tciServer::receiveCache(cacheItem item)
         vfo = 1;
     }
 
+    // Selected/Unselected Freq are fixed to VFO A/B on some rigs, so report against the active VFO
+    if ((item.command == funcSelectedFreq || item.command == funcUnselectedFreq) && queue->vfoFreqSwapped())
+        vfo ^= 1;
+
     if (func == funcFreq) {
         const freqt freq = item.value.value<freqt>();
         if (rigCaps && rigCaps->numReceiver > 1 && item.receiver > 0)

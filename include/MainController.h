@@ -64,6 +64,7 @@ public:
     Q_PROPERTY(QString rigModelName READ rigModelName NOTIFY rigModelNameChanged)
     Q_PROPERTY(QString clusterOutputText READ clusterOutputText NOTIFY clusterOutputTextChanged)
     Q_PROPERTY(int receiverCount READ receiverCount NOTIFY receiverCountChanged)
+    Q_PROPERTY(int currentReceiver READ getCurrentReceiver NOTIFY currentReceiverChanged)
     Q_PROPERTY(SettingsController* settings READ getSettings CONSTANT)
     Q_PROPERTY(connectionStatus_t connStatus READ getConnStatus WRITE setConnStatus NOTIFY connStatusChanged)
     Q_PROPERTY(ThemeBridge* theme READ theme CONSTANT)
@@ -135,6 +136,7 @@ public:
     QString clusterOutputText() const { return m_clusterOutputText; }
 
     int receiverCount() const { return receivers.size(); }
+    int getCurrentReceiver() const { return currentReceiver; }
 
     Q_INVOKABLE void updateApplicationPalette();
 
@@ -336,6 +338,7 @@ signals:
     void pttTimeoutExpired(int seconds);
     void runningMacroChanged();
     void receiverCountChanged();
+    void currentReceiverChanged();
     void receiverDetachedChanged(int index, bool detached);
     void detachedChanged();
 

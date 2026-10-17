@@ -340,6 +340,7 @@ void rigCommander::determineRigCaps()
     rigCaps.hasTransmit = settings->value("HasTransmit",false).toBool();
     rigCaps.hasFDcomms = settings->value("HasFDComms",false).toBool();
     rigCaps.hasCommand29 = settings->value("HasCommand29",false).toBool();
+    rigCaps.absoluteVFOFreq = settings->value("AbsoluteVFOFreq",false).toBool();
 
     rigCaps.memGroups = settings->value("MemGroups",0).toUInt();
     rigCaps.memories = settings->value("Memories",0).toUInt();

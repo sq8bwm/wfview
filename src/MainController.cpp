@@ -1093,7 +1093,9 @@ bool MainController::executeMacroRadioStep(funcs func, const QString& parameter,
             return false;
         }
         if (func == funcUnselectedFreq) {
-            queue->add(priorityImmediate, queueItem(func, QVariant::fromValue(freqt(hz, double(hz) / 1E6, inactiveVFO)),
+            // The inactive VFO is "selected" on rigs with fixed VFO A/B freq commands when B is active
+            const funcs otherFreq = queue->vfoFreqSwapped() ? funcSelectedFreq : funcUnselectedFreq;
+            queue->add(priorityImmediate, queueItem(otherFreq, QVariant::fromValue(freqt(hz, double(hz) / 1E6, inactiveVFO)),
                                                     false, rx));
         } else {
             receivers[rx]->setExactFrequencyMHz(double(hz) / 1E6);
@@ -3974,6 +3976,7 @@ void MainController::disconnectRig()
     receivers.clear();
     detached.clear();
     currentReceiver = 0;
+    emit currentReceiverChanged();
     emit receiverCountChanged();
     emit detachedChanged();
 
@@ -4229,6 +4232,7 @@ void MainController::receivePortError(errorType err)
     receivers.clear();
     detached.clear();
     currentReceiver = 0;
+    emit currentReceiverChanged();
     emit receiverCountChanged();
     emit detachedChanged();
 
@@ -4543,6 +4547,7 @@ void MainController::receiveRigCaps(rigCapabilities* caps)
     receivers.clear();
     detached.clear();
     currentReceiver = 0;
+    emit currentReceiverChanged();
 
     if (rigCaps) {
         if(prefs->polling_ms != 0)
@@ -4952,6 +4957,9 @@ void MainController::receiveValueFromQueue(cacheItem val)
     case funcSelectedFreq:
     {
         const freqt frequency = val.value.value<freqt>();
+        // Selected/Unselected Freq are fixed to VFO A/B on some rigs, so route to the active VFO
+        if ((val.command == funcSelectedFreq || val.command == funcUnselectedFreq) && queue->vfoFreqSwapped())
+            vfo ^= 1;
         if (vfo == 0)
             receivers[val.receiver]->receiveFrequencyA(frequency.Hz);
         else
@@ -5027,6 +5035,7 @@ void MainController::receiveValueFromQueue(cacheItem val)
                 rx->setActive(rx->getReceiver() == r);
             }
             currentReceiver = r;
+            emit currentReceiverChanged();
             updatePrimaryMeterForTransmit(m_transmitting);
         }
         break;

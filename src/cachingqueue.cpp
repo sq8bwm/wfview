@@ -271,12 +271,16 @@ vfoCommandType cachingQueue::getVfoCommand(vfo_t vfo,uchar rx, bool set)
             if (rigState.vfoMode == vfoModeType_t::vfoModeVfo && (rigState.receiver == 0 && rx == 0))
             {
                 // This is acting on main
+                // When the freq commands are fixed to VFO A/B and B is active, the active VFO is the "unselected" one
+                const bool swapFreq = vfoFreqSwappedLocked();
+                const funcs activeFreq = swapFreq ? funcUnselectedFreq : funcSelectedFreq;
+                const funcs otherFreq = swapFreq ? funcSelectedFreq : funcUnselectedFreq;
                 if (vfo == vfoA) {
                     cmd.modeFunc = ((rigCaps->commands.contains(funcSelectedMode)) ? funcSelectedMode: cmd.modeFunc);
-                    cmd.freqFunc = ((rigCaps->commands.contains(funcSelectedFreq)) ? funcSelectedFreq: cmd.freqFunc);
+                    cmd.freqFunc = ((rigCaps->commands.contains(activeFreq)) ? activeFreq: cmd.freqFunc);
                 } else if (vfo == vfoB){
                     cmd.modeFunc = ((rigCaps->commands.contains(funcUnselectedMode)) ? funcUnselectedMode: cmd.modeFunc);
-                    cmd.freqFunc = ((rigCaps->commands.contains(funcUnselectedFreq)) ? funcUnselectedFreq: cmd.freqFunc);
+                    cmd.freqFunc = ((rigCaps->commands.contains(otherFreq)) ? otherFreq: cmd.freqFunc);
                 }
             }
             else if (rx == rigState.receiver)
@@ -295,6 +299,13 @@ vfoCommandType cachingQueue::getVfoCommand(vfo_t vfo,uchar rx, bool set)
     }
     //qDebug(logRig()) << "Queue VFO:" << vfo << "rx:" << rx<< "set:" << set << "mode:" << funcString[cmd.modeFunc] << "freq:" << funcString[cmd.freqFunc] << "rigstate: vfoMode:" << rigState.vfoMode << "vfo" << rigState.vfo << "rx" << rigState.receiver;
     return cmd;
+}
+
+bool cachingQueue::vfoFreqSwappedLocked() const
+{
+    // Mutex MUST be locked by the calling function.
+    return rigCaps != nullptr && rigCaps->absoluteVFOFreq && !rigCaps->hasCommand29
+           && rigState.vfoMode == vfoModeType_t::vfoModeVfo && rigState.vfo == vfoB;
 }
 
 queuePriority cachingQueue::del(funcs func, uchar receiver, bool includePending)

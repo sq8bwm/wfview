@@ -203,6 +203,7 @@ private:
     quint8 antFromName(QString name);
     bool isVfoName(const QString &vfo) const;
     rigStateType vfoFromName(QString vfo);
+    vfoCommandType getRigVfoCommand(vfo_t vfo, uchar rx, bool set);
     QString getVfoName(vfo_t vfo);
     QStringList availableVfoNames() const;
     void updateVfoList();

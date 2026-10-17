@@ -331,6 +331,7 @@ struct rigCapabilities {
     bool hasQuickSplitCommand = false;
 
     bool hasCommand29 = false;
+    bool absoluteVFOFreq = false; // Selected/Unselected Freq address VFO A/B rather than the active VFO
 
     QByteArray quickSplitCommand;
     QHash<funcs,funcType> commands;
