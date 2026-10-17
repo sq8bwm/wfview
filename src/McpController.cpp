@@ -4,6 +4,11 @@
 #include "mcphostwfview.h"
 #include "mcpprobe.h"
 #include "mcpserver.h"
+#else
+// Without CONFIG+=mcp the real classes are not built, but std::unique_ptr
+// still needs complete types to destroy m_host and m_server.
+class McpHost {};
+class McpServer {};
 #endif
 
 #include <QHostAddress>
