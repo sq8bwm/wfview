@@ -1817,6 +1817,14 @@ ApplicationWindow {
                                         ToolTip.visible: hovered
                                         ToolTip.text: qsTr("Replace the RIT knob with a wide, fine-step slider and an exact entry box. Useful for satellite operation.")
                                     }
+                                    CheckBox {
+                                        id: alwaysSaveOnExitChk
+                                        text: qsTr("Always save settings on exit")
+                                        checked: optBool("Interface.AlwaysSaveOnExit", true)
+                                        onClicked: if (controller) controller.setOption("Interface.AlwaysSaveOnExit", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Save changed settings automatically when wfview exits, without asking.")
+                                    }
                                     Item { Layout.fillWidth: true }
                                 }
                                 RowLayout {

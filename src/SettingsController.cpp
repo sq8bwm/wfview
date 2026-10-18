@@ -1029,6 +1029,7 @@ void SettingsController::load()
     prefs.miniRxButtons = settings->value("MiniRxButtons",defPrefs.miniRxButtons).toBool();
     prefs.showTuningDial = settings->value("ShowTuningDial",defPrefs.showTuningDial).toBool();
     prefs.wideRitSlider = settings->value("WideRitSlider",defPrefs.wideRitSlider).toBool();
+    prefs.alwaysSaveOnExit = settings->value("AlwaysSaveOnExit",defPrefs.alwaysSaveOnExit).toBool();
     prefs.reverseWheel = settings->value("ReverseWheel",defPrefs.reverseWheel).toBool();
     prefs.sMeterOnTop = settings->value("SMeterOnTop",defPrefs.sMeterOnTop).toBool();
     prefs.meterStyle = settings->value("MeterStyle", defPrefs.meterStyle).toInt();
@@ -1897,6 +1898,7 @@ void SettingsController::save()
     settings->setValue("MiniRxButtons",prefs.miniRxButtons);
     settings->setValue("ShowTuningDial",prefs.showTuningDial);
     settings->setValue("WideRitSlider",prefs.wideRitSlider);
+    settings->setValue("AlwaysSaveOnExit",prefs.alwaysSaveOnExit);
     settings->setValue("ReverseWheel",prefs.reverseWheel);
     settings->setValue("SMeterOnTop",prefs.sMeterOnTop);
     settings->setValue("MeterStyle", prefs.meterStyle);
@@ -2462,6 +2464,7 @@ void SettingsController::setDefPrefs()
     defPrefs.miniRxButtons = true;
     defPrefs.showTuningDial = true;
     defPrefs.wideRitSlider = false;
+    defPrefs.alwaysSaveOnExit = true;
     defPrefs.reverseWheel = false;
     defPrefs.sMeterOnTop = false;
     defPrefs.meterStyle = 0;
@@ -3658,6 +3661,7 @@ void SettingsController::buildBindings()
     WF_BOOL("Interface.MiniRxButtons", prefs.miniRxButtons, [](){});
     WF_BOOL("Interface.ShowTuningDial", prefs.showTuningDial, [](){});
     WF_BOOL("Interface.WideRitSlider", prefs.wideRitSlider, [](){});
+    WF_BOOL("Interface.AlwaysSaveOnExit", prefs.alwaysSaveOnExit, [](){});
     WF_BOOL("Interface.ReverseWheel", prefs.reverseWheel, [](){});
     WF_BOOL("Interface.SMeterOnTop", prefs.sMeterOnTop, [](){});
     WF_I32("Interface.MeterStyle", prefs.meterStyle, [](){});

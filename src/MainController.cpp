@@ -5656,6 +5656,7 @@ void MainController::setDefPrefs()
     defprefs->miniRxButtons = true;
     defprefs->showTuningDial = true;
     defprefs->wideRitSlider = false;
+    defprefs->alwaysSaveOnExit = true;
     defprefs->reverseWheel = false;
     defprefs->sMeterOnTop = false;
     defprefs->meterStyle = 0;
@@ -5957,6 +5958,7 @@ void MainController::loadSettings(QString settingsFile)
     prefs->miniRxButtons = settings->value("MiniRxButtons",defprefs->miniRxButtons).toBool();
     prefs->showTuningDial = settings->value("ShowTuningDial",defprefs->showTuningDial).toBool();
     prefs->wideRitSlider = settings->value("WideRitSlider",defprefs->wideRitSlider).toBool();
+    prefs->alwaysSaveOnExit = settings->value("AlwaysSaveOnExit",defprefs->alwaysSaveOnExit).toBool();
     prefs->reverseWheel = settings->value("ReverseWheel",defprefs->reverseWheel).toBool();
     prefs->sMeterOnTop = settings->value("SMeterOnTop",defprefs->sMeterOnTop).toBool();
     prefs->meterStyle = settings->value("MeterStyle", defprefs->meterStyle).toInt();

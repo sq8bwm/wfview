@@ -427,7 +427,7 @@ ApplicationWindow {
     Dialog {
         id: unsavedSettingsDialog
         title: qsTr("Unsaved settings")
-        width: 420
+        width: 480
         height: 150
         x: Math.round((win.width - width) / 2)
         y: Math.round((win.height - height) / 2)
@@ -467,6 +467,15 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignRight
                 spacing: 8
 
+                Button {
+                    text: qsTr("Always save")
+                    onClicked: {
+                        unsavedSettingsDialog.visible = false
+                        if (MainController && MainController.settings)
+                            MainController.settings.setOption("Interface.AlwaysSaveOnExit", true)
+                        win.finishQuit(true)
+                    }
+                }
                 Button {
                     text: qsTr("Save")
                     onClicked: {
@@ -612,6 +621,12 @@ ApplicationWindow {
     onClosing: function(close) {
         if (win.shutdownStarted) {
             close.accepted = true
+            return
+        }
+
+        if (!win.quitConfirmed && shouldAutoSaveSettings()) {
+            close.accepted = false
+            win.finishQuit(true)
             return
         }
 
@@ -1029,8 +1044,18 @@ ApplicationWindow {
         return firstRow ? firstRow.receiverItem : null
     }
 
+    function shouldAutoSaveSettings() {
+        if (!MainController || !MainController.settings)
+            return false
+
+        return win.settingAsBool(MainController.settings.dirty, false)
+                && win.settingAsBool(MainController.settings.options["Interface.AlwaysSaveOnExit"], true)
+    }
+
     function shouldConfirmUnsavedSettings() {
         if (!MainController || !MainController.settings)
+            return false
+        if (shouldAutoSaveSettings())
             return false
 
         var confirm = MainController.settings.options["Interface.ConfirmSettingsChanged"]
@@ -1140,6 +1165,11 @@ ApplicationWindow {
     }
 
     function requestQuit() {
+        if (shouldAutoSaveSettings()) {
+            win.finishQuit(true)
+            return
+        }
+
         if (shouldConfirmUnsavedSettings()) {
             unsavedSettingsDialog.showDialog()
             return
