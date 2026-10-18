@@ -4088,7 +4088,12 @@ void MainController::disconnectRig()
     queue->clearCache();
     m_meterLevels.clear();
     for (auto *r : std::as_const(receivers)) {
-        if (r) r->deleteLater();
+        if (!r)
+            continue;
+        // Drop queued slot calls (e.g. setScopeData); they would run after the
+        // rig, and the rigCaps it owns, have been destroyed below.
+        QCoreApplication::removePostedEvents(r, QEvent::MetaCall);
+        r->deleteLater();
     }
     receivers.clear();
     detached.clear();
@@ -4548,7 +4553,11 @@ void MainController::receivePortError(errorType err)
     rigThread = nullptr;
 
     for (auto *r : std::as_const(receivers)) {
-        if (r) r->deleteLater();
+        if (!r)
+            continue;
+        // The rig and its rigCaps are gone; queued slot calls must not run.
+        QCoreApplication::removePostedEvents(r, QEvent::MetaCall);
+        r->deleteLater();
     }
     receivers.clear();
     detached.clear();
