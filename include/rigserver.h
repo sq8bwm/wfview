@@ -61,6 +61,9 @@ struct RIGCONFIG {
 struct SERVERCONFIG {
 	bool enabled;
     bool disableUI;
+    // Only honoured while the server is enabled: unattended servers keep
+    // retrying the serial port without a modal warning.
+    bool suppressSerialWarnings = false;
 	bool lan;
 	quint16 controlPort;
 	quint16 civPort;
@@ -91,7 +94,8 @@ enum prefServerItem {
     s_users = 1 << 11,
     s_rigs = 1 << 12,
     s_listenAddress = 1 << 13,
-    s_all = 1 << 14
+    s_suppressSerialWarnings = 1 << 14,
+    s_all = 1 << 15
 };
 
 Q_DECLARE_FLAGS(prefServerItems, prefServerItem)

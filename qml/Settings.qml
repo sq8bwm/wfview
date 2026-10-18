@@ -135,9 +135,35 @@ ApplicationWindow {
         return list
     }
 
-    // Store an audio device choice, then re-bind the box to the stored value
+    // Model for the serial port ComboBox, built like audioDeviceModel(). A
+    // configured port that is not enumerated but does exist (for example a
+    // /dev/serial/by-id link) is listed by name, without "(not found)".
+    function serialPortModel(spec, configured) {
+        var ports = (spec && spec.model) ? spec.model : []
+        var name = (configured === undefined || configured === null) ? "" : String(configured)
+        var list = []
+        var found = false
+        for (var i = 0; i < ports.length; ++i) {
+            list.push(ports[i])
+            if (String(ports[i].value) === name)
+                found = true
+        }
+        if (!found) {
+            var text
+            if (name === "")
+                text = qsTr("(no port selected)")
+            else if (controller && controller.serialPortExists(name))
+                text = name
+            else
+                text = qsTr("%1 (not found)").arg(name)
+            list.unshift({ "text": text, "value": name })
+        }
+        return list
+    }
+
+    // Store a device choice, then re-bind the box to the stored value
     // so it always shows what the backend accepted.
-    function selectAudioDevice(cb, key) {
+    function selectDeviceOption(cb, key) {
         if (!controller)
             return
         controller.setOption(key, cb.currentValue)
@@ -936,7 +962,7 @@ ApplicationWindow {
                                         valueRole: spec ? spec.valueRole : "value"
                                         visible: spec ? (spec.visible ?? true) : false
                                         currentIndex: controller ? indexFromValue(audioOutputCombo,controller.options["UDP.RxAudio"]) : -1
-                                        onActivated: selectAudioDevice(audioOutputCombo, "UDP.RxAudio")
+                                        onActivated: selectDeviceOption(audioOutputCombo, "UDP.RxAudio")
                                         readonly property real widestText: {
                                             let max = 0
                                             for (let i = 0; i < count; ++i)
@@ -960,7 +986,7 @@ ApplicationWindow {
                                         valueRole: spec ? spec.valueRole : "value"
                                         visible: spec ? (spec.visible ?? true) : false
                                         currentIndex: controller ? indexFromValue(audioInputCombo,controller.options["UDP.TxAudio"]) : -1
-                                        onActivated: selectAudioDevice(audioInputCombo, "UDP.TxAudio")
+                                        onActivated: selectDeviceOption(audioInputCombo, "UDP.TxAudio")
                                         readonly property real widestText: {
                                             let max = 0
                                             for (let i = 0; i < count; ++i)
@@ -1011,14 +1037,22 @@ ApplicationWindow {
                                         Layout.maximumWidth: 180
                                         Accessible.name: "Serial (USB) Port Selection Combo"
                                         readonly property var spec: controller ? controller.uiSpecs["SerialPorts"] : null
-                                        model: spec ? spec.model : []
+                                        model: serialPortModel(spec, controller ? controller.options["Radio.SerialPortRadio"] : "")
                                         textRole: spec ? spec.textRole : "text"
                                         valueRole: spec ? spec.valueRole : "value"
                                         visible: spec ? (spec.visible ?? true) : false
                                         currentIndex: (controller && controller.options)
                                                       ? indexFromValue(serialDeviceListCombo,controller.options["Radio.SerialPortRadio"])
                                                       : -1
-                                        onActivated: controller.setOption("Radio.SerialPortRadio", currentValue)
+                                        onActivated: selectDeviceOption(serialDeviceListCombo, "Radio.SerialPortRadio")
+                                    }
+
+                                    Button {
+                                        text: qsTr("Rescan")
+                                        onClicked: if (controller) controller.rescanSerialPorts()
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Look for serial ports again, for example after plugging in a radio.")
+                                        Accessible.name: "Rescan serial ports"
                                     }
 
                                     Label { text: qsTr("Baud Rate") }
@@ -1052,7 +1086,9 @@ ApplicationWindow {
                                         id: pttTypeCombo
                                         Accessible.name: "PTT Type Combo"
                                         model: [
-                                            { text: qsTr("CI-V"), value: 0 },
+                                            // Icom calls its command protocol CI-V; Kenwood and Yaesu call it CAT.
+                                            { text: (controller && Number(controller.options["Radio.Manufacturer"]) !== 0)
+                                                    ? qsTr("CAT") : qsTr("CI-V"), value: 0 },
                                             { text: qsTr("RTS"), value: 1 },
                                             { text: qsTr("DTR"), value: 2 }
                                         ]
@@ -1089,7 +1125,7 @@ ApplicationWindow {
                                         valueRole: spec ? spec.valueRole : "value"
                                         enabled: optBool("Radio.EnableUSBAudio", false)
                                         currentIndex: controller ? indexFromValue(usbRadioRxAudioCombo, controller.options["Radio.USBAudioRXInput"]) : -1
-                                        onActivated: selectAudioDevice(usbRadioRxAudioCombo, "Radio.USBAudioRXInput")
+                                        onActivated: selectDeviceOption(usbRadioRxAudioCombo, "Radio.USBAudioRXInput")
                                         Layout.fillWidth: true
                                         Layout.preferredWidth: 1
                                         Layout.minimumWidth: 160
@@ -1107,7 +1143,7 @@ ApplicationWindow {
                                         valueRole: spec ? spec.valueRole : "value"
                                         enabled: optBool("Radio.EnableUSBAudio", false)
                                         currentIndex: controller ? indexFromValue(usbRadioTxAudioCombo, controller.options["Radio.USBAudioTXOutput"]) : -1
-                                        onActivated: selectAudioDevice(usbRadioTxAudioCombo, "Radio.USBAudioTXOutput")
+                                        onActivated: selectDeviceOption(usbRadioTxAudioCombo, "Radio.USBAudioTXOutput")
                                         Layout.fillWidth: true
                                         Layout.preferredWidth: 1
                                         Layout.minimumWidth: 160
@@ -2490,6 +2526,17 @@ ApplicationWindow {
                                 checked: optBool("Server.DisableUI", false)
                                 onClicked: if (controller) controller.setOption("Server.DisableUI", checked)
                             }
+                            Item { Layout.preferredWidth: 20 }
+                            CheckBox {
+                                id: serverSuppressSerialWarningsChk
+                                text: qsTr("Suppress serial port warnings")
+                                enabled: optBool("Server.Enabled", false)
+                                checked: optBool("Server.SuppressSerialWarnings", false)
+                                onClicked: if (controller) controller.setOption("Server.SuppressSerialWarnings", checked)
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("While the server is enabled, do not show a warning when the radio's serial port cannot be opened. "
+                                                   + "wfview keeps retrying the port, for headless or unattended servers.")
+                            }
                             Item { Layout.fillWidth: true }
                         }
 
@@ -2595,7 +2642,7 @@ ApplicationWindow {
                                         currentIndex: controller ? indexFromValue(serverRXAudioInputCombo, controller.options["Server.AudioInput"]) : -1
                                         enabled: window.connStatus !== 2
                                         Layout.preferredWidth: 160
-                                        onActivated: selectAudioDevice(serverRXAudioInputCombo, "Server.AudioInput")
+                                        onActivated: selectDeviceOption(serverRXAudioInputCombo, "Server.AudioInput")
                                     }
                                     Label { text: qsTr("TX Audio Output") }
                                     ComboBox {
@@ -2607,7 +2654,7 @@ ApplicationWindow {
                                         currentIndex: controller ? indexFromValue(serverTXAudioOutputCombo, controller.options["Server.AudioOutput"]) : -1
                                         enabled: window.connStatus !== 2
                                         Layout.preferredWidth: 160
-                                        onActivated: selectAudioDevice(serverTXAudioOutputCombo, "Server.AudioOutput")
+                                        onActivated: selectDeviceOption(serverTXAudioOutputCombo, "Server.AudioOutput")
                                     }
                                     Item { width: 20 }
                                     Label { text: qsTr("Audio System") }

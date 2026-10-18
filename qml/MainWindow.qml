@@ -974,6 +974,116 @@ ApplicationWindow {
         function onAudioDeviceProblem(headline, detail) {
             audioDeviceProblemDialog.addProblem(headline, detail)
         }
+        function onSerialPortProblem(headline, detail) {
+            serialPortProblemDialog.showProblem(headline, detail)
+        }
+    }
+
+    // Connection problem dialogs (audio device, serial port) can be raised
+    // together when connecting. Show one at a time; the rest wait here.
+    property var pendingProblemDialogs: []
+
+    function problemDialogShowing() {
+        return audioDeviceProblemDialog.visible || serialPortProblemDialog.visible
+    }
+
+    function presentProblemDialog(dlg) {
+        if (dlg.visible)
+            return
+        if (problemDialogShowing()) {
+            if (pendingProblemDialogs.indexOf(dlg) < 0) {
+                var list = pendingProblemDialogs.slice()
+                list.push(dlg)
+                pendingProblemDialogs = list
+            }
+            return
+        }
+        dlg.present()
+    }
+
+    // Returns true when another problem dialog was opened.
+    function presentNextProblemDialog() {
+        if (pendingProblemDialogs.length === 0)
+            return false
+        var list = pendingProblemDialogs.slice()
+        var dlg = list.shift()
+        pendingProblemDialogs = list
+        dlg.present()
+        return true
+    }
+
+    // Shown when the radio serial port cannot be used on connect.
+    Dialog {
+        id: serialPortProblemDialog
+        title: qsTr("Serial port problem")
+        width: Math.min(560, win.width - 40)
+        height: Math.round(implicitHeight * 1.2)
+        x: Math.round((win.width - width) / 2)
+        y: Math.round((win.height - height) / 2)
+        visible: false
+        modal: true
+        closePolicy: Popup.NoAutoClose
+
+        property string headline: ""
+        property string detail: ""
+
+        background: Rectangle {
+            color: win.palette.window
+            border.color: win.palette.highlight
+            border.width: 1
+            radius: 4
+        }
+
+        function showProblem(newHeadline, newDetail) {
+            headline = newHeadline
+            detail = newDetail
+            win.presentProblemDialog(serialPortProblemDialog)
+        }
+
+        function present() {
+            win.ensureWindowFitsPopup(serialPortProblemDialog)
+            open()
+            forceActiveFocus()
+        }
+
+        onClosed: {
+            if (!win.presentNextProblemDialog())
+                win.shrinkAfterDialog()
+        }
+
+        ColumnLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.margins: 12
+            spacing: 12
+
+            Label {
+                Layout.fillWidth: true
+                text: serialPortProblemDialog.headline
+                horizontalAlignment: Text.AlignHCenter
+                font.bold: true
+                color: win.palette.windowText
+                wrapMode: Text.WordWrap
+            }
+            Label {
+                Layout.fillWidth: true
+                visible: text !== ""
+                text: serialPortProblemDialog.detail
+                horizontalAlignment: Text.AlignHCenter
+                color: win.palette.windowText
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: qsTr("OK")
+                    onClicked: serialPortProblemDialog.close()
+                }
+            }
+        }
     }
 
     // Shown when a configured audio device is blank, missing, or cannot be
@@ -1003,12 +1113,14 @@ ApplicationWindow {
             var list = problems.slice()
             list.push({ "headline": headline, "detail": detail })
             problems = list
-            if (!visible) {
-                suppressAudioWarningChk.checked = false
-                win.ensureWindowFitsPopup(audioDeviceProblemDialog)
-                open()
-                forceActiveFocus()
-            }
+            win.presentProblemDialog(audioDeviceProblemDialog)
+        }
+
+        function present() {
+            suppressAudioWarningChk.checked = false
+            win.ensureWindowFitsPopup(audioDeviceProblemDialog)
+            open()
+            forceActiveFocus()
         }
 
         function dismiss() {
@@ -1019,7 +1131,8 @@ ApplicationWindow {
 
         onClosed: {
             problems = []
-            win.shrinkAfterDialog()
+            if (!win.presentNextProblemDialog())
+                win.shrinkAfterDialog()
         }
 
         ColumnLayout {

@@ -343,6 +343,8 @@ signals:
     void pttTimeoutExpired(int seconds);
     // A configured audio device is blank, missing, or could not be opened.
     void audioDeviceProblem(QString headline, QString detail);
+    // The radio serial port could not be used when connecting.
+    void serialPortProblem(QString headline, QString detail);
     void runningMacroChanged();
     void closingActionsTextChanged();
     void receiverCountChanged();
@@ -536,6 +538,8 @@ private:
     AudioRouteState currentAudioRoute() const;
     void updateAudioRouteState();
     void checkAudioDeviceConfiguration();
+    bool usingSerialConnection() const;
+    void reportSerialPortProblem(const QString& port, const QString& reason);
     void tuneFrequencyHz(qint64 hzDelta, int receiver = -1);
     quint64 parseRepeaterFrequencyHz(const QString& text, double multiplier, const QString& fieldName) const;
     toneInfo toneFromList(const std::vector<toneInfo>& tones, int tone, bool secondaryVfo = false) const;
@@ -551,6 +555,9 @@ private:
     QString m_footerErrorText;
     // Audio device warnings already shown for this connection (role:problem).
     QSet<QString> m_reportedAudioProblems;
+    // A serial port warning was already given (or deliberately skipped) for
+    // this connection; reconnect attempts repeat the same error.
+    bool m_serialPortProblemReported = false;
     QString m_radioStatusText;
     QString m_rigModelName;
     QString m_clusterOutputText;

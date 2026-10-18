@@ -4130,6 +4130,7 @@ void MainController::openRigConnection()
 
     resetTxAudioOwnership();
     m_reportedAudioProblems.clear();
+    m_serialPortProblemReported = false;
     connStatus = connectionStatus_t::connConnecting;
     emit connStatusChanged();
     updateAudioRouteState();
@@ -4161,7 +4162,44 @@ void MainController::openRigConnection()
         emit sendNetworkCommSetup(rigList, prefs->radioCIVAddr, *udpPrefs, prefs->rxSetup, prefs->txSetup,
                                   prefs->virtualSerialPort, prefs->virtualSerialPortUseQueue, prefs->tcpPort);
     } else {
-        emit sendSerialCommSetup(rigList, prefs->radioCIVAddr, prefs->serialPortRadio, prefs->serialPortBaud,
+        const serialPortResolution serial = m_settings->resolveSerialPort();
+        switch (serial.problem) {
+        case serialPortProblem::None:
+            break;
+        case serialPortProblem::Blank:
+            // Normal on first run, before a port has been chosen.
+            qWarning(logSerial()) << "No radio serial port is configured";
+            m_serialPortProblemReported = true;
+            break;
+        case serialPortProblem::AutoNoPorts:
+            reportSerialPortProblem(serial.configured,
+                tr("The port was set to auto, but no serial ports are available on this computer. "
+                   "The radio may be off, unplugged, or its USB driver may not be installed."));
+            break;
+        case serialPortProblem::AutoAmbiguous:
+            reportSerialPortProblem(serial.configured,
+                tr("The port was set to auto, but %n serial ports were found and none could be "
+                   "identified as the radio. Select the radio's port by name.", "", serial.portsFound));
+            break;
+        case serialPortProblem::NotPresent:
+            reportSerialPortProblem(serial.configured,
+                tr("That port isn't present on this computer. The radio may be off, unplugged, "
+                   "or connected to a different port."));
+            break;
+        case serialPortProblem::NoPermission:
+#if defined(Q_OS_LINUX)
+            reportSerialPortProblem(serial.configured,
+                tr("This user does not have permission to use the port. Add your user to the group "
+                   "that owns the port (usually dialout or uucp), then log out and back in."));
+#else
+            reportSerialPortProblem(serial.configured,
+                tr("This user does not have permission to use the port."));
+#endif
+            break;
+        }
+        // Connect even when a problem was found: the port handler keeps
+        // retrying, so a radio that is switched on later is picked up.
+        emit sendSerialCommSetup(rigList, prefs->radioCIVAddr, serial.port, prefs->serialPortBaud,
                                  prefs->virtualSerialPort, prefs->virtualSerialPortUseQueue, prefs->tcpPort,prefs->waterfallFormat);
     }
 }
@@ -4404,9 +4442,53 @@ void MainController::handleAudioDeviceProblem(int role, bool isInput, int proble
     emit audioDeviceProblem(headline, lines.join(QLatin1Char('\n')));
 }
 
+bool MainController::usingSerialConnection() const
+{
+    return prefs && !prefs->wfShareEnabled && !prefs->enableLAN;
+}
+
+void MainController::reportSerialPortProblem(const QString& port, const QString& reason)
+{
+    if (shuttingDown || m_serialPortProblemReported)
+        return;
+    m_serialPortProblemReported = true;
+
+    const SERVERCONFIG* server = m_settings ? m_settings->getServerConfig() : nullptr;
+    const bool serverEnabled = server && server->enabled;
+
+    qWarning(logSerial()).noquote() << "Serial port" << port << "cannot be used:" << reason;
+
+    if (serverEnabled && server->suppressSerialWarnings) {
+        qInfo(logSerial()) << "Serial port warning suppressed (radio server setting); will keep retrying";
+        return;
+    }
+
+    const QString headline = serverEnabled
+        ? tr("wfview cannot use the serial port for running the radio server.")
+        : tr("wfview cannot use the serial port for connecting to the radio.");
+
+    QStringList lines;
+    lines << tr("Serial port: \"%1\"").arg(port.trimmed());
+    lines << QString() << reason.trimmed();
+    lines << QString()
+          << tr("To use a different port, disconnect from the radio, go to Settings \u2192 Radio Access, "
+                "and select a new serial device. Then connect again.");
+    if (serverEnabled)
+        lines << QString()
+              << tr("For an unattended server, this warning can be turned off in "
+                    "Settings \u2192 Radio Server; wfview will then keep retrying the port.");
+
+    emit serialPortProblem(headline, lines.join(QLatin1Char('\n')));
+}
+
 void MainController::receivePortError(errorType err)
 {
     qWarning(logSystem()) << "Radio connection error from" << err.device << ":" << err.message;
+
+    // A failure to open the radio's own serial port; virtual serial port
+    // errors carry alert == false.
+    if (err.alert && usingSerialConnection() && connStatus != connectionStatus_t::connDisconnected)
+        reportSerialPortProblem(err.device, err.message);
 
     QString message = err.message.trimmed();
     message.replace(QLatin1Char('\r'), QLatin1Char(' '));

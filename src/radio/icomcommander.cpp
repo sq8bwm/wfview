@@ -125,6 +125,9 @@ void icomCommander::serialCommSetup(QHash<quint16,rigInfo> rigList, quint16 rigC
     connect(this, SIGNAL(setHalfDuplex(bool)), comm, SLOT(setHalfDuplex(bool)));
     connect(comm, SIGNAL(havePortError(errorType)), this, SLOT(handlePortError(errorType)));
     connect(this, SIGNAL(getMoreDebug()), comm, SLOT(debugThis()));
+    // The port is opened in the constructor, before the connection above.
+    if (comm->serialError)
+        handlePortError(errorType(true, rigSerialPort, comm->serialErrorText));
 
 
     if (vsp.toLower() != "none") {

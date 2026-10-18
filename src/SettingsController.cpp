@@ -850,6 +850,11 @@ void SettingsController::buildUiSpecs()
     });
 #endif
 
+    values.prepend(QVariantMap{
+        {"text",  tr("Auto")},
+        {"value", QStringLiteral("auto")}
+    });
+
     uiSpecs["SerialPorts"] = QVariantMap{
         {"textRole","text"},
         {"valueRole","value"},
@@ -1471,6 +1476,7 @@ void SettingsController::load()
 
     serverConfig.enabled = settings->value("ServerEnabled", false).toBool();
     serverConfig.disableUI = settings->value("DisableUI", false).toBool();
+    serverConfig.suppressSerialWarnings = settings->value("SuppressSerialPortWarnings", false).toBool();
     // These defPrefs are actually for the client, but they are the same.
     serverConfig.controlPort = settings->value("ServerControlPort", udpDefPrefs.controlLANPort).toInt();
     serverConfig.civPort = settings->value("ServerCivPort", udpDefPrefs.serialLANPort).toInt();
@@ -2155,6 +2161,7 @@ void SettingsController::save()
 
     settings->setValue("ServerEnabled", serverConfig.enabled);
     settings->setValue("DisableUI", serverConfig.disableUI);
+    settings->setValue("SuppressSerialPortWarnings", serverConfig.suppressSerialWarnings);
     settings->setValue("ServerControlPort", serverConfig.controlPort);
     settings->setValue("ServerCivPort", serverConfig.civPort);
     settings->setValue("ServerAudioPort", serverConfig.audioPort);
@@ -3124,6 +3131,99 @@ void SettingsController::refreshAudioDevices()
     buildUiSpecs();
 }
 
+void SettingsController::rescanSerialPorts()
+{
+    qInfo(logSerial()) << "Rescanning serial ports";
+    buildUiSpecs();
+}
+
+// Name for a port as stored in settings and listed in the serial port menu.
+static QString serialPortSettingName(const QSerialPortInfo& info)
+{
+#if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+    return QStringLiteral("/dev/%1").arg(info.portName());
+#else
+    return info.portName();
+#endif
+}
+
+bool SettingsController::serialPortExists(const QString& name) const
+{
+    const QString n = name.trimmed();
+    if (n.isEmpty())
+        return false;
+#if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+    // Covers ports that are not enumerated, such as /dev/serial/by-id links.
+    return QFileInfo::exists(n);
+#else
+    for (const QSerialPortInfo& info : QSerialPortInfo::availablePorts()) {
+        if (serialPortSettingName(info).compare(n, Qt::CaseInsensitive) == 0)
+            return true;
+    }
+    return false;
+#endif
+}
+
+serialPortResolution SettingsController::resolveSerialPort() const
+{
+    serialPortResolution r;
+    r.configured = prefs.serialPortRadio.trimmed();
+    r.port = r.configured;
+
+    if (r.configured.isEmpty()) {
+        r.problem = serialPortProblem::Blank;
+        return r;
+    }
+
+    if (r.configured.compare(QStringLiteral("auto"), Qt::CaseInsensitive) == 0) {
+        // Radios connect over USB, so ignore built-in ports when any USB
+        // port is present.
+        QList<QSerialPortInfo> candidates;
+        const QList<QSerialPortInfo> all = QSerialPortInfo::availablePorts();
+        for (const QSerialPortInfo& info : all) {
+            if (info.hasVendorIdentifier())
+                candidates.append(info);
+        }
+        if (candidates.isEmpty())
+            candidates = all;
+        r.portsFound = candidates.size();
+
+        if (candidates.isEmpty()) {
+            r.problem = serialPortProblem::AutoNoPorts;
+            return r;
+        }
+        if (prefs.manufacturer == manufIcom) {
+            // Icom USB ports carry the radio model in the serial number.
+            for (const QSerialPortInfo& info : candidates) {
+                if (info.serialNumber().startsWith(QStringLiteral("IC-"))) {
+                    r.port = serialPortSettingName(info);
+                    qInfo(logSerial()) << "Auto serial port: found" << info.serialNumber() << "on" << r.port;
+                    return r;
+                }
+            }
+        }
+        if (candidates.size() == 1) {
+            r.port = serialPortSettingName(candidates.first());
+            qInfo(logSerial()) << "Auto serial port: using the only port present," << r.port;
+            return r;
+        }
+        r.problem = serialPortProblem::AutoAmbiguous;
+        return r;
+    }
+
+    if (!serialPortExists(r.configured)) {
+        r.problem = serialPortProblem::NotPresent;
+        return r;
+    }
+
+#if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+    const QFileInfo fi(r.configured);
+    if (!fi.isReadable() || !fi.isWritable())
+        r.problem = serialPortProblem::NoPermission;
+#endif
+    return r;
+}
+
 void SettingsController::rescanAudioDevices()
 {
     qInfo(logAudio()) << "Rescanning audio devices";
@@ -3800,6 +3900,9 @@ void SettingsController::buildBindings()
 
     WF_BOOL("Server.DisableUI", serverConfig.disableUI,
             [this](){ emit serverChanged(prefServerItems(prefServerItem::s_disableui)); });
+
+    WF_BOOL("Server.SuppressSerialWarnings", serverConfig.suppressSerialWarnings,
+            [this](){ emit serverChanged(prefServerItems(prefServerItem::s_suppressSerialWarnings)); });
 
     WF_I32("Server.ControlPort", serverConfig.controlPort,
            [this](){ emit serverChanged(prefServerItems(prefServerItem::s_controlPort)); });

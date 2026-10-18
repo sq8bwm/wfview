@@ -638,6 +638,23 @@ private:
 
 
 
+// Result of checking the configured radio serial port before connecting.
+enum class serialPortProblem {
+    None,           // port is usable as far as can be told before opening it
+    Blank,          // no port configured (normal on first run)
+    AutoNoPorts,    // set to auto, but no serial ports are present
+    AutoAmbiguous,  // set to auto, but the radio's port could not be picked
+    NotPresent,     // the named port is not on this computer
+    NoPermission    // the port exists but this user cannot open it
+};
+
+struct serialPortResolution {
+    QString configured;   // the setting as stored
+    QString port;         // port to open; the resolved port when auto
+    serialPortProblem problem = serialPortProblem::None;
+    int portsFound = 0;   // ports considered when resolving auto
+};
+
 class SettingsController : public QObject {
     Q_OBJECT
 
@@ -712,6 +729,13 @@ public:
     Q_INVOKABLE void markDirty();
     // Re-enumerate audio devices, e.g. after one is plugged in.
     Q_INVOKABLE void rescanAudioDevices();
+    // Re-enumerate serial ports, e.g. after a radio is plugged in.
+    Q_INVOKABLE void rescanSerialPorts();
+    // True when the named serial port is on this system.
+    Q_INVOKABLE bool serialPortExists(const QString& name) const;
+    // Turn the configured radio serial port into the port to open, and say
+    // whether it looks usable. Resolves "auto".
+    serialPortResolution resolveSerialPort() const;
     Q_INVOKABLE void addRadioProfile(const QString& description);
     Q_INVOKABLE void updateRadioProfile(int index, const QString& description = QString());
     Q_INVOKABLE void deleteRadioProfile(int index);

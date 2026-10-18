@@ -5,6 +5,7 @@
 #include "logcategories.h"
 #include "printhex.h"
 #include "mcphooks.h"
+#include "commhandler.h"
 
 // Copyright 2017-2024 Elliott H. Liggett W6EL and Phil E. Taylor M0VSE
 
@@ -75,6 +76,11 @@ void kenwoodCommander::serialCommSetup(QHash<quint16,rigInfo> rigList, quint16 r
     qobject_cast<QSerialPort*>(port)->setStopBits(QSerialPort::OneStop);
     qobject_cast<QSerialPort*>(port)->setFlowControl(QSerialPort::HardwareControl);
     qobject_cast<QSerialPort*>(port)->setParity(QSerialPort::NoParity);
+#if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
+    connect(port, SIGNAL(error(QSerialPort::SerialPortError)), this, SLOT(serialPortError(QSerialPort::SerialPortError)));
+#else
+    connect(port, SIGNAL(errorOccurred(QSerialPort::SerialPortError)), this, SLOT(serialPortError(QSerialPort::SerialPortError)));
+#endif
 
     network = false;
     // Run setup common to all rig type
@@ -212,7 +218,11 @@ void kenwoodCommander::commonSetup()
         if (network)
             emit havePortError(errorType(true, prefs.ipAddress, "Could not open port.\nPlease check Radio Access under Settings."));
         else
-            emit havePortError(errorType(true, rigSerialPort, "Could not open port.\nPlease check Radio Access under Settings."));
+        {
+            const QString reason = serialOpenFailureReason(qobject_cast<QSerialPort*>(port));
+            qWarning(logSerial()) << "Could not open serial port" << rigSerialPort << ":" << reason;
+            emit havePortError(errorType(true, rigSerialPort, QStringLiteral("Could not open serial port: %1").arg(reason)));
+        }
         portConnected=false;
     }
 
@@ -1927,8 +1937,12 @@ void kenwoodCommander::serialPortError(QSerialPort::SerialPortError err)
     case QSerialPort::NoError:
         break;
     default:
-        qDebug(logSerial()) << "Serial port error";
+    {
+        auto* serial = qobject_cast<QSerialPort*>(port);
+        qWarning(logSerial()) << "Serial port error" << err << "on" << rigSerialPort
+                              << ":" << (serial ? serial->errorString() : QString());
         break;
+    }
     }
 }
 
