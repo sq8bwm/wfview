@@ -498,6 +498,67 @@ ApplicationWindow {
         }
     }
 
+    // Shown while on-disconnect commands and macros run before the radio
+    // connection closes; MainController clears the text when they are done.
+    Dialog {
+        id: closingActionsDialog
+        title: qsTr("Disconnecting")
+        width: 420
+        x: Math.round((win.width - width) / 2)
+        y: Math.round((win.height - height) / 2)
+        modal: true
+        closePolicy: Popup.NoAutoClose
+
+        readonly property string actionsText: MainController.closingActionsText
+
+        onActionsTextChanged: {
+            if (actionsText !== "") {
+                win.ensureWindowFitsPopup(closingActionsDialog)
+                open()
+            } else {
+                close()
+            }
+        }
+        onClosed: win.shrinkAfterDialog()
+
+        background: Rectangle {
+            color: win.palette.window
+            border.color: win.palette.highlight
+            border.width: 1
+            radius: 4
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 16
+
+            BusyIndicator {
+                running: closingActionsDialog.visible
+                Layout.alignment: Qt.AlignTop
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Label {
+                    Layout.fillWidth: true
+                    text: qsTr("Executing closing commands, please wait...")
+                    color: win.palette.windowText
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: closingActionsDialog.actionsText
+                    color: win.palette.windowText
+                    wrapMode: Text.WordWrap
+                }
+            }
+        }
+    }
+
 
     Dialog {
         id: enterFrequencyDialog

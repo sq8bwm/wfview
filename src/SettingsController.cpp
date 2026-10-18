@@ -1021,6 +1021,10 @@ void SettingsController::load()
     prefs.setModSrcOnDisconnect = settings->value("SetModSrcOnDisconnect", defPrefs.setModSrcOnDisconnect).toBool();
     prefs.disconnectDataOffModSrc = settings->value("DisconnectDataOffModSrc", defPrefs.disconnectDataOffModSrc).toInt();
     prefs.disconnectDataOnModSrc = settings->value("DisconnectDataOnModSrc", defPrefs.disconnectDataOnModSrc).toInt();
+    prefs.runMacroOnConnect = settings->value("RunMacroOnConnect", defPrefs.runMacroOnConnect).toBool();
+    prefs.connectMacroId = settings->value("ConnectMacroId", defPrefs.connectMacroId).toInt();
+    prefs.runMacroOnDisconnect = settings->value("RunMacroOnDisconnect", defPrefs.runMacroOnDisconnect).toBool();
+    prefs.disconnectMacroId = settings->value("DisconnectMacroId", defPrefs.disconnectMacroId).toInt();
 
     prefs.rigCreatorEnable = settings->value("RigCreator",false).toBool();
     prefs.region = settings->value("Region",defPrefs.region).toString();
@@ -1890,6 +1894,10 @@ void SettingsController::save()
     settings->setValue("SetModSrcOnDisconnect", prefs.setModSrcOnDisconnect);
     settings->setValue("DisconnectDataOffModSrc", prefs.disconnectDataOffModSrc);
     settings->setValue("DisconnectDataOnModSrc", prefs.disconnectDataOnModSrc);
+    settings->setValue("RunMacroOnConnect", prefs.runMacroOnConnect);
+    settings->setValue("ConnectMacroId", prefs.connectMacroId);
+    settings->setValue("RunMacroOnDisconnect", prefs.runMacroOnDisconnect);
+    settings->setValue("DisconnectMacroId", prefs.disconnectMacroId);
 
     settings->setValue("RigCreator",prefs.rigCreatorEnable);
     settings->setValue("FrequencyUnits",prefs.frequencyUnits);
@@ -2489,6 +2497,10 @@ void SettingsController::setDefPrefs()
     defPrefs.setModSrcOnDisconnect = false;
     defPrefs.disconnectDataOffModSrc = 0;
     defPrefs.disconnectDataOnModSrc = 0;
+    defPrefs.runMacroOnConnect = false;
+    defPrefs.connectMacroId = 0;
+    defPrefs.runMacroOnDisconnect = false;
+    defPrefs.disconnectMacroId = 0;
     defPrefs.forceVfoMode = true;
     defPrefs.autoPowerOn=true;
 
@@ -3518,6 +3530,18 @@ void SettingsController::buildBindings()
 
     WF_I32("Radio.DisconnectDataOnModSrc", prefs.disconnectDataOnModSrc,
            [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_modSrcOnDisconnect)); });
+
+    WF_BOOL("Radio.RunMacroOnConnect", prefs.runMacroOnConnect,
+            [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_macroOnConnect)); });
+
+    WF_I32("Radio.ConnectMacroId", prefs.connectMacroId,
+           [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_macroOnConnect)); });
+
+    WF_BOOL("Radio.RunMacroOnDisconnect", prefs.runMacroOnDisconnect,
+            [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_macroOnDisconnect)); });
+
+    WF_I32("Radio.DisconnectMacroId", prefs.disconnectMacroId,
+           [this](){ emit rsChanged(prefRsItems(prefRsItem::rs_macroOnDisconnect)); });
 
     WF_STR("Radio.SerialPortRadio", prefs.serialPortRadio,
            [this](){ emit raChanged(prefRaItems(prefRaItem::ra_serialPortRadio)); });

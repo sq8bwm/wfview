@@ -1,6 +1,7 @@
 #ifndef MAINCONTROLLER_H
 #define MAINCONTROLLER_H
 
+#include <QDeadlineTimer>
 #include <QElapsedTimer>
 #include <QHash>
 #include <QObject>
@@ -39,6 +40,8 @@ class MainController : public QObject {
 
     Q_PROPERTY(MemoriesModel* memoriesModel READ memoriesModel NOTIFY memoriesModelChanged)
     Q_PROPERTY(int runningMacroId READ runningMacroId NOTIFY runningMacroChanged)
+    // Non-empty while on-disconnect commands/macro run before the connection closes.
+    Q_PROPERTY(QString closingActionsText READ closingActionsText NOTIFY closingActionsTextChanged)
     Q_PROPERTY(bool slowLoad READ slowLoad WRITE setSlowLoad NOTIFY slowLoadChanged)
 
     Q_PROPERTY(CWSenderController* cwSender READ cwSender CONSTANT)
@@ -276,6 +279,7 @@ public:
     Q_INVOKABLE void runMacro(int macroId);
     Q_INVOKABLE void stopMacro();
     int runningMacroId() const { return m_runningMacroId; }
+    QString closingActionsText() const { return m_closingActionsText; }
     Q_INVOKABLE QVariantMap optionalMeterExtremities(int meterType) const;
     Q_INVOKABLE bool isOptionalMeterAvailable(int meterType) const;
     Q_INVOKABLE void setOptionalMeterType(int slot, int meterType);
@@ -337,6 +341,7 @@ signals:
     void appShortcutActivated(QString commandName, int receiver);
     void pttTimeoutExpired(int seconds);
     void runningMacroChanged();
+    void closingActionsTextChanged();
     void receiverCountChanged();
     void currentReceiverChanged();
     void receiverDetachedChanged(int index, bool detached);
@@ -456,6 +461,10 @@ private:
     const rigInput* findModSourceInput(int dataMode, int reg) const;
     void applyConnectModSources();
     bool applyDisconnectModSources();
+    int macroDurationMs(int macroId) const;
+    void scheduleConnectMacro();
+    int startDisconnectActions();
+    void setClosingActionsText(const QString& text);
     void disconnectRig();
     funcType inputLevelCommand(inputTypes input) const;
     uchar currentDataMode() const;
@@ -676,6 +685,9 @@ private:
     bool shuttingDown = false;
     bool m_disconnectPending = false;
     bool m_quitPending = false;
+    QTimer m_connectMacroTimer;
+    QDeadlineTimer m_disconnectDeadline;
+    QString m_closingActionsText;
 
     int cmdInterval_ms = 100;
     int cmdStartupInterval_ms = 250;

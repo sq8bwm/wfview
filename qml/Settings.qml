@@ -452,6 +452,50 @@ ApplicationWindow {
         }
     }
 
+    // Checkbox + combo choosing a user macro (stored by id) to run.
+    component MacroPref: RowLayout {
+        id: macroPref
+        property string enableKey: ""
+        property string idKey: ""
+        property string label: ""
+        readonly property var macroOptions: {
+            var list = controller ? controller.macros : []
+            var out = []
+            for (var i = 0; i < list.length; ++i)
+                out.push({ text: String(list[i].name), value: list[i].id })
+            return out
+        }
+        readonly property bool haveMacros: macroOptions.length > 0
+        spacing: 8
+        CheckBox {
+            id: macroPrefChk
+            text: macroPref.label
+            enabled: macroPref.haveMacros || checked
+            checked: optBool(macroPref.enableKey, false)
+            onClicked: {
+                if (!controller)
+                    return
+                // Store a macro straight away if none valid is selected yet.
+                if (checked && macroPrefCombo.currentIndex < 0 && macroPref.haveMacros)
+                    controller.setOption(macroPref.idKey, macroPref.macroOptions[0].value)
+                controller.setOption(macroPref.enableKey, checked)
+            }
+        }
+        ComboBox {
+            id: macroPrefCombo
+            Accessible.name: macroPref.label
+            Layout.preferredWidth: 180
+            enabled: macroPref.haveMacros && macroPrefChk.checked
+            textRole: "text"
+            valueRole: "value"
+            model: macroPref.macroOptions
+            currentIndex: count > 0 && controller && controller.options ? indexFromValue(macroPrefCombo, controller.options[macroPref.idKey]) : -1
+            displayText: !macroPref.haveMacros ? qsTr("No macros defined")
+                         : currentIndex < 0 ? qsTr("Select a macro") : currentText
+            onActivated: if (controller) controller.setOption(macroPref.idKey, currentValue)
+        }
+    }
+
     component ProcSlider: RowLayout {
         property string key: ""
         property string label: ""
@@ -2226,6 +2270,12 @@ ApplicationWindow {
                                     checked: optBool("Radio.SetRadioTime", false)
                                     onClicked: if (controller) controller.setOption("Radio.SetRadioTime", checked)
                                 }
+
+                                MacroPref {
+                                    label: qsTr("Execute macro")
+                                    enableKey: "Radio.RunMacroOnConnect"
+                                    idKey: "Radio.ConnectMacroId"
+                                }
                             }
                         }
 
@@ -2234,33 +2284,43 @@ ApplicationWindow {
                             title: qsTr("On Disconnect")
                             Layout.fillWidth: true
 
-                            RowLayout {
+                            ColumnLayout {
                                 anchors.fill: parent
-                                spacing: 8
-                                CheckBox {
-                                    id: disconnectModSrcChk
-                                    text: qsTr("Set transmit mod input sources on disconnect")
-                                    checked: optBool("Radio.SetModSrcOnDisconnect", false)
-                                    onClicked: if (controller) controller.setOption("Radio.SetModSrcOnDisconnect", checked)
+                                spacing: 6
+
+                                RowLayout {
+                                    spacing: 8
+                                    CheckBox {
+                                        id: disconnectModSrcChk
+                                        text: qsTr("Set transmit mod input sources on disconnect")
+                                        checked: optBool("Radio.SetModSrcOnDisconnect", false)
+                                        onClicked: if (controller) controller.setOption("Radio.SetModSrcOnDisconnect", checked)
+                                    }
+                                    ModSourcePref {
+                                        label: qsTr("Data Off:")
+                                        key: "Radio.DisconnectDataOffModSrc"
+                                        dataMode: 0
+                                        active: disconnectModSrcChk.checked
+                                    }
+                                    ModSourcePref {
+                                        label: qsTr("Data On:")
+                                        key: "Radio.DisconnectDataOnModSrc"
+                                        dataMode: 1
+                                        active: disconnectModSrcChk.checked
+                                    }
+                                    Label {
+                                        text: qsTr("(connect to a radio to choose sources)")
+                                        visible: window.connStatus !== 2
+                                        opacity: 0.7
+                                    }
+                                    Item { Layout.fillWidth: true }
                                 }
-                                ModSourcePref {
-                                    label: qsTr("Data Off:")
-                                    key: "Radio.DisconnectDataOffModSrc"
-                                    dataMode: 0
-                                    active: disconnectModSrcChk.checked
+
+                                MacroPref {
+                                    label: qsTr("Execute macro")
+                                    enableKey: "Radio.RunMacroOnDisconnect"
+                                    idKey: "Radio.DisconnectMacroId"
                                 }
-                                ModSourcePref {
-                                    label: qsTr("Data On:")
-                                    key: "Radio.DisconnectDataOnModSrc"
-                                    dataMode: 1
-                                    active: disconnectModSrcChk.checked
-                                }
-                                Label {
-                                    text: qsTr("(connect to a radio to choose sources)")
-                                    visible: window.connStatus !== 2
-                                    opacity: 0.7
-                                }
-                                Item { Layout.fillWidth: true }
                             }
                         }
 

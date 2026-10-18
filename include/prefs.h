@@ -152,6 +152,8 @@ enum prefRsItem {
     rs_debug = 1 << 11,
     rs_modSrcOnConnect = 1 << 12,
     rs_modSrcOnDisconnect = 1 << 13,
+    rs_macroOnConnect = 1 << 14,
+    rs_macroOnDisconnect = 1 << 15,
     rs_all = ~0
 };
 
@@ -445,6 +447,12 @@ struct preferences {
     bool setModSrcOnDisconnect = false;
     int disconnectDataOffModSrc = 0;
     int disconnectDataOnModSrc = 0;
+
+    // User macros (macroPreference::id, 0 = none) run on connect/disconnect
+    bool runMacroOnConnect = false;
+    int connectMacroId = 0;
+    bool runMacroOnDisconnect = false;
+    int disconnectMacroId = 0;
 
     audioSetup rxSetup;
     audioSetup txSetup;

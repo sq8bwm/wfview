@@ -80,6 +80,12 @@ static constexpr auto macroCommandPrefix = "app.macro.";
 static constexpr auto macroRawCommand = "raw";
 static constexpr auto macroPttOn = "ptt.on";
 static constexpr auto macroPttOff = "ptt.off";
+// Delay after the initial rig state queries before running the on-connect macro.
+static constexpr int connectMacroDelayMs = 1000;
+// Time for on-disconnect commands to reach the radio before the connection closes.
+static constexpr int disconnectCommandWaitMs = 250;
+// Extra time after an on-disconnect macro's last step, so its commands are sent.
+static constexpr int disconnectMacroMarginMs = 500;
 static constexpr auto macroPttToggle = "ptt.toggle";
 static constexpr auto macroRestoreMode = "restore.mode";
 static constexpr auto macroRestoreTxPower = "restore.txPower";
@@ -283,6 +289,13 @@ MainController::MainController(QString settingsFile, QString logFileName, bool d
     connect(queue, &cachingQueue::rigCapsUpdated, this, &MainController::receiveRigCaps);
     m_macroTimer.setSingleShot(true);
     connect(&m_macroTimer, &QTimer::timeout, this, &MainController::runNextMacroStep);
+    m_connectMacroTimer.setSingleShot(true);
+    connect(&m_connectMacroTimer, &QTimer::timeout, this, [this]() {
+        if (prefs && prefs->runMacroOnConnect && connStatus == connectionStatus_t::connConnected) {
+            qInfo(logSystem()) << "Running on-connect macro" << prefs->connectMacroId;
+            runMacro(prefs->connectMacroId);
+        }
+    });
     m_pttTimeoutTimer.setSingleShot(true);
     connect(&m_pttTimeoutTimer, &QTimer::timeout, this, &MainController::handlePttTimeout);
     m_footerErrorTimer.setSingleShot(true);
@@ -1015,6 +1028,10 @@ void MainController::executeMacroStep(const macroStep& step)
             qWarning(logSystem()) << "Macro step skipped: macros cannot run other macros";
             return;
         }
+        if (m_disconnectPending && step.command == QLatin1String(shortcutQuitApplication)) {
+            qWarning(logSystem()) << "Macro step skipped: cannot quit while disconnecting";
+            return;
+        }
         emit appShortcutActivated(step.command, int(currentReceiver));
         return;
     }
@@ -1702,6 +1719,85 @@ bool MainController::applyDisconnectModSources()
         qInfo(logSystem()) << "Setting transmit modulation sources on disconnect, data off:"
                            << regs[0] << "data on:" << regs[1];
     return queued;
+}
+
+// Time from a macro's first step until its last step runs, or -1 if the
+// macro does not exist or has no steps.
+int MainController::macroDurationMs(int macroId) const
+{
+    if (!prefs)
+        return -1;
+    for (const macroPreference& macro : std::as_const(prefs->macros)) {
+        if (macro.id != macroId)
+            continue;
+        if (macro.steps.isEmpty())
+            return -1;
+        int total = 0;
+        for (int i = 0; i < macro.steps.size() - 1; ++i)
+            total += qMax(macro.steps.at(i).delayMs, prefs->macroSpacingMs);
+        return total;
+    }
+    return -1;
+}
+
+void MainController::scheduleConnectMacro()
+{
+    m_connectMacroTimer.stop();
+    if (!prefs || !prefs->runMacroOnConnect)
+        return;
+    if (macroDurationMs(prefs->connectMacroId) < 0) {
+        qWarning(logSystem()) << "On-connect macro" << prefs->connectMacroId << "not found or empty";
+        return;
+    }
+    m_connectMacroTimer.start(connectMacroDelayMs);
+}
+
+// Queues the on-disconnect modulation sources and starts the on-disconnect
+// macro. Returns how long the caller should wait before closing the
+// connection so they can complete, or 0 if nothing was started.
+int MainController::startDisconnectActions()
+{
+    if (connStatus != connectionStatus_t::connConnected)
+        return 0;
+
+    QStringList actions;
+    int waitMs = 0;
+    if (applyDisconnectModSources()) {
+        waitMs = disconnectCommandWaitMs;
+        actions << tr("Setting transmit mod input sources");
+    }
+
+    if (prefs && prefs->runMacroOnDisconnect && rig && queue) {
+        const int macroMs = macroDurationMs(prefs->disconnectMacroId);
+        if (macroMs < 0) {
+            qWarning(logSystem()) << "On-disconnect macro" << prefs->disconnectMacroId << "not found or empty";
+        } else {
+            m_connectMacroTimer.stop();
+            stopMacro();
+            qInfo(logSystem()) << "Running on-disconnect macro" << prefs->disconnectMacroId
+                               << "waiting" << macroMs + disconnectMacroMarginMs << "ms before closing";
+            runMacro(prefs->disconnectMacroId);
+            waitMs = qMax(waitMs, macroMs + disconnectMacroMarginMs);
+            for (const macroPreference& macro : std::as_const(prefs->macros)) {
+                if (macro.id == prefs->disconnectMacroId)
+                    actions << tr("Running macro \"%1\"").arg(macro.name);
+            }
+        }
+    }
+
+    if (waitMs > 0) {
+        m_disconnectDeadline.setRemainingTime(waitMs);
+        setClosingActionsText(actions.join(QLatin1Char('\n')));
+    }
+    return waitMs;
+}
+
+void MainController::setClosingActionsText(const QString& text)
+{
+    if (m_closingActionsText == text)
+        return;
+    m_closingActionsText = text;
+    emit closingActionsTextChanged();
 }
 
 void MainController::setModSource(int dataMode, int reg)
@@ -3289,14 +3385,22 @@ void MainController::quitApplication()
     if (m_quitPending)
         return;
 
-    // Give on-disconnect commands time to reach the radio before shutting down.
-    if (!shuttingDown && applyDisconnectModSources()) {
+    // Give on-disconnect commands and macro time to complete before shutting
+    // down. If a disconnect is already under way, wait for it instead.
+    if (!shuttingDown) {
         m_quitPending = true;
-        QTimer::singleShot(250, this, [this]() {
-            shutdown();
-            QCoreApplication::quit();
-        });
-        return;
+        int waitMs = 0;
+        if (m_disconnectPending)
+            waitMs = int(qMax<qint64>(0, m_disconnectDeadline.remainingTime()));
+        else
+            waitMs = startDisconnectActions();
+        if (waitMs > 0) {
+            QTimer::singleShot(waitMs, this, [this]() {
+                shutdown();
+                QCoreApplication::quit();
+            });
+            return;
+        }
     }
 
     shutdown();
@@ -3938,17 +4042,24 @@ void MainController::connectionHandler()
         if (m_disconnectPending && !shuttingDown)
             return;
 
-        // Give on-disconnect commands time to reach the radio before closing.
-        if (!shuttingDown && applyDisconnectModSources()) {
+        // Give on-disconnect commands and macro time to complete before closing.
+        // m_disconnectPending is set first so macro steps see the disconnect.
+        if (!shuttingDown) {
             m_disconnectPending = true;
-            QTimer::singleShot(250, this, [this]() {
-                m_disconnectPending = false;
-                if (connStatus == connectionStatus_t::connDisconnected)
-                    return;
-                disconnectRig();
-                emit connStatusChanged();
-            });
-            return;
+            const int waitMs = startDisconnectActions();
+            if (waitMs > 0) {
+                QTimer::singleShot(waitMs, this, [this]() {
+                    if (!m_disconnectPending)
+                        return;
+                    m_disconnectPending = false;
+                    if (connStatus == connectionStatus_t::connDisconnected)
+                        return;
+                    disconnectRig();
+                    emit connStatusChanged();
+                });
+                return;
+            }
+            m_disconnectPending = false;
         }
 
         disconnectRig();
@@ -3959,6 +4070,8 @@ void MainController::connectionHandler()
 
 void MainController::disconnectRig()
 {
+    setClosingActionsText(QString());
+    m_connectMacroTimer.stop();
     stopMacro();
     m_pttTimeoutTimer.stop();
 
@@ -4487,6 +4600,7 @@ void MainController::getInitialRigState()
         prepareRadioClockSync();
 
     applyConnectModSources();
+    scheduleConnectMacro();
 
     /*
     if (cw != nullptr)
