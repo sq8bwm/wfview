@@ -344,6 +344,8 @@ struct preferences {
     QString region;
     bool showBands;
     bool miniRxButtons = true;
+    bool showTuningDial = true;
+    bool wideRitSlider = false;  // horizontal RIT slider + spinbox in place of the RIT knob
     bool reverseWheel = false;   // invert mouse-wheel direction on sliders and dials
     bool sMeterOnTop = false;
     // Vintage meters. Styles: 0 Modern, 1 Analog, 2 Analog Cream, 3 LCD, 4 LCD Arc.

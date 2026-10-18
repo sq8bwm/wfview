@@ -1800,6 +1800,26 @@ ApplicationWindow {
                                     Item { Layout.fillWidth: true }
                                 }
                                 RowLayout {
+                                    spacing: 12
+                                    CheckBox {
+                                        id: showTuningDialChk
+                                        text: qsTr("Show tuning dial")
+                                        checked: optBool("Interface.ShowTuningDial", true)
+                                        onClicked: if (controller) controller.setOption("Interface.ShowTuningDial", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Show the main tuning knob. Uncheck to recover space in the controls area.")
+                                    }
+                                    CheckBox {
+                                        id: wideRitSliderChk
+                                        text: qsTr("Wide RIT slider")
+                                        checked: optBool("Interface.WideRitSlider", false)
+                                        onClicked: if (controller) controller.setOption("Interface.WideRitSlider", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Replace the RIT knob with a wide, fine-step slider and an exact entry box. Useful for satellite operation.")
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
+                                RowLayout {
                                     spacing: 8
                                     ButtonGroup { id: pollingButtonGroup }
                                     RadioButton {

@@ -29,6 +29,10 @@ ApplicationWindow {
     readonly property int mainControlSliderHeight: 120
     readonly property int mainControlDialSize: mainControlSliderHeight
     readonly property int ritDialSize: 44
+    readonly property bool showTuningDial: settingAsBool(MainController.settings.options["Interface.ShowTuningDial"], true)
+    // Satellite-friendly RIT: wide 1 Hz slider plus exact entry, replacing the small RIT knob
+    readonly property bool wideRitSlider: settingAsBool(MainController.settings.options["Interface.WideRitSlider"], false)
+    readonly property int wideRitSliderWidth: 420
     // "Additional Meters Larger": same 1.5x size and larger font as the primary meter
     readonly property bool largeOptionalMeters: settingAsBool(MainController.settings.options["Interface.LargeOptionalMeters"], false)
     readonly property int optionalMeterWidth: largeOptionalMeters ? 450 : 300
@@ -1641,7 +1645,7 @@ ApplicationWindow {
                     Layout.preferredWidth: win.mainControlDialSize
                     Layout.maximumWidth: win.mainControlDialSize
                     spacing: win.mainControlSpacing
-                    visible: win.radioConnected
+                    visible: win.radioConnected && win.showTuningDial
 
                     Dial {
                         // Wheel tunes like the spectrum does, rather than stepping the
@@ -1750,7 +1754,7 @@ ApplicationWindow {
 
                         RowLayout {
                             id: ritControlsRow
-                            visible: win.radioConnected && (mainControlSpecs.canRit ?? false)
+                            visible: win.radioConnected && (mainControlSpecs.canRit ?? false) && !win.wideRitSlider
 
                             Rectangle {
                                 Layout.preferredWidth: win.ritDialSize + 8
@@ -1787,6 +1791,62 @@ ApplicationWindow {
                                 enabled: mainControlSpecs.canRit ?? false
                                 onToggled: MainController.ritEnabled = checked
                             }
+                        }
+                    }
+                }
+
+                // ---- wide RIT slider (replaces the RIT knob when enabled) ----
+                Frame {
+                    id: wideRitGroup
+                    width: win.wideRitSliderWidth
+                    Layout.alignment: Qt.AlignTop
+                    padding: 3
+                    visible: win.radioConnected && win.wideRitSlider && (mainControlSpecs.canRit ?? false)
+                    readonly property var spec: controlSpec("ritFrequency", -500, 500)
+
+                    contentItem: ColumnLayout {
+                        spacing: 4
+
+                        RowLayout {
+                            spacing: 8
+                            CheckBox {
+                                id: wideRitEnableChk
+                                text: qsTr("RIT")
+                                checked: MainController.ritEnabled
+                                onToggled: MainController.ritEnabled = checked
+                            }
+                            SpinBox {
+                                id: wideRitSpin
+                                from: wideRitGroup.spec.min
+                                to: wideRitGroup.spec.max
+                                stepSize: 1
+                                editable: true
+                                value: MainController.ritFrequency
+                                enabled: MainController.ritEnabled
+                                Accessible.name: "RIT Offset Hz"
+                                onValueModified: MainController.ritFrequency = value
+                            }
+                            Label { text: qsTr("Hz") }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        Slider {
+                            id: wideRitSlider
+                            // 10 Hz per wheel notch; drag resolves to 1 Hz
+                            WheelArea { stepsPerRange: Math.max(1, (parent.to - parent.from) / 10) }
+                            Layout.fillWidth: true
+                            from: wideRitGroup.spec.min
+                            to: wideRitGroup.spec.max
+                            stepSize: 1
+                            snapMode: Slider.SnapAlways
+                            value: MainController.ritFrequency
+                            enabled: MainController.ritEnabled
+                            onMoved: MainController.ritFrequency = Math.round(value)
+
+                            HoverHandler { id: hoverWideRit }
+                            ToolTip.visible: hoverWideRit.hovered || pressed
+                            ToolTip.text: qsTr("RIT") + ": " + Math.round(value).toString() + " Hz"
+                            ToolTip.delay: 300
                         }
                     }
                 }
@@ -2032,6 +2092,7 @@ ApplicationWindow {
                     readonly property int otherPaneWidth: 165
                     readonly property int rowWidthBeforeScope: (freqDial.visible ? win.mainControlDialSize : 0)
                                                             + (tuningControlsGroup.visible ? tuningControlsGroup.width : 0)
+                                                            + (wideRitGroup.visible ? wideRitGroup.width + mainControlsFlow.spacing : 0)
                                                             + (levelsControlsGroup.visible ? levelsControlsGroup.implicitWidth : 0)
                                                             + (commandButtonsWrapper.visible ? commandButtonsWrapper.width : 0)
                                                             + (4 * mainControlsFlow.spacing)

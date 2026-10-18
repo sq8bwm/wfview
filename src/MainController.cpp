@@ -2162,7 +2162,7 @@ void MainController::setRitFrequency(int value)
     }
 
     if (rigCaps && rigCaps->commands.contains(funcRitFreq)) {
-        queue->add(priorityImmediate, queueItem(funcRitFreq, QVariant::fromValue(short(value))));
+        queue->addUnique(priorityImmediate, queueItem(funcRitFreq, QVariant::fromValue(short(value))));
     }
 }
 
@@ -5654,6 +5654,8 @@ void MainController::setDefPrefs()
     defprefs->region = "1";
     defprefs->showBands = true;
     defprefs->miniRxButtons = true;
+    defprefs->showTuningDial = true;
+    defprefs->wideRitSlider = false;
     defprefs->reverseWheel = false;
     defprefs->sMeterOnTop = false;
     defprefs->meterStyle = 0;
@@ -5953,6 +5955,8 @@ void MainController::loadSettings(QString settingsFile)
     //bandbtns->setRegion(prefs->region);
     prefs->showBands = settings->value("ShowBands",defprefs->showBands).toBool();
     prefs->miniRxButtons = settings->value("MiniRxButtons",defprefs->miniRxButtons).toBool();
+    prefs->showTuningDial = settings->value("ShowTuningDial",defprefs->showTuningDial).toBool();
+    prefs->wideRitSlider = settings->value("WideRitSlider",defprefs->wideRitSlider).toBool();
     prefs->reverseWheel = settings->value("ReverseWheel",defprefs->reverseWheel).toBool();
     prefs->sMeterOnTop = settings->value("SMeterOnTop",defprefs->sMeterOnTop).toBool();
     prefs->meterStyle = settings->value("MeterStyle", defprefs->meterStyle).toInt();

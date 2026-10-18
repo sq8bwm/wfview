@@ -1027,6 +1027,8 @@ void SettingsController::load()
     //bandbtns->setRegion(prefs.region);
     prefs.showBands = settings->value("ShowBands",defPrefs.showBands).toBool();
     prefs.miniRxButtons = settings->value("MiniRxButtons",defPrefs.miniRxButtons).toBool();
+    prefs.showTuningDial = settings->value("ShowTuningDial",defPrefs.showTuningDial).toBool();
+    prefs.wideRitSlider = settings->value("WideRitSlider",defPrefs.wideRitSlider).toBool();
     prefs.reverseWheel = settings->value("ReverseWheel",defPrefs.reverseWheel).toBool();
     prefs.sMeterOnTop = settings->value("SMeterOnTop",defPrefs.sMeterOnTop).toBool();
     prefs.meterStyle = settings->value("MeterStyle", defPrefs.meterStyle).toInt();
@@ -1893,6 +1895,8 @@ void SettingsController::save()
     settings->setValue("Region",prefs.region);
     settings->setValue("ShowBands",prefs.showBands);
     settings->setValue("MiniRxButtons",prefs.miniRxButtons);
+    settings->setValue("ShowTuningDial",prefs.showTuningDial);
+    settings->setValue("WideRitSlider",prefs.wideRitSlider);
     settings->setValue("ReverseWheel",prefs.reverseWheel);
     settings->setValue("SMeterOnTop",prefs.sMeterOnTop);
     settings->setValue("MeterStyle", prefs.meterStyle);
@@ -2456,6 +2460,8 @@ void SettingsController::setDefPrefs()
     defPrefs.region = "1";
     defPrefs.showBands = true;
     defPrefs.miniRxButtons = true;
+    defPrefs.showTuningDial = true;
+    defPrefs.wideRitSlider = false;
     defPrefs.reverseWheel = false;
     defPrefs.sMeterOnTop = false;
     defPrefs.meterStyle = 0;
@@ -3650,6 +3656,8 @@ void SettingsController::buildBindings()
             [this](){ emit ifChanged(prefIfItems(prefIfItem::if_showBands)); });
 
     WF_BOOL("Interface.MiniRxButtons", prefs.miniRxButtons, [](){});
+    WF_BOOL("Interface.ShowTuningDial", prefs.showTuningDial, [](){});
+    WF_BOOL("Interface.WideRitSlider", prefs.wideRitSlider, [](){});
     WF_BOOL("Interface.ReverseWheel", prefs.reverseWheel, [](){});
     WF_BOOL("Interface.SMeterOnTop", prefs.sMeterOnTop, [](){});
     WF_I32("Interface.MeterStyle", prefs.meterStyle, [](){});
