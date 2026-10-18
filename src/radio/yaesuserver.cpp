@@ -696,7 +696,9 @@ bool yaesuServer::authenticate(const yaesuC2R_LoginFrame* login, QString* matche
 
     *matchedUser = username;
     for (const SERVERUSER& user : users) {
-        if (user.username == username && (user.password == password || user.password == encodedPassword)) {
+        // A blank stored password never matches, so blank accounts cannot log in.
+        if (user.username == username && !user.password.isEmpty() &&
+            (user.password == password || user.password == encodedPassword)) {
             if (user.userType == serverUserDisabled) {
                 qInfo(logRigServer()) << "Yaesu server user" << username << "is disabled";
                 return false;

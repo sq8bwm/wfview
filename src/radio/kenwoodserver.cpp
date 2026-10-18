@@ -208,7 +208,10 @@ bool kenwoodServer::authenticateClient(QTcpSocket* socket, CLIENT* c, const QByt
     const bool wasAuthenticated = c->authenticated;
     for (const SERVERUSER& user : std::as_const(users))
     {
-        if (user.username == username && user.password == passcomp)
+        // Accept the stored password either encoded (as wfview saves it) or
+        // as plain text (as people may hand-edit it).
+        if (user.username == username && !user.password.isEmpty() &&
+            (user.password == passcomp || user.password == password))
         {
             if (user.userType == serverUserDisabled)
             {

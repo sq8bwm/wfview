@@ -2777,7 +2777,8 @@ ApplicationWindow {
                                                                 selectByMouse: true
                                                                 onPressed: serverUsersRoot.currentRow = index
                                                                 onActiveFocusChanged: if (activeFocus) serverUsersRoot.currentRow = index
-                                                                onEditingFinished: serverUsersRoot.usersModel.setRoleValue(index, serverUsersRoot.usersModel.UsernameRole, text)
+                                                                onTextEdited: serverUsersRoot.usersModel.setUsername(index, text)
+                                                                onEditingFinished: serverUsersRoot.usersModel.setUsername(index, text)
                                                             }
 
                                                             TextField {
@@ -2786,10 +2787,13 @@ ApplicationWindow {
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 echoMode: TextInput.PasswordEchoOnEdit
                                                                 text: model.password
+                                                                // Stored passwords are encoded, so they are not shown.
+                                                                // Typing here replaces the stored password.
+                                                                placeholderText: model.hasSavedPassword ? qsTr("(saved)") : ""
                                                                 selectByMouse: true
                                                                 onPressed: serverUsersRoot.currentRow = index
                                                                 onActiveFocusChanged: if (activeFocus) serverUsersRoot.currentRow = index
-                                                                onEditingFinished: serverUsersRoot.usersModel.setRoleValue(index, serverUsersRoot.usersModel.PasswordRole, text)
+                                                                onTextEdited: serverUsersRoot.usersModel.setPassword(index, text)
                                                             }
 
                                                             ComboBox {
@@ -2809,7 +2813,7 @@ ApplicationWindow {
                                                                 onActiveFocusChanged: if (activeFocus) serverUsersRoot.currentRow = index
                                                                 onActivated: {
                                                                     serverUsersRoot.currentRow = index
-                                                                    serverUsersRoot.usersModel.setRoleValue(index, serverUsersRoot.usersModel.UserTypeRole, currentValue)
+                                                                    serverUsersRoot.usersModel.setUserType(index, currentValue)
                                                                 }
                                                             }
 
@@ -3217,7 +3221,8 @@ ApplicationWindow {
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
                                                             onActiveFocusChanged: if (activeFocus) root.currentRow = index
-                                                            onEditingFinished: root.clusterModel.setRoleValue(index, root.clusterModel.ServerRole, text)
+                                                            onTextEdited: root.clusterModel.setServer(index, text)
+                                                            onEditingFinished: root.clusterModel.setServer(index, text)
                                                         }
 
                                                         TextField {
@@ -3230,7 +3235,8 @@ ApplicationWindow {
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
                                                             onActiveFocusChanged: if (activeFocus) root.currentRow = index
-                                                            onEditingFinished: root.clusterModel.setRoleValue(index, root.clusterModel.PortRole, parseInt(text))
+                                                            onTextEdited: if (acceptableInput) root.clusterModel.setPort(index, parseInt(text))
+                                                            onEditingFinished: root.clusterModel.setPort(index, parseInt(text))
                                                         }
 
                                                         TextField {
@@ -3241,7 +3247,8 @@ ApplicationWindow {
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
                                                             onActiveFocusChanged: if (activeFocus) root.currentRow = index
-                                                            onEditingFinished: root.clusterModel.setRoleValue(index, root.clusterModel.UserNameRole, text)
+                                                            onTextEdited: root.clusterModel.setUserName(index, text)
+                                                            onEditingFinished: root.clusterModel.setUserName(index, text)
                                                         }
 
                                                         TextField {
@@ -3253,7 +3260,8 @@ ApplicationWindow {
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
                                                             onActiveFocusChanged: if (activeFocus) root.currentRow = index
-                                                            onEditingFinished: root.clusterModel.setRoleValue(index, root.clusterModel.PasswordRole, text)
+                                                            onTextEdited: root.clusterModel.setPassword(index, text)
+                                                            onEditingFinished: root.clusterModel.setPassword(index, text)
                                                         }
 
                                                         TextField {
@@ -3266,7 +3274,8 @@ ApplicationWindow {
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
                                                             onActiveFocusChanged: if (activeFocus) root.currentRow = index
-                                                            onEditingFinished: root.clusterModel.setRoleValue(index, root.clusterModel.TimeoutRole, parseInt(text))
+                                                            onTextEdited: if (acceptableInput) root.clusterModel.setTimeout(index, parseInt(text))
+                                                            onEditingFinished: root.clusterModel.setTimeout(index, parseInt(text))
                                                         }
 
                                                         Item {
