@@ -18,6 +18,8 @@ void kenwoodServer::init()
     const QHostAddress listenAddress = serverListenAddress();
     if (!server->listen(listenAddress, config->controlPort)) {
         qInfo(logRigServer()) << "could not start on" << listenAddress.toString() << "port" << config->controlPort;
+        emit listening(false, tr("Could not use TCP port %1 on %2: %3")
+                                  .arg(config->controlPort).arg(listenAddress.toString(), server->errorString()));
         return;
     }
     else
@@ -25,6 +27,7 @@ void kenwoodServer::init()
         qInfo(logRigServer()) << "started on" << listenAddress.toString() << "port" << config->controlPort;
     }
     connect(server, &QTcpServer::newConnection, this, &kenwoodServer::newConnection);
+    emit listening(true, QString());
 }
 
 kenwoodServer::~kenwoodServer()
@@ -42,20 +45,20 @@ kenwoodServer::~kenwoodServer()
         }
     }
 
-    /*
-    for (auto it = clients.begin(); it != clients.end(); it++)
+    // The sockets are children of the QTcpServer, so they are deleted with
+    // it. Stop them calling disconnected() on this half-destroyed server.
+    for (auto it = clients.begin(); it != clients.end(); ++it)
     {
-        it.key()->close();
-        delete it.key();
+        it.key()->disconnect();
+        it.key()->abort();
         delete it.value();
     }
+    clients.clear();
 
     if (server != nullptr)
     {
         server->close();
     }
-
-    */
 
 }
 
@@ -135,13 +138,32 @@ void kenwoodServer::disconnected(QTcpSocket* socket)
 {
     // Client has disconnected!
     qInfo(logRigServer()) << "Client disconnected!" << socket->peerAddress() << ":" << socket->peerPort();
-    auto it = clients.find(socket);
-    if (it != clients.end()) {
-        stopAudioForClient(it.value());
+    CLIENT* client = clients.take(socket);
+    if (client != nullptr) {
+        stopAudioForClient(client);
+        if (client->authenticated)
+            emit userLoggedOut(client->user, client->ipAddress.toString());
+        delete client;
     }
     if (socket->isOpen())
         socket->close();
-    clients.remove(socket);
+    // Not deleted here, as this runs from the socket's own signal.
+    socket->deleteLater();
+}
+
+void kenwoodServer::dropUnauthorizedClients()
+{
+    QList<QTcpSocket*> drop;
+    for (auto it = clients.cbegin(); it != clients.cend(); ++it) {
+        if (it.value() != nullptr && it.value()->authenticated && findLoginUser(it.value()->user) == nullptr)
+            drop.append(it.key());
+    }
+    for (QTcpSocket* socket : drop) {
+        qInfo(logRigServer()) << "Disconnecting user" << clients.value(socket)->user
+                              << "as the account was removed or disabled";
+        // Emits disconnected(), which removes the client.
+        socket->abort();
+    }
 }
 
 void kenwoodServer::stopAudioForClient(CLIENT* client)
@@ -183,10 +205,17 @@ bool kenwoodServer::authenticateClient(QTcpSocket* socket, CLIENT* c, const QByt
     QByteArray passcomp;
     passcode(password, passcomp);
     qInfo(logRigServer()) << c->ipAddress.toString() << ": Received 'login'";
-    foreach(SERVERUSER user, config->users)
+    const bool wasAuthenticated = c->authenticated;
+    for (const SERVERUSER& user : std::as_const(users))
     {
         if (user.username == username && user.password == passcomp)
         {
+            if (user.userType == serverUserDisabled)
+            {
+                qInfo(logRigServer()) << "User" << username << "is disabled";
+                socket->write(QString("##ID0;").toLatin1());
+                return false;
+            }
             c->authenticated = true;
             c->user = username;
             // Usertypes 0=admin, 1=user, 2=rx only.
@@ -207,11 +236,15 @@ bool kenwoodServer::authenticateClient(QTcpSocket* socket, CLIENT* c, const QByt
             {
                 qInfo(logRigServer()) << "User type did not match stored type";
                 c->authenticated = false;
+                if (wasAuthenticated)
+                    emit userLoggedOut(username, c->ipAddress.toString());
                 socket->write(QString("##ID0;").toLatin1());
                 return false;
             }
             qInfo(logRigServer()) << "User" << username << "logged-in successfully";
             socket->write(QString("##ID1;##UE1;##TI%0;").arg(uchar(c->tx)).toLatin1());
+            if (!wasAuthenticated)
+                emit userLoggedIn(c->user, c->ipAddress.toString());
             return true;
         }
     }

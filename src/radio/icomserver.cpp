@@ -41,6 +41,7 @@ void icomServer::init()
     {
         // We couldn't bind to the selected port.
         qCritical(logUdp()) << "**** Unable to bind to UDP Control address/port" << localIP.toString() << config->controlPort << "Cannot continue! ****";
+        emit listening(false, tr("Could not use UDP port %1 (Control) on %2").arg(config->controlPort).arg(localIP.toString()));
         return;
     }
     else
@@ -55,6 +56,7 @@ void icomServer::init()
     {
         // We couldn't bind to the selected port.
         qCritical(logUdp()) << "**** Unable to bind to UDP CI-V address/port" << localIP.toString() << config->civPort << "Cannot continue! ****";
+        emit listening(false, tr("Could not use UDP port %1 (CI-V) on %2").arg(config->civPort).arg(localIP.toString()));
         return;
     }
     else
@@ -69,6 +71,7 @@ void icomServer::init()
     {
         // We couldn't bind to the selected port.
         qCritical(logUdp()) << "**** Unable to bind to UDP Audio address/port" << localIP.toString() << config->audioPort << "Cannot continue! ****";
+        emit listening(false, tr("Could not use UDP port %1 (Audio) on %2").arg(config->audioPort).arg(localIP.toString()));
         return;
     }
     else
@@ -80,6 +83,7 @@ void icomServer::init()
     wdTimer = new QTimer(this);
     connect(wdTimer, &QTimer::timeout, this, &icomServer::watchdog);
     wdTimer->start(500);
+    emit listening(true, QString());
 }
 
 icomServer::~icomServer()
@@ -281,7 +285,8 @@ void icomServer::controlReceived()
         {
             login_packet_t in = (login_packet_t)r.constData();
             qInfo(logRigServer()) << current->ipAddress.toString() << ": Received 'login'";
-            foreach(SERVERUSER user, config->users)
+            const bool wasAuthenticated = current->isAuthenticated;
+            for (const SERVERUSER& user : std::as_const(users))
             {
                 QByteArray usercomp;
                 passcode(user.username, usercomp);
@@ -290,6 +295,10 @@ void icomServer::controlReceived()
                 if (!user.username.trimmed().isEmpty() && !user.password.trimmed().isEmpty() && !strcmp(in->username, usercomp.constData()) &&
                     (!strcmp(in->password, user.password.toUtf8()) || !strcmp(in->password, passcomp.constData())))
                 {
+                    if (user.userType == serverUserDisabled) {
+                        qInfo(logRigServer()) << current->ipAddress.toString() << ": User" << user.username << "is disabled";
+                        break;
+                    }
                     current->isAuthenticated = true;
                     current->user = user;
                     break;
@@ -304,6 +313,8 @@ void icomServer::controlReceived()
 
             if (current->isAuthenticated) {
                 qInfo(logRigServer()) << current->ipAddress.toString() << ": User " << current->user.username << " login OK";
+                if (!wasAuthenticated)
+                    emit userLoggedIn(current->user.username, current->ipAddress.toString());
             }
             else {
                 qInfo(logRigServer()) << current->ipAddress.toString() << ": Incorrect username/password";
@@ -1542,6 +1553,24 @@ void icomServer::watchdog()
     }
 }
 
+void icomServer::dropUnauthorizedClients()
+{
+    const QList<CLIENT*> current = controlClients;
+    for (CLIENT* client : current)
+    {
+        if (client == nullptr || !client->isAuthenticated || findLoginUser(client->user.username) != nullptr)
+            continue;
+
+        qInfo(logRigServer()) << client->ipAddress.toString() << ": Disconnecting user" << client->user.username
+                              << "as the account was removed or disabled";
+        if (client->audioClient != nullptr && audioClients.contains(client->audioClient))
+            deleteConnection(&audioClients, client->audioClient);
+        if (client->civClient != nullptr && civClients.contains(client->civClient))
+            deleteConnection(&civClients, client->civClient);
+        deleteConnection(&controlClients, client);
+    }
+}
+
 void icomServer::sendStatus(CLIENT* c)
 {
 
@@ -1879,6 +1908,8 @@ void icomServer::deleteConnection(QList<CLIENT*>* l, CLIENT* c)
     memcpy(guid, c->guid, GUIDLEN);
 
     qInfo(logRigServer()) << "Deleting" << c->type << "connection to: " << c->ipAddress.toString() << ":" << QString::number(c->port);
+    if (l == &controlClients && c->isAuthenticated)
+        emit userLoggedOut(c->user.username, c->ipAddress.toString());
     if (c->idleTimer != nullptr) {
         c->idleTimer->stop();
         delete c->idleTimer;

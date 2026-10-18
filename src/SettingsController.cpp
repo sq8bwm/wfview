@@ -365,7 +365,13 @@ SettingsController::SettingsController(QString file, QObject *p) :
                             prefClusterItems(prefClusterItem::cl_clusterTcpPort) |
                             prefClusterItems(prefClusterItem::cl_clusterTimeout));
     });
-    connect(m_serverUsersModel.get(), &ServerUsersModel::modified, this, &SettingsController::markDirty);
+    connect(m_serverUsersModel.get(), &ServerUsersModel::modified, this, [this]() {
+        // Applied at once, so a running server sees added, changed and
+        // disabled users without waiting for the settings to be saved.
+        serverConfig.users = m_serverUsersModel->toList();
+        markDirty();
+        emit serverChanged(prefServerItems(prefServerItem::s_users));
+    });
 }
 
 QVariantMap SettingsController::restoredMainWindowGeometry() const
@@ -1540,6 +1546,8 @@ void SettingsController::load()
 
     rigTemp->rxAudioSetup.name = settings->value("ServerAudioInput", "").toString();
     rigTemp->txAudioSetup.name = settings->value("ServerAudioOutput", "").toString();
+    resolveAudioDevice(rigTemp->rxAudioSetup, QStringLiteral("Server"));
+    resolveAudioDevice(rigTemp->txAudioSetup, QStringLiteral("Server"));
 
     serverConfig.rigs.append(rigTemp);
 
@@ -2380,6 +2388,7 @@ void SettingsController::resetToDefaults()
 
     seedOptionsFromBindings();
     save();
+    emit serverChanged(prefServerItems(prefServerItem::s_enabled) | prefServerItems(prefServerItem::s_users));
 }
 
 void SettingsController::setDefPrefs()
@@ -3127,6 +3136,13 @@ void SettingsController::refreshAudioDevices()
     refresh(prefs.rxSetup, QStringLiteral("Client"), QStringLiteral("UDP.RxAudio"));
     refresh(prefs.usbRxSetup, QStringLiteral("Radio"), QStringLiteral("Radio.USBAudioRXInput"));
     refresh(prefs.usbTxSetup, QStringLiteral("Radio"), QStringLiteral("Radio.USBAudioTXOutput"));
+    if (!serverConfig.rigs.isEmpty()) {
+        RIGCONFIG* serverRig = serverConfig.rigs.first();
+        serverRig->rxAudioSetup.type = prefs.audioSystem;
+        serverRig->txAudioSetup.type = prefs.audioSystem;
+        refresh(serverRig->rxAudioSetup, QStringLiteral("Server"), QStringLiteral("Server.AudioInput"));
+        refresh(serverRig->txAudioSetup, QStringLiteral("Server"), QStringLiteral("Server.AudioOutput"));
+    }
 
     buildUiSpecs();
 }
@@ -3933,15 +3949,8 @@ void SettingsController::buildBindings()
             return false;
 
         rig->rxAudioSetup.name = name;
-        rig->rxAudioSetup.port = {};
-        rig->rxAudioSetup.portInt = -1;
-        const int index = audioDev ? audioDev->findInput("Server", name, true) : -1;
-        if (index >= 0) {
-            if (prefs.audioSystem == qtAudio)
-                rig->rxAudioSetup.port = audioDev->getInputDeviceInfo(index);
-            else
-                rig->rxAudioSetup.portInt = audioDev->getInputDeviceInt(index);
-        }
+        rig->rxAudioSetup.type = prefs.audioSystem;
+        resolveAudioDevice(rig->rxAudioSetup, QStringLiteral("Server"));
         return true;
     }, [this](){ emit serverChanged(prefServerItems(prefServerItem::s_audioInput)); });
 
@@ -3954,15 +3963,8 @@ void SettingsController::buildBindings()
             return false;
 
         rig->txAudioSetup.name = name;
-        rig->txAudioSetup.port = {};
-        rig->txAudioSetup.portInt = -1;
-        const int index = audioDev ? audioDev->findOutput("Server", name, true) : -1;
-        if (index >= 0) {
-            if (prefs.audioSystem == qtAudio)
-                rig->txAudioSetup.port = audioDev->getOutputDeviceInfo(index);
-            else
-                rig->txAudioSetup.portInt = audioDev->getOutputDeviceInt(index);
-        }
+        rig->txAudioSetup.type = prefs.audioSystem;
+        resolveAudioDevice(rig->txAudioSetup, QStringLiteral("Server"));
         return true;
     }, [this](){ emit serverChanged(prefServerItems(prefServerItem::s_audioOutput)); });
 

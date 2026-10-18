@@ -2695,6 +2695,7 @@ ApplicationWindow {
                                         readonly property int wUser: 180
                                         readonly property int wPass: 180
                                         readonly property int wType: 180
+                                        readonly property int wStatus: 120
                                         readonly property int rowH: 34
                                         readonly property int pad: 6
 
@@ -2735,6 +2736,7 @@ ApplicationWindow {
                                                     Label { width: serverUsersRoot.wUser; height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Username"); font.bold: true }
                                                     Label { width: serverUsersRoot.wPass; height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Password"); font.bold: true }
                                                     Label { width: serverUsersRoot.wType; height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Access"); font.bold: true }
+                                                    Label { width: serverUsersRoot.wStatus; height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Status"); font.bold: true }
                                                 }
                                             }
 
@@ -2800,7 +2802,8 @@ ApplicationWindow {
                                                                 model: [
                                                                     { text: qsTr("Admin User"), value: 0 },
                                                                     { text: qsTr("Normal User"), value: 1 },
-                                                                    { text: qsTr("Normal with no TX"), value: 2 }
+                                                                    { text: qsTr("Normal with no TX"), value: 2 },
+                                                                    { text: qsTr("Disabled"), value: 3 }
                                                                 ]
                                                                 currentIndex: indexFromValue(serverUserTypeCombo, userType)
                                                                 onActiveFocusChanged: if (activeFocus) serverUsersRoot.currentRow = index
@@ -2808,6 +2811,16 @@ ApplicationWindow {
                                                                     serverUsersRoot.currentRow = index
                                                                     serverUsersRoot.usersModel.setRoleValue(index, serverUsersRoot.usersModel.UserTypeRole, currentValue)
                                                                 }
+                                                            }
+
+                                                            Label {
+                                                                width: serverUsersRoot.wStatus
+                                                                height: parent.height
+                                                                verticalAlignment: Text.AlignVCenter
+                                                                elide: Text.ElideRight
+                                                                text: model.userStatusName
+                                                                font.bold: model.userStatus === 1
+                                                                Accessible.name: qsTr("Status: %1").arg(text)
                                                             }
                                                         }
                                                     }
@@ -2820,11 +2833,41 @@ ApplicationWindow {
 
                                 Label {
                                     id: serverDisconnectLabel
-                                    text: qsTr("Please disconnect from radio to make changes to the server settings")
+                                    text: window.connStatus === 0
+                                          ? qsTr("Press \"Connect to Radio\" before starting the server")
+                                          : qsTr("To make changes to the server settings, first press \"Disconnect from Radio\"")
                                     wrapMode: Text.WordWrap
                                 }
 
                                 Item { Layout.fillHeight: true }
+                            }
+                        }
+
+                        GroupBox {
+                            id: serverStatusGroup
+                            title: qsTr("Server Status")
+                            Layout.fillWidth: true
+
+                            GridLayout {
+                                columns: 2
+                                columnSpacing: 12
+                                rowSpacing: 4
+                                width: parent.width
+
+                                Label { text: qsTr("Status:") }
+                                Label {
+                                    id: serverStatusLabel
+                                    Layout.fillWidth: true
+                                    text: MainController.serverStatusText
+                                    font.bold: MainController.serverRunning
+                                    wrapMode: Text.WordWrap
+                                }
+
+                                Label { text: qsTr("Users logged in:") }
+                                Label { text: String(MainController.serverUsersLoggedIn) }
+
+                                Label { text: qsTr("Logins since start:") }
+                                Label { text: String(MainController.serverTotalLogins) }
                             }
                         }
                     }

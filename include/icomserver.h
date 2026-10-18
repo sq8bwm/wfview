@@ -134,6 +134,7 @@ private:
 	void sendRetransmitRequest(CLIENT* c);
 	void watchdog();
 	void deleteConnection(QList<CLIENT*> *l, CLIENT* c);
+	void dropUnauthorizedClients() override;
 
 	QUdpSocket* udpControl = nullptr;
 	QUdpSocket* udpCiv = nullptr;

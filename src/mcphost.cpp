@@ -43,6 +43,19 @@ McpHostResult McpHost::setTransmit(bool)
     return r;
 }
 
+QJsonObject McpHost::radioServer()
+{
+    return QJsonObject{{"available", false},
+                       {"note", QStringLiteral("%1 does not report radio server status through MCP.").arg(appName())}};
+}
+
+McpHostResult McpHost::setServerUserAccess(const QString &, const QString &, bool)
+{
+    McpHostResult r;
+    r.error = QStringLiteral("%1 cannot change radio server users through MCP.").arg(appName());
+    return r;
+}
+
 McpHostResult McpHost::transmitFor(bool on, int maxSeconds)
 {
     McpHostResult r = setTransmit(on);

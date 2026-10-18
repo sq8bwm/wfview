@@ -17,6 +17,7 @@
 #include <QString>
 #include <QVector>
 #include <QMutex>
+#include <QHash>
 #include <vector>
 
 #include "audioconverter.h"
@@ -457,6 +458,7 @@ public:
         Username = 0,
         Password,
         UserType,
+        Status,
         ColumnCount
     };
     Q_ENUM(Column)
@@ -465,9 +467,19 @@ public:
         UsernameRole = Qt::UserRole + 1,
         PasswordRole,
         UserTypeRole,
-        UserTypeNameRole
+        UserTypeNameRole,
+        UserStatusRole,
+        UserStatusNameRole
     };
     Q_ENUM(Roles)
+
+    // Since the radio server last started.
+    enum UserStatus {
+        NeverSeen = 0,
+        LoggedIn,
+        LoggedOut
+    };
+    Q_ENUM(UserStatus)
 
     explicit ServerUsersModel(QObject *parent = nullptr)
         : QAbstractTableModel(parent) {}
@@ -489,7 +501,9 @@ public:
             { UsernameRole, "username" },
             { PasswordRole, "password" },
             { UserTypeRole, "userType" },
-            { UserTypeNameRole, "userTypeName" }
+            { UserTypeNameRole, "userTypeName" },
+            { UserStatusRole, "userStatus" },
+            { UserStatusNameRole, "userStatusName" }
         };
     }
 
@@ -504,6 +518,8 @@ public:
         case PasswordRole: return user.password;
         case UserTypeRole: return user.userType;
         case UserTypeNameRole: return userTypeName(user.userType);
+        case UserStatusRole: return userStatus(user.username);
+        case UserStatusNameRole: return userStatusName(userStatus(user.username));
         default: break;
         }
 
@@ -512,6 +528,7 @@ public:
             case Username: return user.username;
             case Password: return user.password;
             case UserType: return user.userType;
+            case Status: return userStatusName(userStatus(user.username));
             default: return {};
             }
         }
@@ -558,7 +575,8 @@ public:
         if (changed) {
             emit dataChanged(this->index(index.row(), 0),
                              this->index(index.row(), ColumnCount - 1),
-                             { role, Qt::DisplayRole, Qt::EditRole, UserTypeNameRole });
+                             { role, Qt::DisplayRole, Qt::EditRole, UserTypeNameRole,
+                               UserStatusRole, UserStatusNameRole });
             emit modified();
         }
         return changed;
@@ -613,11 +631,38 @@ public:
     Q_INVOKABLE QString userTypeName(int userType) const
     {
         switch (userType) {
-        case 0: return tr("Admin User");
-        case 1: return tr("Normal User");
-        case 2: return tr("Normal with no TX");
+        case serverUserAdmin: return tr("Admin User");
+        case serverUserNormal: return tr("Normal User");
+        case serverUserNoTx: return tr("Normal with no TX");
+        case serverUserDisabled: return tr("Disabled");
         default: return tr("Unknown");
         }
+    }
+
+    Q_INVOKABLE QString userStatusName(int status) const
+    {
+        switch (status) {
+        case LoggedIn: return tr("Logged in");
+        case LoggedOut: return tr("Logged out");
+        case NeverSeen:
+        default: return tr("Never seen");
+        }
+    }
+
+    UserStatus userStatus(const QString &username) const
+    {
+        return statuses.value(username, NeverSeen);
+    }
+
+    // Users missing from the map have not been seen since the server started.
+    void setUserStatuses(const QHash<QString, UserStatus> &map)
+    {
+        if (statuses == map)
+            return;
+        statuses = map;
+        if (!items.isEmpty())
+            emit dataChanged(index(0, 0), index(items.count() - 1, ColumnCount - 1),
+                             { Qt::DisplayRole, UserStatusRole, UserStatusNameRole });
     }
 
     void setFromList(const QList<SERVERUSER> &list)
@@ -634,6 +679,7 @@ signals:
 
 private:
     QList<SERVERUSER> items;
+    QHash<QString, UserStatus> statuses;
 };
 
 

@@ -12,6 +12,8 @@ rigServer::rigServer(SERVERCONFIG* config, QObject* parent) :
 {
     qInfo(logRigServer()) << "Creating instance of rigServer";
     queue=cachingQueue::getInstance();
+    // Constructed on the owner's thread, before the move to the server thread.
+    users = config->users;
 }
 
 rigServer::~rigServer()
@@ -22,6 +24,26 @@ rigServer::~rigServer()
 void rigServer::init()
 {
     qWarning(logRigServer()) << "init() not implemented by server type";
+}
+
+void rigServer::setUsers(const QList<SERVERUSER>& list)
+{
+    users = list;
+    qInfo(logRigServer()) << "Server user list updated:" << users.size() << "users";
+    dropUnauthorizedClients();
+}
+
+const SERVERUSER* rigServer::findLoginUser(const QString& username) const
+{
+    for (const SERVERUSER& user : users) {
+        if (user.username == username && user.userType != serverUserDisabled)
+            return &user;
+    }
+    return nullptr;
+}
+
+void rigServer::dropUnauthorizedClients()
+{
 }
 
 void rigServer::receiveRigCaps(rigCapabilities* caps)

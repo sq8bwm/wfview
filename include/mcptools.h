@@ -140,6 +140,8 @@ private:
     McpToolResult toolInvalidateCache(const QJsonObject &args);
     McpToolResult toolSetRigctld(const QJsonObject &args);
     McpToolResult toolRigctldCommand(const QJsonObject &args);
+    McpToolResult toolRadioServer(const QJsonObject &args);
+    McpToolResult toolSetRadioServer(const QJsonObject &args);
 
     McpHost *m_host;
     McpAppInfo m_info;

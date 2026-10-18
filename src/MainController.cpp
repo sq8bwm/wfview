@@ -3,6 +3,9 @@
 #include "audiohandlertciinput.h"
 #include "audiohandlertcioutput.h"
 #include "iaxclientsession.h"
+#include "icomserver.h"
+#include "kenwoodserver.h"
+#include "yaesuserver.h"
 #include "logcategories.h"
 #include <QCoreApplication>
 #include <QDateTime>
@@ -318,6 +321,7 @@ MainController::MainController(QString settingsFile, QString logFileName, bool d
     connect(m_settings.get(), &SettingsController::raChanged, this, &MainController::raChanged);
     connect(m_settings.get(), &SettingsController::lanChanged, this, &MainController::lanChanged);
     connect(m_settings.get(), &SettingsController::clusterChanged, this, &MainController::clusterChanged);
+    connect(m_settings.get(), &SettingsController::serverChanged, this, &MainController::serverChanged);
     connect(m_settings.get(), &SettingsController::audioProcChanged, this, &MainController::applyAudioProcessingSettings);
     queue->interval(prefs->wfShareEnabled ? wfShareCmdInterval_ms : cmdStartupInterval_ms);
 
@@ -3351,6 +3355,7 @@ void MainController::shutdown()
     stopUsbControllerDevice();
 #endif
     stopClusterClient();
+    stopRadioServer();
 
     if (connStatus != connectionStatus_t::connDisconnected)
     {
@@ -3564,6 +3569,363 @@ void MainController::stopTciServer()
     tci = nullptr;
     tciThread = nullptr;
     updateAudioRouteState();
+}
+
+void MainController::setupRadioServer()
+{
+    if (server) {
+        updateServerRadio();
+        publishServerStatus();
+        return;
+    }
+
+    SERVERCONFIG* cfg = m_settings ? m_settings->getServerConfig() : nullptr;
+    // The server shares the radio wfview is using, so it needs an identified
+    // radio on a serial port.
+    if (shuttingDown || !cfg || !cfg->enabled || cfg->rigs.isEmpty() || !rig || !rigCaps ||
+        !usingSerialConnection()) {
+        publishServerStatus();
+        return;
+    }
+
+    switch (prefs->manufacturer) {
+    case manufIcom:
+        server = new icomServer(cfg);
+        break;
+    case manufKenwood:
+        server = new kenwoodServer(cfg);
+        break;
+    case manufYaesu:
+        server = new yaesuServer(cfg);
+        break;
+    default:
+        qWarning(logRigServer()) << "No radio server for manufacturer" << prefs->manufacturer;
+        publishServerStatus();
+        return;
+    }
+
+    cfg->lan = false;
+    updateServerRadio();
+
+    RIGCONFIG* radio = cfg->rigs.first();
+    if (prefs->enableUsbAudio && !radio->rxAudioSetup.name.isEmpty() &&
+        radio->rxAudioSetup.name == prefs->usbRxSetup.name)
+        qWarning(logRigServer()) << "The server RX audio input" << radio->rxAudioSetup.name
+                                 << "is also wfview's radio USB audio input; some audio systems cannot share it";
+
+    m_serverListening = false;
+    m_serverError.clear();
+    m_serverStartedAt = QDateTime::currentDateTime();
+    m_serverSessions.clear();
+    m_serverSeenUsers.clear();
+    m_serverTotalLogins = 0;
+    const int generation = ++m_serverGeneration;
+
+    serverThread = new QThread(this);
+    serverThread->setObjectName(QStringLiteral("radioServer()"));
+    server->moveToThread(serverThread);
+    connect(serverThread, &QThread::finished, server, &QObject::deleteLater);
+
+    connect(rig, &rigCommander::haveDataForServer, server, &rigServer::dataForServer);
+    connect(rig, &rigCommander::haveScopeDataForServer, server, &rigServer::receiveScopeData);
+    connect(server, &rigServer::haveDataFromServer, rig, &rigCommander::dataFromServer);
+
+    connect(server, &rigServer::listening, this, [this, generation](bool ok, QString error) {
+        if (generation != m_serverGeneration)
+            return;
+        m_serverListening = ok;
+        m_serverError = error;
+        if (ok)
+            qInfo(logRigServer()) << "Radio server running";
+        else
+            qWarning(logRigServer()) << "Radio server could not start:" << error;
+        publishServerStatus();
+    });
+    connect(server, &rigServer::userLoggedIn, this, [this, generation](QString username, QString address) {
+        if (generation == m_serverGeneration)
+            handleServerLogin(username, address);
+    });
+    connect(server, &rigServer::userLoggedOut, this, [this, generation](QString username, QString address) {
+        if (generation == m_serverGeneration)
+            handleServerLogout(username, address);
+    });
+
+    if (prefs->manufacturer == manufYaesu) {
+        connect(server, &rigServer::requestRxAudioForGuid, this,
+                [this, generation](QByteArray guid, quint8 codec, quint32 sampleRate) {
+            Q_UNUSED(guid)
+            if (generation != m_serverGeneration)
+                return;
+            ensureServerRxAudio(codec, sampleRate);
+            ensureServerTxAudio(codec, sampleRate);
+        });
+        connect(server, &rigServer::releaseRxAudioForGuid, this, [this, generation](QByteArray guid) {
+            Q_UNUSED(guid)
+            if (generation == m_serverGeneration)
+                stopServerHostAudio();
+        });
+        // Transmit audio from the client, for the radio's USB audio output.
+        connect(server, &rigServer::haveAudioData, this, [this, generation](audioPacket packet) {
+            if (generation != m_serverGeneration)
+                return;
+            SERVERCONFIG* c = m_settings->getServerConfig();
+            ensureServerTxAudio(packet.codec, packet.sampleRate);
+            if (!c->rigs.isEmpty() && c->rigs.first()->txaudio)
+                QMetaObject::invokeMethod(c->rigs.first()->txaudio, "incomingAudio",
+                                          Qt::QueuedConnection, Q_ARG(audioPacket, packet));
+        });
+    }
+
+    serverThread->start();
+    QMetaObject::invokeMethod(server, &rigServer::init, Qt::QueuedConnection);
+    qInfo(logRigServer()) << "Starting radio server for" << rigCaps->modelName
+                          << "control port" << cfg->controlPort << "CI-V/CAT port" << cfg->civPort
+                          << "audio port" << cfg->audioPort << "scope port" << cfg->scopePort;
+    publishServerStatus();
+}
+
+void MainController::stopRadioServer()
+{
+    if (!serverThread) {
+        server = nullptr;
+        return;
+    }
+
+    // Anything the old server still has queued for us is ignored.
+    ++m_serverGeneration;
+    stopServerHostAudio();
+
+    serverThread->quit();
+    serverThread->wait();
+    delete serverThread;
+    serverThread = nullptr;
+    server = nullptr;
+
+    SERVERCONFIG* cfg = m_settings ? m_settings->getServerConfig() : nullptr;
+    if (cfg && !cfg->rigs.isEmpty()) {
+        RIGCONFIG* radio = cfg->rigs.first();
+        radio->rig = nullptr;
+        radio->rigThread = nullptr;
+        radio->rigCaps = nullptr;
+        radio->rigAvailable = false;
+    }
+
+    m_serverListening = false;
+    m_serverError.clear();
+    // Everyone still logged in is now logged out.
+    m_serverSessions.clear();
+    qInfo(logRigServer()) << "Radio server stopped";
+    publishServerStatus();
+}
+
+void MainController::updateServerRadio()
+{
+    SERVERCONFIG* cfg = m_settings ? m_settings->getServerConfig() : nullptr;
+    if (!cfg || cfg->rigs.isEmpty() || !rigCaps)
+        return;
+
+    // The server reads these when a client connects, as wfview's radio is
+    // already identified and the server never sees the rig caps arrive.
+    RIGCONFIG* radio = cfg->rigs.first();
+    radio->rig = rig;
+    radio->rigThread = rigThread;
+    radio->rigCaps = rigCaps;
+    radio->rigAvailable = true;
+    radio->modelName = rigCaps->modelName;
+    radio->rigName = rigCaps->modelName;
+    radio->civAddr = rigCaps->modelID;
+    radio->baudRate = prefs->serialPortBaud != 0 ? quint32(prefs->serialPortBaud) : rigCaps->baudRate;
+    radio->pttType = prefs->pttType;
+    radio->waterfallFormat = prefs->waterfallFormat;
+    radio->rxAudioSetup.type = prefs->audioSystem;
+    radio->txAudioSetup.type = prefs->audioSystem;
+    cfg->baudRate = radio->baudRate;
+}
+
+void MainController::sendUsersToServer()
+{
+    SERVERCONFIG* cfg = m_settings ? m_settings->getServerConfig() : nullptr;
+    if (!server || !cfg)
+        return;
+
+    rigServer* s = server;
+    const QList<SERVERUSER> users = cfg->users;
+    QMetaObject::invokeMethod(server, [s, users]() { s->setUsers(users); }, Qt::QueuedConnection);
+}
+
+void MainController::serverChanged(SettingsController::prefServerItems items)
+{
+    SERVERCONFIG* cfg = m_settings ? m_settings->getServerConfig() : nullptr;
+    if (!cfg)
+        return;
+
+    if (items.testFlag(prefServerItem::s_users))
+        sendUsersToServer();
+
+    if (items.testFlag(prefServerItem::s_enabled)) {
+        if (cfg->enabled)
+            setupRadioServer();
+        else
+            stopRadioServer();
+    } else if (server && (items.testFlag(prefServerItem::s_controlPort) ||
+                          items.testFlag(prefServerItem::s_civPort) ||
+                          items.testFlag(prefServerItem::s_audioPort) ||
+                          items.testFlag(prefServerItem::s_scopePort) ||
+                          items.testFlag(prefServerItem::s_listenAddress) ||
+                          items.testFlag(prefServerItem::s_audioInput) ||
+                          items.testFlag(prefServerItem::s_audioOutput))) {
+        qInfo(logRigServer()) << "Radio server settings changed, restarting the server";
+        stopRadioServer();
+        setupRadioServer();
+    }
+
+    publishServerStatus();
+}
+
+void MainController::handleServerLogin(const QString& username, const QString& address)
+{
+    qInfo(logRigServer()) << "User" << username << "logged in from" << address;
+    m_serverSessions.append({ username, address, QDateTime::currentDateTime() });
+    m_serverSeenUsers.insert(username);
+    ++m_serverTotalLogins;
+    publishServerStatus();
+}
+
+void MainController::handleServerLogout(const QString& username, const QString& address)
+{
+    qInfo(logRigServer()) << "User" << username << "from" << address << "logged out";
+    for (int i = 0; i < m_serverSessions.size(); ++i) {
+        if (m_serverSessions.at(i).username == username && m_serverSessions.at(i).address == address) {
+            m_serverSessions.removeAt(i);
+            break;
+        }
+    }
+    publishServerStatus();
+}
+
+int MainController::serverUsersLoggedIn() const
+{
+    QSet<QString> names;
+    for (const serverSession& session : m_serverSessions)
+        names.insert(session.username);
+    return int(names.size());
+}
+
+QString MainController::serverStatusText() const
+{
+    const SERVERCONFIG* cfg = m_settings ? m_settings->getServerConfig() : nullptr;
+    if (!cfg || !cfg->enabled)
+        return tr("Disabled");
+    if (server) {
+        if (m_serverListening)
+            return tr("Running");
+        if (!m_serverError.isEmpty())
+            return tr("Not running: %1").arg(m_serverError);
+        return tr("Starting");
+    }
+    if (!usingSerialConnection())
+        return tr("Not running: the server is only available when the radio is connected by a serial (USB) port");
+    if (connStatus == connectionStatus_t::connDisconnected)
+        return tr("Not running: waiting for the radio to be connected");
+    return tr("Not running: waiting for the radio to be identified");
+}
+
+void MainController::publishServerStatus()
+{
+    if (m_settings && m_settings->serverUsersModel()) {
+        QHash<QString, ServerUsersModel::UserStatus> statuses;
+        for (const QString& name : std::as_const(m_serverSeenUsers))
+            statuses.insert(name, ServerUsersModel::LoggedOut);
+        for (const serverSession& session : std::as_const(m_serverSessions))
+            statuses.insert(session.username, ServerUsersModel::LoggedIn);
+        m_settings->serverUsersModel()->setUserStatuses(statuses);
+    }
+    emit serverStatusChanged();
+}
+
+void MainController::ensureServerRxAudio(quint8 codec, quint32 sampleRate)
+{
+    SERVERCONFIG* cfg = m_settings->getServerConfig();
+    if (!server || cfg->rigs.isEmpty())
+        return;
+
+    RIGCONFIG* radio = cfg->rigs.first();
+    if (radio->rxaudio) {
+        if (radio->rxAudioSetup.codec != codec || radio->rxAudioSetup.sampleRate != sampleRate)
+            qWarning(logRigServer()) << "Ignoring server RX audio format change while audio is active";
+        return;
+    }
+
+    radio->rxAudioSetup.codec = codec == 0 ? quint8(4) : codec;
+    radio->rxAudioSetup.sampleRate = sampleRate == 0 ? quint32(16000) : sampleRate;
+    radio->rxAudioSetup.latency = 150;
+    radio->rxAudioSetup.blockSize = 10;
+    radio->rxAudioSetup.isinput = true;
+    radio->rxAudioSetup.type = prefs->audioSystem;
+    memcpy(radio->rxAudioSetup.guid, radio->guid, GUIDLEN);
+
+    radio->rxaudio = createAudioHandler(radio->rxAudioSetup);
+    if (!radio->rxaudio)
+        return;
+
+    qInfo(logRigServer()) << "Starting server RX audio input" << radio->rxAudioSetup.name
+                          << "codec" << radio->rxAudioSetup.codec << "sampleRate" << radio->rxAudioSetup.sampleRate;
+    radio->rxAudioThread = new QThread(this);
+    radio->rxAudioThread->setObjectName(QStringLiteral("serverRxAudio()"));
+    radio->rxaudio->moveToThread(radio->rxAudioThread);
+    connect(radio->rxAudioThread, &QThread::finished, radio->rxaudio, &QObject::deleteLater);
+    connect(radio->rxaudio, &audioHandlerBase::haveAudioData, server, &rigServer::receiveAudioData);
+    radio->rxAudioThread->start(QThread::TimeCriticalPriority);
+    QMetaObject::invokeMethod(radio->rxaudio, "init", Qt::QueuedConnection, Q_ARG(audioSetup, radio->rxAudioSetup));
+}
+
+void MainController::ensureServerTxAudio(quint8 codec, quint32 sampleRate)
+{
+    SERVERCONFIG* cfg = m_settings->getServerConfig();
+    if (!server || cfg->rigs.isEmpty())
+        return;
+
+    RIGCONFIG* radio = cfg->rigs.first();
+    if (radio->txaudio) {
+        if (radio->txAudioSetup.codec != codec || radio->txAudioSetup.sampleRate != sampleRate)
+            qWarning(logRigServer()) << "Ignoring server TX audio format change while audio is active";
+        return;
+    }
+
+    radio->txAudioSetup.codec = codec == 0 ? quint8(4) : codec;
+    radio->txAudioSetup.sampleRate = sampleRate == 0 ? quint32(16000) : sampleRate;
+    radio->txAudioSetup.latency = radio->txAudioSetup.latency == 0 ? quint16(150) : radio->txAudioSetup.latency;
+    radio->txAudioSetup.isinput = false;
+    radio->txAudioSetup.type = prefs->audioSystem;
+    memcpy(radio->txAudioSetup.guid, radio->guid, GUIDLEN);
+
+    radio->txaudio = createAudioHandler(radio->txAudioSetup);
+    if (!radio->txaudio)
+        return;
+
+    qInfo(logRigServer()) << "Starting server TX audio output" << radio->txAudioSetup.name
+                          << "codec" << radio->txAudioSetup.codec << "sampleRate" << radio->txAudioSetup.sampleRate;
+    radio->txAudioThread = new QThread(this);
+    radio->txAudioThread->setObjectName(QStringLiteral("serverTxAudio()"));
+    radio->txaudio->moveToThread(radio->txAudioThread);
+    connect(radio->txAudioThread, &QThread::finished, radio->txaudio, &QObject::deleteLater);
+    radio->txAudioThread->start(QThread::TimeCriticalPriority);
+    QMetaObject::invokeMethod(radio->txaudio, "init", Qt::QueuedConnection, Q_ARG(audioSetup, radio->txAudioSetup));
+}
+
+void MainController::stopServerHostAudio()
+{
+    // Only the Yaesu server's audio is opened here; the Icom and Kenwood
+    // servers open and close their own.
+    SERVERCONFIG* cfg = m_settings ? m_settings->getServerConfig() : nullptr;
+    if (!prefs || prefs->manufacturer != manufYaesu || !cfg || cfg->rigs.isEmpty())
+        return;
+
+    RIGCONFIG* radio = cfg->rigs.first();
+    if (radio->rxaudio || radio->rxAudioThread)
+        qInfo(logRigServer()) << "Stopping server audio";
+    disposeAudioHandler(radio->rxaudio, radio->rxAudioThread);
+    disposeAudioHandler(radio->txaudio, radio->txAudioThread);
 }
 
 void MainController::setupTciRxBridge()
@@ -4082,6 +4444,7 @@ void MainController::disconnectRig()
     // disconnect and delete
     resetTxAudioOwnership();
     stopUsbAudioBridge();
+    stopRadioServer();
 
     // Might as well empty both queue and cache, as both are now invalid.
     queue->clear();
@@ -4213,15 +4576,19 @@ void MainController::startRigConnection()
 {
     if (!rigThread)
     {
+        // On a serial port the radio may be shared by the radio server, which
+        // recognises it by the server's GUID.
+        SERVERCONFIG* cfg = m_settings->getServerConfig();
+        quint8* guid = (usingSerialConnection() && cfg && !cfg->rigs.isEmpty()) ? cfg->rigs.first()->guid : nullptr;
         switch (prefs->manufacturer){
         case manufIcom:
-            rig = new icomCommander();
+            rig = guid ? new icomCommander(guid) : new icomCommander();
             break;
         case manufKenwood:
-            rig = new kenwoodCommander();
+            rig = guid ? new kenwoodCommander(guid) : new kenwoodCommander();
             break;
         case manufYaesu:
-            rig = new yaesuCommander();
+            rig = guid ? new yaesuCommander(guid) : new yaesuCommander();
             break;
         default:
             qCritical() << "Unknown Manufacturer, aborting...";
@@ -4538,6 +4905,7 @@ void MainController::receivePortError(errorType err)
     queue->clear();
     queue->clearCache();
     resetTxAudioOwnership();
+    stopRadioServer();
 
     if (rig) {
         QMetaObject::invokeMethod(rig, &rigCommander::closeComm,
@@ -4977,9 +5345,11 @@ void MainController::receiveRigCaps(rigCapabilities* caps)
         getInitialRigState();
         buildUiSpecs();
         refreshRepeaterState();
+        setupRadioServer();
     }
     else
     {
+        stopRadioServer();
         resetTxAudioOwnership();
         setFooterMessageText(QString());
         setRadioStatusText(QString());
