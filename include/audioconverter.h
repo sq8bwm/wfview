@@ -61,9 +61,23 @@ struct audioPacket {
 class TxAudioProcessor;   // defined in txaudioprocessor.h
 class RxAudioProcessor;   // defined in rxaudioprocessor.h
 
+// Which configured device an audioSetup describes, so failures can be
+// reported to the user with a meaningful description.
+enum class audioDeviceRole : quint8 {
+    Unknown = 0,
+    LocalOutput,     // computer speakers/headphones (RX audio)
+    LocalInput,      // computer microphone (TX audio)
+    RadioUsbInput,   // radio's USB audio codec, receive audio from the radio
+    RadioUsbOutput   // radio's USB audio codec, transmit audio to the radio
+};
+
 struct audioSetup {
     audioType type;
     QString name;
+    // Device name as saved in settings, before it was matched against the
+    // available devices. name is cleared when no match is found; this is not.
+    QString configuredName;
+    audioDeviceRole role = audioDeviceRole::Unknown;
     quint16 latency;
     quint8 codec;
     bool ulaw = false;

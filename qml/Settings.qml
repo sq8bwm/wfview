@@ -1925,6 +1925,14 @@ ApplicationWindow {
                                         ToolTip.visible: hovered
                                         ToolTip.text: qsTr("Make the frequency display and the S/power meter 50% larger")
                                     }
+                                    CheckBox {
+                                        id: warnAudioDeviceProblemsChk
+                                        text: qsTr("Warn about audio device problems")
+                                        checked: optBool("Interface.WarnAudioDeviceProblems", true)
+                                        onClicked: if (controller) controller.setOption("Interface.WarnAudioDeviceProblems", checked)
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Show a warning when the selected audio input or output device is blank, cannot be found, or cannot be opened.")
+                                    }
                                     Item { Layout.fillWidth: true }
                                 }
                             }

@@ -1034,6 +1034,7 @@ void SettingsController::load()
     prefs.showTuningDial = settings->value("ShowTuningDial",defPrefs.showTuningDial).toBool();
     prefs.wideRitSlider = settings->value("WideRitSlider",defPrefs.wideRitSlider).toBool();
     prefs.alwaysSaveOnExit = settings->value("AlwaysSaveOnExit",defPrefs.alwaysSaveOnExit).toBool();
+    prefs.warnAudioDeviceProblems = settings->value("WarnAudioDeviceProblems",defPrefs.warnAudioDeviceProblems).toBool();
     prefs.reverseWheel = settings->value("ReverseWheel",defPrefs.reverseWheel).toBool();
     prefs.sMeterOnTop = settings->value("SMeterOnTop",defPrefs.sMeterOnTop).toBool();
     prefs.meterStyle = settings->value("MeterStyle", defPrefs.meterStyle).toInt();
@@ -1312,7 +1313,8 @@ void SettingsController::load()
     udpPrefs.username = settings->value("Username", udpDefPrefs.username).toString();
     udpPrefs.password = settings->value("Password", udpDefPrefs.password).toString();
 
-    int input = audioDev->findInput("Client",settings->value("AudioInput", "Default Input Device").toString(),true);
+    prefs.txSetup.configuredName = settings->value("AudioInput", "Default Input Device").toString();
+    int input = audioDev->findInput("Client", prefs.txSetup.configuredName, true);
 
     if (input != -1) {
         if (prefs.audioSystem == qtAudio) {
@@ -1330,6 +1332,7 @@ void SettingsController::load()
     }
 
     const QString savedAudioOutput = settings->value("AudioOutput", "Default Output Device").toString();
+    prefs.rxSetup.configuredName = savedAudioOutput;
     int output = audioDev->findOutput("Client", savedAudioOutput, true);
     qDebug(logAudio()) << "loadSettings: audio output device from prefs=" << savedAudioOutput
                       << "findOutput returned index=" << output;
@@ -1355,6 +1358,7 @@ void SettingsController::load()
 
     // Set these anyway even if we don't have a valid audio device.
     prefs.rxSetup.isinput = defPrefs.rxSetup.isinput;
+    prefs.rxSetup.role = audioDeviceRole::LocalOutput;
     prefs.rxSetup.latency = settings->value("AudioRXLatency", defPrefs.rxSetup.latency).toInt();
     prefs.rxSetup.sampleRate=settings->value("AudioRXSampleRate", defPrefs.rxSetup.sampleRate).toInt();
     prefs.rxSetup.codec = settings->value("AudioRXCodec", defPrefs.rxSetup.codec).toInt();
@@ -1362,6 +1366,7 @@ void SettingsController::load()
     prefs.rxSetup.type = prefs.audioSystem;
     qInfo(logGui()) << "Got Audio Output from Settings: " << prefs.rxSetup.name;
 
+    prefs.txSetup.role = audioDeviceRole::LocalInput;
     prefs.txSetup.latency = settings->value("AudioTXLatency", defPrefs.txSetup.latency).toInt();
     prefs.txSetup.isinput = defPrefs.txSetup.isinput;
     prefs.txSetup.sampleRate=prefs.rxSetup.sampleRate;
@@ -1371,6 +1376,8 @@ void SettingsController::load()
     qInfo(logGui()) << "Got Audio Input from Settings: " << prefs.txSetup.name;
 
     prefs.usbRxSetup.isinput = true;
+    prefs.usbRxSetup.role = audioDeviceRole::RadioUsbInput;
+    prefs.usbRxSetup.configuredName = prefs.usbRxSetup.name;
     prefs.usbRxSetup.type = prefs.audioSystem;
     prefs.usbRxSetup.sampleRate = prefs.rxSetup.sampleRate;
     prefs.usbRxSetup.codec = prefs.rxSetup.codec;
@@ -1392,6 +1399,8 @@ void SettingsController::load()
     }
 
     prefs.usbTxSetup.isinput = false;
+    prefs.usbTxSetup.role = audioDeviceRole::RadioUsbOutput;
+    prefs.usbTxSetup.configuredName = prefs.usbTxSetup.name;
     prefs.usbTxSetup.type = prefs.audioSystem;
     prefs.usbTxSetup.sampleRate = prefs.txSetup.sampleRate;
     prefs.usbTxSetup.codec = prefs.txSetup.codec;
@@ -1907,6 +1916,7 @@ void SettingsController::save()
     settings->setValue("ShowTuningDial",prefs.showTuningDial);
     settings->setValue("WideRitSlider",prefs.wideRitSlider);
     settings->setValue("AlwaysSaveOnExit",prefs.alwaysSaveOnExit);
+    settings->setValue("WarnAudioDeviceProblems",prefs.warnAudioDeviceProblems);
     settings->setValue("ReverseWheel",prefs.reverseWheel);
     settings->setValue("SMeterOnTop",prefs.sMeterOnTop);
     settings->setValue("MeterStyle", prefs.meterStyle);
@@ -2473,6 +2483,7 @@ void SettingsController::setDefPrefs()
     defPrefs.showTuningDial = true;
     defPrefs.wideRitSlider = false;
     defPrefs.alwaysSaveOnExit = true;
+    defPrefs.warnAudioDeviceProblems = true;
     defPrefs.reverseWheel = false;
     defPrefs.sMeterOnTop = false;
     defPrefs.meterStyle = 0;
@@ -2593,10 +2604,14 @@ void SettingsController::setDefPrefs()
     defPrefs.rxSetup.codec = 4;
     defPrefs.txSetup.codec = 4;
     defPrefs.rxSetup.resampleQuality = 4;
+    defPrefs.rxSetup.role = audioDeviceRole::LocalOutput;
+    defPrefs.txSetup.role = audioDeviceRole::LocalInput;
     defPrefs.usbRxSetup = defPrefs.txSetup;
     defPrefs.usbRxSetup.isinput = true;
+    defPrefs.usbRxSetup.role = audioDeviceRole::RadioUsbInput;
     defPrefs.usbTxSetup = defPrefs.rxSetup;
     defPrefs.usbTxSetup.isinput = false;
+    defPrefs.usbTxSetup.role = audioDeviceRole::RadioUsbOutput;
 
     // Cluster
     defPrefs.clusterUdpEnable = false;
@@ -3115,6 +3130,8 @@ void SettingsController::refreshAudioDevices()
     prefs.usbRxSetup.type = prefs.audioSystem;
     prefs.usbTxSetup.type = prefs.audioSystem;
 
+    if (!prefs.txSetup.name.isEmpty())
+        prefs.txSetup.configuredName = prefs.txSetup.name;
     const int input = audioDev->findInput(QStringLiteral("Client"), prefs.txSetup.name, true);
     if (input >= 0) {
         if (prefs.audioSystem == qtAudio)
@@ -3131,6 +3148,8 @@ void SettingsController::refreshAudioDevices()
         qWarning(logAudio()) << "No valid audio input device found after audio system change";
     }
 
+    if (!prefs.rxSetup.name.isEmpty())
+        prefs.rxSetup.configuredName = prefs.rxSetup.name;
     const int output = audioDev->findOutput(QStringLiteral("Client"), prefs.rxSetup.name, true);
     if (output >= 0) {
         if (prefs.audioSystem == qtAudio)
@@ -3577,6 +3596,7 @@ void SettingsController::buildBindings()
         if (prefs.usbRxSetup.name == name)
             return false;
         prefs.usbRxSetup.name = name;
+        prefs.usbRxSetup.configuredName = name;
         const int index = audioDev ? audioDev->findInput(QStringLiteral("Radio"), name, true) : -1;
         if (index >= 0) {
             if (prefs.audioSystem == qtAudio)
@@ -3596,6 +3616,7 @@ void SettingsController::buildBindings()
         if (prefs.usbTxSetup.name == name)
             return false;
         prefs.usbTxSetup.name = name;
+        prefs.usbTxSetup.configuredName = name;
         const int index = audioDev ? audioDev->findOutput(QStringLiteral("Radio"), name, true) : -1;
         if (index >= 0) {
             if (prefs.audioSystem == qtAudio)
@@ -3686,6 +3707,7 @@ void SettingsController::buildBindings()
     WF_BOOL("Interface.ShowTuningDial", prefs.showTuningDial, [](){});
     WF_BOOL("Interface.WideRitSlider", prefs.wideRitSlider, [](){});
     WF_BOOL("Interface.AlwaysSaveOnExit", prefs.alwaysSaveOnExit, [](){});
+    WF_BOOL("Interface.WarnAudioDeviceProblems", prefs.warnAudioDeviceProblems, [](){});
     WF_BOOL("Interface.ReverseWheel", prefs.reverseWheel, [](){});
     WF_BOOL("Interface.SMeterOnTop", prefs.sMeterOnTop, [](){});
     WF_I32("Interface.MeterStyle", prefs.meterStyle, [](){});
@@ -3837,6 +3859,7 @@ void SettingsController::buildBindings()
         if (prefs.txSetup.name == name)
             return false;
         prefs.txSetup.name = name;
+        prefs.txSetup.configuredName = name;
         const int index = audioDev ? audioDev->findInput(QStringLiteral("Client"), name, true) : -1;
         if (index >= 0) {
             if (prefs.audioSystem == qtAudio)
@@ -3856,6 +3879,7 @@ void SettingsController::buildBindings()
         if (prefs.rxSetup.name == name)
             return false;
         prefs.rxSetup.name = name;
+        prefs.rxSetup.configuredName = name;
         const int index = audioDev ? audioDev->findOutput(QStringLiteral("Client"), name, true) : -1;
         if (index >= 0) {
             if (prefs.audioSystem == qtAudio)

@@ -971,6 +971,116 @@ ApplicationWindow {
         function onPttTimeoutExpired(seconds) {
             pttTimeoutDialog.showDialog()
         }
+        function onAudioDeviceProblem(headline, detail) {
+            audioDeviceProblemDialog.addProblem(headline, detail)
+        }
+    }
+
+    // Shown when a configured audio device is blank, missing, or cannot be
+    // opened. Several problems from one connection are listed together.
+    Dialog {
+        id: audioDeviceProblemDialog
+        title: qsTr("Audio device problem")
+        width: Math.min(560, win.width - 40)
+        // 20% taller than the content needs, with the content centered.
+        height: Math.round(implicitHeight * 1.2)
+        x: Math.round((win.width - width) / 2)
+        y: Math.round((win.height - height) / 2)
+        visible: false
+        modal: true
+        closePolicy: Popup.NoAutoClose
+
+        property var problems: []
+
+        background: Rectangle {
+            color: win.palette.window
+            border.color: win.palette.highlight
+            border.width: 1
+            radius: 4
+        }
+
+        function addProblem(headline, detail) {
+            var list = problems.slice()
+            list.push({ "headline": headline, "detail": detail })
+            problems = list
+            if (!visible) {
+                suppressAudioWarningChk.checked = false
+                win.ensureWindowFitsPopup(audioDeviceProblemDialog)
+                open()
+                forceActiveFocus()
+            }
+        }
+
+        function dismiss() {
+            if (suppressAudioWarningChk.checked && MainController && MainController.settings)
+                MainController.settings.setOption("Interface.WarnAudioDeviceProblems", false)
+            close()
+        }
+
+        onClosed: {
+            problems = []
+            win.shrinkAfterDialog()
+        }
+
+        ColumnLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.margins: 12
+            spacing: 12
+
+            Repeater {
+                model: audioDeviceProblemDialog.problems
+                delegate: ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: modelData.headline
+                        horizontalAlignment: Text.AlignHCenter
+                        font.bold: true
+                        color: win.palette.windowText
+                        wrapMode: Text.WordWrap
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        visible: text !== ""
+                        text: modelData.detail
+                        horizontalAlignment: Text.AlignHCenter
+                        color: win.palette.windowText
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Audio for this connection will not work until this is fixed. "
+                           + "To fix it, disconnect from the radio, open Settings \u2192 Radio Access, "
+                           + "and re-select the audio device. Then connect again.")
+                horizontalAlignment: Text.AlignHCenter
+                color: win.palette.windowText
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                CheckBox {
+                    id: suppressAudioWarningChk
+                    text: qsTr("Suppress this warning")
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Can be turned back on in Settings \u2192 User Interface \u2192 Other.")
+                }
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: qsTr("OK")
+                    onClicked: audioDeviceProblemDialog.dismiss()
+                }
+            }
+        }
     }
 
     Dialog {

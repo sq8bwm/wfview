@@ -66,10 +66,26 @@ void audioHandlerBase::dispose()
     qDebug(logAudio()) << "[SHUTDOWN] dispose() complete, role=" << role();
 }
 
+audioDeviceNotifier* audioDeviceNotifier::instance()
+{
+    static audioDeviceNotifier* notifier = new audioDeviceNotifier();
+    return notifier;
+}
+
 void audioHandlerBase::reportError(const QString& msg)
 {
     qCritical(logAudio()).noquote() << role() << msg;
+    lastError = msg;
     emit audioMessage(QString("%1: %2").arg(role(), msg));
+}
+
+void audioHandlerBase::reportDeviceProblem(int problem)
+{
+    QString deviceName = setupData.name;
+    if (deviceName.isEmpty())
+        deviceName = setupData.configuredName;
+    emit audioDeviceNotifier::instance()->deviceProblem(int(setupData.role), setupData.isinput,
+                                                         problem, deviceName, lastError);
 }
 
 bool audioHandlerBase::negotiateFormat(int minSampleRate)
@@ -165,6 +181,9 @@ bool audioHandlerBase::init(const audioSetup& setup)
 #if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
     if (setup.port.isNull() && setup.portInt == -1) {
         reportError("No audio device was found (install Qt Multimedia plugins?)");
+        reportDeviceProblem(setup.name.isEmpty() && setup.configuredName.isEmpty()
+                                ? audioDeviceNotifier::DeviceBlank
+                                : audioDeviceNotifier::DeviceNotFound);
         emit initFailed();
         return false;
     }
@@ -172,6 +191,9 @@ bool audioHandlerBase::init(const audioSetup& setup)
 #else
     if (setup.port.isNull() && setup.port.description().isEmpty() && setup.portInt == -1) {
         reportError("Audio device is NULL, check device selection in settings");
+        reportDeviceProblem(setup.name.isEmpty() && setup.configuredName.isEmpty()
+                                ? audioDeviceNotifier::DeviceBlank
+                                : audioDeviceNotifier::DeviceNotFound);
         emit initFailed();
         return false;
     } else {
@@ -180,6 +202,7 @@ bool audioHandlerBase::init(const audioSetup& setup)
 #endif
 
     if (!negotiateFormat(48000)) {
+        reportDeviceProblem(audioDeviceNotifier::DeviceUnusable);
         emit initFailed();
         return false;
     }
@@ -201,7 +224,12 @@ bool audioHandlerBase::init(const audioSetup& setup)
     setVolume(setup.localAFgain);
 
     if (!openDevice()) {
+        // Keep the backend's own reason if openDevice() gave one.
+        const QString backendError = lastError;
         reportError("Failed to open device");
+        if (!backendError.isEmpty())
+            lastError = backendError;
+        reportDeviceProblem(audioDeviceNotifier::DeviceUnusable);
         emit initFailed();
         return false;
     }

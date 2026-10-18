@@ -256,6 +256,10 @@ MainController::MainController(QString settingsFile, QString logFileName, bool d
     prefs = m_settings->getPrefs();
     udpPrefs = m_settings->getUdpPrefs();
     qApp->installEventFilter(this);
+
+    // Audio handlers report device failures from their own threads.
+    connect(audioDeviceNotifier::instance(), &audioDeviceNotifier::deviceProblem,
+            this, &MainController::handleAudioDeviceProblem, Qt::QueuedConnection);
     m_cwSender->loadSettings(prefs->cwCutNumbers,
                              prefs->cwSendImmediate,
                              prefs->cwSidetoneEnabled,
@@ -4125,6 +4129,7 @@ void MainController::openRigConnection()
         return;
 
     resetTxAudioOwnership();
+    m_reportedAudioProblems.clear();
     connStatus = connectionStatus_t::connConnecting;
     emit connStatusChanged();
     updateAudioRouteState();
@@ -4297,6 +4302,106 @@ void MainController::handleRigConnectionLost()
     disconnectRig();
     setFooterMessageText(footer);
     emit connStatusChanged();
+}
+
+void MainController::checkAudioDeviceConfiguration()
+{
+    // A blank or missing local device never reaches an audio handler, because
+    // the audio route leaves it out, so check the configuration directly.
+    if (!prefs)
+        return;
+
+    const AudioRouteState route = currentAudioRoute();
+    const bool canTransmit = rigCaps && rigCaps->hasTransmit;
+
+    auto check = [this](const audioSetup& setup) {
+        if (!setup.name.isEmpty())
+            return; // Present; any open failure is reported by the handler.
+        const int problem = setup.configuredName.trimmed().isEmpty()
+                                ? audioDeviceNotifier::DeviceBlank
+                                : audioDeviceNotifier::DeviceNotFound;
+        handleAudioDeviceProblem(int(setup.role), setup.isinput, problem,
+                                 setup.configuredName, QString());
+    };
+
+    switch (route.rxSource) {
+    case RadioRxAudioSource::NativeNetwork:
+    case RadioRxAudioSource::WfShare:
+        check(prefs->rxSetup);
+        if (canTransmit)
+            check(prefs->txSetup);
+        break;
+    case RadioRxAudioSource::LocalUsb:
+        check(prefs->usbRxSetup);
+        check(prefs->rxSetup);
+        if (canTransmit) {
+            check(prefs->usbTxSetup);
+            check(prefs->txSetup);
+        }
+        break;
+    case RadioRxAudioSource::None:
+        break;
+    }
+}
+
+void MainController::handleAudioDeviceProblem(int role, bool isInput, int problem,
+                                               QString deviceName, QString detail)
+{
+    if (shuttingDown)
+        return;
+
+    QString deviceKind;
+    switch (audioDeviceRole(role)) {
+    case audioDeviceRole::LocalOutput:
+        deviceKind = tr("audio output device (speaker/headphones)");
+        break;
+    case audioDeviceRole::LocalInput:
+        deviceKind = tr("audio input device (microphone)");
+        break;
+    case audioDeviceRole::RadioUsbInput:
+        deviceKind = tr("radio USB audio input device (receive audio from the radio)");
+        break;
+    case audioDeviceRole::RadioUsbOutput:
+        deviceKind = tr("radio USB audio output device (transmit audio to the radio)");
+        break;
+    case audioDeviceRole::Unknown:
+        deviceKind = isInput ? tr("audio input device") : tr("audio output device");
+        break;
+    }
+
+    QString headline;
+    switch (problem) {
+    case audioDeviceNotifier::DeviceBlank:
+        headline = tr("The selected %1 was blank. No device has been chosen.").arg(deviceKind);
+        break;
+    case audioDeviceNotifier::DeviceNotFound:
+        headline = tr("The selected %1 could not be found.").arg(deviceKind);
+        break;
+    default:
+        headline = tr("The selected %1 could not be used.").arg(deviceKind);
+        break;
+    }
+
+    const QString key = QStringLiteral("%1:%2:%3").arg(role).arg(isInput).arg(problem);
+    qWarning(logAudio()).noquote() << headline << "Device:" << deviceName << "Detail:" << detail;
+    if (m_reportedAudioProblems.contains(key))
+        return;
+    m_reportedAudioProblems.insert(key);
+
+    if (!prefs || !prefs->warnAudioDeviceProblems)
+        return;
+
+    QStringList lines;
+    if (!deviceName.trimmed().isEmpty())
+        lines << tr("Specified Device: \"%1\"").arg(deviceName.trimmed());
+    if (!detail.trimmed().isEmpty())
+        lines << QString() << tr("Reason: %1").arg(detail.trimmed());
+    if (problem == audioDeviceNotifier::DeviceNotFound)
+        lines << tr("The device may have been unplugged, renamed, or is in use by a different audio system.");
+    else if (problem == audioDeviceNotifier::DeviceUnusable)
+        lines << tr("The device may be in use by another program, or may not support the required audio format.");
+
+    emit audioDeviceProblem(headline, lines.join(QLatin1Char('\n')));
 }
 
 void MainController::receivePortError(errorType err)
@@ -4737,6 +4842,7 @@ void MainController::receiveRigCaps(rigCapabilities* caps)
         m_footerErrorText.clear();
         setFooterMessageText(QString());
         updateAudioRouteState();
+        checkAudioDeviceConfiguration();
         setRigModelName(rigCaps->modelName);
         setWindowTitle(rigCaps->modelName);
         updateCurrentModSource(false);
@@ -5771,6 +5877,7 @@ void MainController::setDefPrefs()
     defprefs->showTuningDial = true;
     defprefs->wideRitSlider = false;
     defprefs->alwaysSaveOnExit = true;
+    defprefs->warnAudioDeviceProblems = true;
     defprefs->reverseWheel = false;
     defprefs->sMeterOnTop = false;
     defprefs->meterStyle = 0;
@@ -6073,6 +6180,7 @@ void MainController::loadSettings(QString settingsFile)
     prefs->showTuningDial = settings->value("ShowTuningDial",defprefs->showTuningDial).toBool();
     prefs->wideRitSlider = settings->value("WideRitSlider",defprefs->wideRitSlider).toBool();
     prefs->alwaysSaveOnExit = settings->value("AlwaysSaveOnExit",defprefs->alwaysSaveOnExit).toBool();
+    prefs->warnAudioDeviceProblems = settings->value("WarnAudioDeviceProblems",defprefs->warnAudioDeviceProblems).toBool();
     prefs->reverseWheel = settings->value("ReverseWheel",defprefs->reverseWheel).toBool();
     prefs->sMeterOnTop = settings->value("SMeterOnTop",defprefs->sMeterOnTop).toBool();
     prefs->meterStyle = settings->value("MeterStyle", defprefs->meterStyle).toInt();

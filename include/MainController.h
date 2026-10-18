@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QHash>
 #include <QObject>
+#include <QSet>
 #include <QSettings>
 #include <QThread>
 #include <QTimer>
@@ -340,6 +341,8 @@ signals:
     void rigModelNameChanged();
     void appShortcutActivated(QString commandName, int receiver);
     void pttTimeoutExpired(int seconds);
+    // A configured audio device is blank, missing, or could not be opened.
+    void audioDeviceProblem(QString headline, QString detail);
     void runningMacroChanged();
     void closingActionsTextChanged();
     void receiverCountChanged();
@@ -431,6 +434,7 @@ private slots:
     void receiveCommReady();
     void receivePortError(errorType err);
     void handleRigConnectionLost();
+    void handleAudioDeviceProblem(int role, bool isInput, int problem, QString deviceName, QString detail);
     void ctChanged(SettingsController::prefCtItems items);
     void clusterChanged(SettingsController::prefClusterItems items);
 #if defined(USB_CONTROLLER)
@@ -531,6 +535,7 @@ private:
     void disposeAudioHandler(audioHandlerBase*& handler, QThread*& thread);
     AudioRouteState currentAudioRoute() const;
     void updateAudioRouteState();
+    void checkAudioDeviceConfiguration();
     void tuneFrequencyHz(qint64 hzDelta, int receiver = -1);
     quint64 parseRepeaterFrequencyHz(const QString& text, double multiplier, const QString& fieldName) const;
     toneInfo toneFromList(const std::vector<toneInfo>& tones, int tone, bool secondaryVfo = false) const;
@@ -544,6 +549,8 @@ private:
     // Radio/port errors shown in the footer expire after this timer fires.
     QTimer m_footerErrorTimer;
     QString m_footerErrorText;
+    // Audio device warnings already shown for this connection (role:problem).
+    QSet<QString> m_reportedAudioProblems;
     QString m_radioStatusText;
     QString m_rigModelName;
     QString m_clusterOutputText;
