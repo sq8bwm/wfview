@@ -1313,52 +1313,27 @@ void SettingsController::load()
     udpPrefs.username = settings->value("Username", udpDefPrefs.username).toString();
     udpPrefs.password = settings->value("Password", udpDefPrefs.password).toString();
 
-    prefs.txSetup.configuredName = settings->value("AudioInput", "Default Input Device").toString();
-    int input = audioDev->findInput("Client", prefs.txSetup.configuredName, true);
+    // Device names keep the configured value when the device is missing, so
+    // the settings UI can show it rather than a blank selection.
+    prefs.txSetup.isinput = defPrefs.txSetup.isinput;
+    prefs.txSetup.role = audioDeviceRole::LocalInput;
+    prefs.txSetup.name = settings->value("AudioInput", "Default Input Device").toString();
+    if (!resolveAudioDevice(prefs.txSetup, QStringLiteral("Client")))
+        qWarning(logAudio) << "Audio input device" << prefs.txSetup.name << "not found, please configure one in settings";
 
-    if (input != -1) {
-        if (prefs.audioSystem == qtAudio) {
-            prefs.txSetup.port = audioDev->getInputDeviceInfo(input);
-        }
-        else {
-            prefs.txSetup.portInt = audioDev->getInputDeviceInt(input);
-        }
-        prefs.txSetup.name = audioDev->getInputName(input);
-    } else {
-        prefs.txSetup.port = {};
-        prefs.txSetup.portInt = -1;
-        prefs.txSetup.name.clear();
-        qWarning(logAudio) << "No valid audio input device found, please configure one in settings";
-    }
-
-    const QString savedAudioOutput = settings->value("AudioOutput", "Default Output Device").toString();
-    prefs.rxSetup.configuredName = savedAudioOutput;
-    int output = audioDev->findOutput("Client", savedAudioOutput, true);
-    qDebug(logAudio()) << "loadSettings: audio output device from prefs=" << savedAudioOutput
-                      << "findOutput returned index=" << output;
-
-    if (output != -1) {
-        if (prefs.audioSystem == qtAudio) {
-            prefs.rxSetup.port = audioDev->getOutputDeviceInfo(output);
+    prefs.rxSetup.isinput = defPrefs.rxSetup.isinput;
+    prefs.rxSetup.role = audioDeviceRole::LocalOutput;
+    prefs.rxSetup.name = settings->value("AudioOutput", "Default Output Device").toString();
+    if (resolveAudioDevice(prefs.rxSetup, QStringLiteral("Client"))) {
 #if (QT_VERSION >= QT_VERSION_CHECK(6,0,0))
-            qDebug(logAudio()) << "loadSettings: resolved audio output port.id=" << prefs.rxSetup.port.id()
-                              << "port.description=" << prefs.rxSetup.port.description();
+        qDebug(logAudio()) << "loadSettings: resolved audio output port.id=" << prefs.rxSetup.port.id()
+                          << "port.description=" << prefs.rxSetup.port.description();
 #endif
-        }
-        else {
-            prefs.rxSetup.portInt = audioDev->getOutputDeviceInt(output);
-        }
-        prefs.rxSetup.name = audioDev->getOutputName(output);
     } else {
-        prefs.rxSetup.port = {};
-        prefs.rxSetup.portInt = -1;
-        prefs.rxSetup.name.clear();
-        qWarning(logAudio) << "No valid audio output device found, please configure one in settings";
+        qWarning(logAudio) << "Audio output device" << prefs.rxSetup.name << "not found, please configure one in settings";
     }
 
     // Set these anyway even if we don't have a valid audio device.
-    prefs.rxSetup.isinput = defPrefs.rxSetup.isinput;
-    prefs.rxSetup.role = audioDeviceRole::LocalOutput;
     prefs.rxSetup.latency = settings->value("AudioRXLatency", defPrefs.rxSetup.latency).toInt();
     prefs.rxSetup.sampleRate=settings->value("AudioRXSampleRate", defPrefs.rxSetup.sampleRate).toInt();
     prefs.rxSetup.codec = settings->value("AudioRXCodec", defPrefs.rxSetup.codec).toInt();
@@ -1366,9 +1341,7 @@ void SettingsController::load()
     prefs.rxSetup.type = prefs.audioSystem;
     qInfo(logGui()) << "Got Audio Output from Settings: " << prefs.rxSetup.name;
 
-    prefs.txSetup.role = audioDeviceRole::LocalInput;
     prefs.txSetup.latency = settings->value("AudioTXLatency", defPrefs.txSetup.latency).toInt();
-    prefs.txSetup.isinput = defPrefs.txSetup.isinput;
     prefs.txSetup.sampleRate=prefs.rxSetup.sampleRate;
     prefs.txSetup.codec = settings->value("AudioTXCodec", defPrefs.txSetup.codec).toInt();
     prefs.txSetup.resampleQuality = prefs.rxSetup.resampleQuality;
@@ -1377,49 +1350,23 @@ void SettingsController::load()
 
     prefs.usbRxSetup.isinput = true;
     prefs.usbRxSetup.role = audioDeviceRole::RadioUsbInput;
-    prefs.usbRxSetup.configuredName = prefs.usbRxSetup.name;
     prefs.usbRxSetup.type = prefs.audioSystem;
     prefs.usbRxSetup.sampleRate = prefs.rxSetup.sampleRate;
     prefs.usbRxSetup.codec = prefs.rxSetup.codec;
     prefs.usbRxSetup.latency = prefs.rxSetup.latency;
     prefs.usbRxSetup.resampleQuality = prefs.rxSetup.resampleQuality;
     prefs.usbRxSetup.localAFgain = 255;
-    if (!prefs.usbRxSetup.name.isEmpty()) {
-        const int radioInput = audioDev->findInput(QStringLiteral("Radio"), prefs.usbRxSetup.name, false);
-        if (radioInput >= 0) {
-            if (prefs.audioSystem == qtAudio)
-                prefs.usbRxSetup.port = audioDev->getInputDeviceInfo(radioInput);
-            else
-                prefs.usbRxSetup.portInt = audioDev->getInputDeviceInt(radioInput);
-            prefs.usbRxSetup.name = audioDev->getInputName(radioInput);
-        } else {
-            prefs.usbRxSetup.port = {};
-            prefs.usbRxSetup.portInt = -1;
-        }
-    }
+    resolveAudioDevice(prefs.usbRxSetup, QStringLiteral("Radio"));
 
     prefs.usbTxSetup.isinput = false;
     prefs.usbTxSetup.role = audioDeviceRole::RadioUsbOutput;
-    prefs.usbTxSetup.configuredName = prefs.usbTxSetup.name;
     prefs.usbTxSetup.type = prefs.audioSystem;
     prefs.usbTxSetup.sampleRate = prefs.txSetup.sampleRate;
     prefs.usbTxSetup.codec = prefs.txSetup.codec;
     prefs.usbTxSetup.latency = prefs.txSetup.latency;
     prefs.usbTxSetup.resampleQuality = prefs.txSetup.resampleQuality;
     prefs.usbTxSetup.localAFgain = 255;
-    if (!prefs.usbTxSetup.name.isEmpty()) {
-        const int radioOutput = audioDev->findOutput(QStringLiteral("Radio"), prefs.usbTxSetup.name, false);
-        if (radioOutput >= 0) {
-            if (prefs.audioSystem == qtAudio)
-                prefs.usbTxSetup.port = audioDev->getOutputDeviceInfo(radioOutput);
-            else
-                prefs.usbTxSetup.portInt = audioDev->getOutputDeviceInt(radioOutput);
-            prefs.usbTxSetup.name = audioDev->getOutputName(radioOutput);
-        } else {
-            prefs.usbTxSetup.port = {};
-            prefs.usbTxSetup.portInt = -1;
-        }
-    }
+    resolveAudioDevice(prefs.usbTxSetup, QStringLiteral("Radio"));
 
     prefs.txAudioProc.bypass = settings->value("TxProcBypass", defPrefs.txAudioProc.bypass).toBool();
     prefs.txAudioProc.compEnabled = settings->value("TxProcCompEnabled", defPrefs.txAudioProc.compEnabled).toBool();
@@ -3120,6 +3067,36 @@ void SettingsController::emitGroupChange(const Binding& b)
     if (b.notify) b.notify();
 }
 
+bool SettingsController::resolveAudioDevice(audioSetup& setup, const QString& type)
+{
+    // Match setup.name against the enumerated devices. When found, name
+    // becomes the enumerated name. When not found, name keeps the configured
+    // value and the device handles are cleared, so audioSetupHasDevice() is
+    // false. The fallback to "any device" in findInput/findOutput is not used:
+    // a missing device is reported to the user, not silently replaced.
+    setup.configuredName = setup.name;
+    setup.port = {};
+    setup.portInt = -1;
+
+    if (!audioDev || setup.name.trimmed().isEmpty())
+        return false;
+
+    const int index = setup.isinput ? audioDev->findInput(type, setup.name, true)
+                                    : audioDev->findOutput(type, setup.name, true);
+    if (index < 0)
+        return false;
+
+    if (prefs.audioSystem == qtAudio)
+        setup.port = setup.isinput ? audioDev->getInputDeviceInfo(index)
+                                   : audioDev->getOutputDeviceInfo(index);
+    else
+        setup.portInt = setup.isinput ? audioDev->getInputDeviceInt(index)
+                                      : audioDev->getOutputDeviceInt(index);
+    setup.name = setup.isinput ? audioDev->getInputName(index)
+                               : audioDev->getOutputName(index);
+    return true;
+}
+
 void SettingsController::refreshAudioDevices()
 {
     audioDev = std::make_unique<audioDevices>(prefs.audioSystem, QFontMetrics(QFont()));
@@ -3130,69 +3107,29 @@ void SettingsController::refreshAudioDevices()
     prefs.usbRxSetup.type = prefs.audioSystem;
     prefs.usbTxSetup.type = prefs.audioSystem;
 
-    if (!prefs.txSetup.name.isEmpty())
-        prefs.txSetup.configuredName = prefs.txSetup.name;
-    const int input = audioDev->findInput(QStringLiteral("Client"), prefs.txSetup.name, true);
-    if (input >= 0) {
-        if (prefs.audioSystem == qtAudio)
-            prefs.txSetup.port = audioDev->getInputDeviceInfo(input);
-        else
-            prefs.txSetup.portInt = audioDev->getInputDeviceInt(input);
-        prefs.txSetup.name = audioDev->getInputName(input);
-        updateOptionInMap(QStringLiteral("UDP.TxAudio"), prefs.txSetup.name);
-    } else {
-        prefs.txSetup.port = {};
-        prefs.txSetup.portInt = -1;
-        prefs.txSetup.name.clear();
-        updateOptionInMap(QStringLiteral("UDP.TxAudio"), prefs.txSetup.name);
-        qWarning(logAudio()) << "No valid audio input device found after audio system change";
-    }
-
-    if (!prefs.rxSetup.name.isEmpty())
-        prefs.rxSetup.configuredName = prefs.rxSetup.name;
-    const int output = audioDev->findOutput(QStringLiteral("Client"), prefs.rxSetup.name, true);
-    if (output >= 0) {
-        if (prefs.audioSystem == qtAudio)
-            prefs.rxSetup.port = audioDev->getOutputDeviceInfo(output);
-        else
-            prefs.rxSetup.portInt = audioDev->getOutputDeviceInt(output);
-        prefs.rxSetup.name = audioDev->getOutputName(output);
-        updateOptionInMap(QStringLiteral("UDP.RxAudio"), prefs.rxSetup.name);
-    } else {
-        prefs.rxSetup.port = {};
-        prefs.rxSetup.portInt = -1;
-        prefs.rxSetup.name.clear();
-        updateOptionInMap(QStringLiteral("UDP.RxAudio"), prefs.rxSetup.name);
-        qWarning(logAudio()) << "No valid audio output device found after audio system change";
-    }
-
-    const int radioInput = audioDev->findInput(QStringLiteral("Radio"), prefs.usbRxSetup.name, false);
-    if (radioInput >= 0) {
-        if (prefs.audioSystem == qtAudio)
-            prefs.usbRxSetup.port = audioDev->getInputDeviceInfo(radioInput);
-        else
-            prefs.usbRxSetup.portInt = audioDev->getInputDeviceInt(radioInput);
-        prefs.usbRxSetup.name = audioDev->getInputName(radioInput);
-    } else {
-        prefs.usbRxSetup.port = {};
-        prefs.usbRxSetup.portInt = -1;
-    }
-    updateOptionInMap(QStringLiteral("Radio.USBAudioRXInput"), prefs.usbRxSetup.name);
-
-    const int radioOutput = audioDev->findOutput(QStringLiteral("Radio"), prefs.usbTxSetup.name, false);
-    if (radioOutput >= 0) {
-        if (prefs.audioSystem == qtAudio)
-            prefs.usbTxSetup.port = audioDev->getOutputDeviceInfo(radioOutput);
-        else
-            prefs.usbTxSetup.portInt = audioDev->getOutputDeviceInt(radioOutput);
-        prefs.usbTxSetup.name = audioDev->getOutputName(radioOutput);
-    } else {
-        prefs.usbTxSetup.port = {};
-        prefs.usbTxSetup.portInt = -1;
-    }
-    updateOptionInMap(QStringLiteral("Radio.USBAudioTXOutput"), prefs.usbTxSetup.name);
+    // Re-match against the configured names, not the last resolved names,
+    // so a device that was missing is picked up again when it returns.
+    auto refresh = [this](audioSetup& setup, const QString& type, const QString& key) {
+        if (!setup.configuredName.isEmpty())
+            setup.name = setup.configuredName;
+        if (!resolveAudioDevice(setup, type) && !setup.name.isEmpty())
+            qWarning(logAudio()) << "Audio device" << setup.name << "not found after device refresh";
+        updateOptionInMap(key, setup.name);
+    };
+    refresh(prefs.txSetup, QStringLiteral("Client"), QStringLiteral("UDP.TxAudio"));
+    refresh(prefs.rxSetup, QStringLiteral("Client"), QStringLiteral("UDP.RxAudio"));
+    refresh(prefs.usbRxSetup, QStringLiteral("Radio"), QStringLiteral("Radio.USBAudioRXInput"));
+    refresh(prefs.usbTxSetup, QStringLiteral("Radio"), QStringLiteral("Radio.USBAudioTXOutput"));
 
     buildUiSpecs();
+}
+
+void SettingsController::rescanAudioDevices()
+{
+    qInfo(logAudio()) << "Rescanning audio devices";
+    refreshAudioDevices();
+    // Let the audio routing pick up devices that appeared or vanished.
+    emit raChanged(prefRaItems(prefRaItem::ra_usbAudioRx) | prefRaItem::ra_usbAudioTx);
 }
 
 void SettingsController::applyManufacturerDefaults()
@@ -3273,8 +3210,13 @@ void SettingsController::setOption(const QString& key, const QVariant& value)
 
     // Apply change into prefs
     const bool changed = it.value().set(value);
-    if (!changed)
+    if (!changed) {
+        // Keep QML in step with the backend. A control that changed itself
+        // on user input (such as a ComboBox index) is corrected by this when
+        // the stored value differs from what the control sent.
+        updateOptionInMap(key, it.value().get());
         return;
+    }
 
     const QVariant newVal = it.value().get();
     qDebug(logSystem) << "setting changed" << key << oldVal << "->" << newVal;
@@ -3596,18 +3538,7 @@ void SettingsController::buildBindings()
         if (prefs.usbRxSetup.name == name)
             return false;
         prefs.usbRxSetup.name = name;
-        prefs.usbRxSetup.configuredName = name;
-        const int index = audioDev ? audioDev->findInput(QStringLiteral("Radio"), name, true) : -1;
-        if (index >= 0) {
-            if (prefs.audioSystem == qtAudio)
-                prefs.usbRxSetup.port = audioDev->getInputDeviceInfo(index);
-            else
-                prefs.usbRxSetup.portInt = audioDev->getInputDeviceInt(index);
-            prefs.usbRxSetup.name = audioDev->getInputName(index);
-        } else {
-            prefs.usbRxSetup.port = {};
-            prefs.usbRxSetup.portInt = -1;
-        }
+        resolveAudioDevice(prefs.usbRxSetup, QStringLiteral("Radio"));
         return true;
     }, [this](){ emit raChanged(prefRaItems(prefRaItem::ra_usbAudioRx)); });
 
@@ -3616,18 +3547,7 @@ void SettingsController::buildBindings()
         if (prefs.usbTxSetup.name == name)
             return false;
         prefs.usbTxSetup.name = name;
-        prefs.usbTxSetup.configuredName = name;
-        const int index = audioDev ? audioDev->findOutput(QStringLiteral("Radio"), name, true) : -1;
-        if (index >= 0) {
-            if (prefs.audioSystem == qtAudio)
-                prefs.usbTxSetup.port = audioDev->getOutputDeviceInfo(index);
-            else
-                prefs.usbTxSetup.portInt = audioDev->getOutputDeviceInt(index);
-            prefs.usbTxSetup.name = audioDev->getOutputName(index);
-        } else {
-            prefs.usbTxSetup.port = {};
-            prefs.usbTxSetup.portInt = -1;
-        }
+        resolveAudioDevice(prefs.usbTxSetup, QStringLiteral("Radio"));
         return true;
     }, [this](){ emit raChanged(prefRaItems(prefRaItem::ra_usbAudioTx)); });
 
@@ -3859,18 +3779,7 @@ void SettingsController::buildBindings()
         if (prefs.txSetup.name == name)
             return false;
         prefs.txSetup.name = name;
-        prefs.txSetup.configuredName = name;
-        const int index = audioDev ? audioDev->findInput(QStringLiteral("Client"), name, true) : -1;
-        if (index >= 0) {
-            if (prefs.audioSystem == qtAudio)
-                prefs.txSetup.port = audioDev->getInputDeviceInfo(index);
-            else
-                prefs.txSetup.portInt = audioDev->getInputDeviceInt(index);
-            prefs.txSetup.name = audioDev->getInputName(index);
-        } else {
-            prefs.txSetup.port = {};
-            prefs.txSetup.portInt = -1;
-        }
+        resolveAudioDevice(prefs.txSetup, QStringLiteral("Client"));
         return true;
     }, [this](){ emit udpChanged(prefUDPItems(prefUDPItem::u_audioInput)); });
 
@@ -3879,18 +3788,7 @@ void SettingsController::buildBindings()
         if (prefs.rxSetup.name == name)
             return false;
         prefs.rxSetup.name = name;
-        prefs.rxSetup.configuredName = name;
-        const int index = audioDev ? audioDev->findOutput(QStringLiteral("Client"), name, true) : -1;
-        if (index >= 0) {
-            if (prefs.audioSystem == qtAudio)
-                prefs.rxSetup.port = audioDev->getOutputDeviceInfo(index);
-            else
-                prefs.rxSetup.portInt = audioDev->getOutputDeviceInt(index);
-            prefs.rxSetup.name = audioDev->getOutputName(index);
-        } else {
-            prefs.rxSetup.port = {};
-            prefs.rxSetup.portInt = -1;
-        }
+        resolveAudioDevice(prefs.rxSetup, QStringLiteral("Client"));
         return true;
     }, [this](){ emit udpChanged(prefUDPItems(prefUDPItem::u_audioOutput)); });
 
@@ -3927,6 +3825,8 @@ void SettingsController::buildBindings()
             return false;
 
         rig->rxAudioSetup.name = name;
+        rig->rxAudioSetup.port = {};
+        rig->rxAudioSetup.portInt = -1;
         const int index = audioDev ? audioDev->findInput("Server", name, true) : -1;
         if (index >= 0) {
             if (prefs.audioSystem == qtAudio)
@@ -3946,6 +3846,8 @@ void SettingsController::buildBindings()
             return false;
 
         rig->txAudioSetup.name = name;
+        rig->txAudioSetup.port = {};
+        rig->txAudioSetup.portInt = -1;
         const int index = audioDev ? audioDev->findOutput("Server", name, true) : -1;
         if (index >= 0) {
             if (prefs.audioSystem == qtAudio)

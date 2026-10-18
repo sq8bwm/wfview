@@ -115,6 +115,37 @@ ApplicationWindow {
         return -1
     }
 
+    // Model for an audio device ComboBox. When the configured device is blank
+    // or not on this system, a placeholder for it is listed first, so the box
+    // never shows an empty selection and choosing a real device is a change.
+    function audioDeviceModel(spec, configured) {
+        var devices = (spec && spec.model) ? spec.model : []
+        var name = (configured === undefined || configured === null) ? "" : String(configured)
+        var list = []
+        var found = false
+        for (var i = 0; i < devices.length; ++i) {
+            list.push(devices[i])
+            if (String(devices[i].value) === name)
+                found = true
+        }
+        if (!found)
+            list.unshift(name === ""
+                         ? { "text": qsTr("(no device selected)"), "value": "" }
+                         : { "text": qsTr("%1 (not found)").arg(name), "value": name })
+        return list
+    }
+
+    // Store an audio device choice, then re-bind the box to the stored value
+    // so it always shows what the backend accepted.
+    function selectAudioDevice(cb, key) {
+        if (!controller)
+            return
+        controller.setOption(key, cb.currentValue)
+        cb.currentIndex = Qt.binding(function() {
+            return controller ? indexFromValue(cb, controller.options[key]) : -1
+        })
+    }
+
     function boolValue(value, fallback) {
         if (typeof value === "boolean")
             return value
@@ -900,12 +931,12 @@ ApplicationWindow {
                                     ComboBox {
                                         id: audioOutputCombo
                                         readonly property var spec: controller ? controller.uiSpecs["audioOutputs"] : null
-                                        model: spec ? spec.model : []
+                                        model: audioDeviceModel(spec, controller ? controller.options["UDP.RxAudio"] : "")
                                         textRole: spec ? spec.textRole : "text"
                                         valueRole: spec ? spec.valueRole : "value"
                                         visible: spec ? (spec.visible ?? true) : false
                                         currentIndex: controller ? indexFromValue(audioOutputCombo,controller.options["UDP.RxAudio"]) : -1
-                                        onActivated: controller.setOption("UDP.RxAudio", currentValue)
+                                        onActivated: selectAudioDevice(audioOutputCombo, "UDP.RxAudio")
                                         readonly property real widestText: {
                                             let max = 0
                                             for (let i = 0; i < count; ++i)
@@ -924,12 +955,12 @@ ApplicationWindow {
                                     ComboBox {
                                         id: audioInputCombo
                                         readonly property var spec: controller ? controller.uiSpecs["audioInputs"] : null
-                                        model: spec ? spec.model : []
+                                        model: audioDeviceModel(spec, controller ? controller.options["UDP.TxAudio"] : "")
                                         textRole: spec ? spec.textRole : "text"
                                         valueRole: spec ? spec.valueRole : "value"
                                         visible: spec ? (spec.visible ?? true) : false
                                         currentIndex: controller ? indexFromValue(audioInputCombo,controller.options["UDP.TxAudio"]) : -1
-                                        onActivated: controller.setOption("UDP.TxAudio", currentValue)
+                                        onActivated: selectAudioDevice(audioInputCombo, "UDP.TxAudio")
                                         readonly property real widestText: {
                                             let max = 0
                                             for (let i = 0; i < count; ++i)
@@ -942,6 +973,14 @@ ApplicationWindow {
                                         Layout.maximumWidth: implicitWidth
                                         FontMetrics { id: audioInMetrics; font: audioInputCombo.font }
                                         Accessible.name: "Audio Input Selector"
+                                    }
+
+                                    Button {
+                                        text: qsTr("Rescan")
+                                        onClicked: if (controller) controller.rescanAudioDevices()
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: qsTr("Look for audio devices again, for example after plugging one in.")
+                                        Accessible.name: "Rescan audio devices"
                                     }
 
                                     Item { Layout.fillWidth: true }
@@ -1045,12 +1084,12 @@ ApplicationWindow {
                                     ComboBox {
                                         id: usbRadioRxAudioCombo
                                         readonly property var spec: controller ? controller.uiSpecs["audioInputs"] : null
-                                        model: spec ? spec.model : []
+                                        model: audioDeviceModel(spec, controller ? controller.options["Radio.USBAudioRXInput"] : "")
                                         textRole: spec ? spec.textRole : "text"
                                         valueRole: spec ? spec.valueRole : "value"
                                         enabled: optBool("Radio.EnableUSBAudio", false)
                                         currentIndex: controller ? indexFromValue(usbRadioRxAudioCombo, controller.options["Radio.USBAudioRXInput"]) : -1
-                                        onActivated: if (controller) controller.setOption("Radio.USBAudioRXInput", currentValue)
+                                        onActivated: selectAudioDevice(usbRadioRxAudioCombo, "Radio.USBAudioRXInput")
                                         Layout.fillWidth: true
                                         Layout.preferredWidth: 1
                                         Layout.minimumWidth: 160
@@ -1063,12 +1102,12 @@ ApplicationWindow {
                                     ComboBox {
                                         id: usbRadioTxAudioCombo
                                         readonly property var spec: controller ? controller.uiSpecs["audioOutputs"] : null
-                                        model: spec ? spec.model : []
+                                        model: audioDeviceModel(spec, controller ? controller.options["Radio.USBAudioTXOutput"] : "")
                                         textRole: spec ? spec.textRole : "text"
                                         valueRole: spec ? spec.valueRole : "value"
                                         enabled: optBool("Radio.EnableUSBAudio", false)
                                         currentIndex: controller ? indexFromValue(usbRadioTxAudioCombo, controller.options["Radio.USBAudioTXOutput"]) : -1
-                                        onActivated: if (controller) controller.setOption("Radio.USBAudioTXOutput", currentValue)
+                                        onActivated: selectAudioDevice(usbRadioTxAudioCombo, "Radio.USBAudioTXOutput")
                                         Layout.fillWidth: true
                                         Layout.preferredWidth: 1
                                         Layout.minimumWidth: 160
@@ -2550,25 +2589,25 @@ ApplicationWindow {
                                     ComboBox {
                                         id: serverRXAudioInputCombo
                                         readonly property var spec: controller ? controller.uiSpecs["audioInputs"] : null
-                                        model: spec ? spec["model"] : []
+                                        model: audioDeviceModel(spec, controller ? controller.options["Server.AudioInput"] : "")
                                         textRole: spec ? spec["textRole"] : "text"
                                         valueRole: spec ? spec["valueRole"] : "value"
                                         currentIndex: controller ? indexFromValue(serverRXAudioInputCombo, controller.options["Server.AudioInput"]) : -1
                                         enabled: window.connStatus !== 2
                                         Layout.preferredWidth: 160
-                                        onActivated: if (controller) controller.setOption("Server.AudioInput", currentValue)
+                                        onActivated: selectAudioDevice(serverRXAudioInputCombo, "Server.AudioInput")
                                     }
                                     Label { text: qsTr("TX Audio Output") }
                                     ComboBox {
                                         id: serverTXAudioOutputCombo
                                         readonly property var spec: controller ? controller.uiSpecs["audioOutputs"] : null
-                                        model: spec ? spec["model"] : []
+                                        model: audioDeviceModel(spec, controller ? controller.options["Server.AudioOutput"] : "")
                                         textRole: spec ? spec["textRole"] : "text"
                                         valueRole: spec ? spec["valueRole"] : "value"
                                         currentIndex: controller ? indexFromValue(serverTXAudioOutputCombo, controller.options["Server.AudioOutput"]) : -1
                                         enabled: window.connStatus !== 2
                                         Layout.preferredWidth: 160
-                                        onActivated: if (controller) controller.setOption("Server.AudioOutput", currentValue)
+                                        onActivated: selectAudioDevice(serverTXAudioOutputCombo, "Server.AudioOutput")
                                     }
                                     Item { width: 20 }
                                     Label { text: qsTr("Audio System") }

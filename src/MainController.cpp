@@ -2802,10 +2802,10 @@ AudioRouteState MainController::currentAudioRoute() const
     inputs.enableWfShare = prefs->wfShareEnabled;
     inputs.wfShareDirectMode = prefs->wfShareDirectMode;
     inputs.enableUsbAudio = prefs->enableUsbAudio;
-    inputs.hasLocalRxOutput = !prefs->rxSetup.name.isEmpty();
-    inputs.hasLocalTxInput = !prefs->txSetup.name.isEmpty();
-    inputs.hasUsbRadioRxInput = !prefs->usbRxSetup.name.isEmpty();
-    inputs.hasUsbRadioTxOutput = !prefs->usbTxSetup.name.isEmpty();
+    inputs.hasLocalRxOutput = audioSetupHasDevice(prefs->rxSetup);
+    inputs.hasLocalTxInput = audioSetupHasDevice(prefs->txSetup);
+    inputs.hasUsbRadioRxInput = audioSetupHasDevice(prefs->usbRxSetup);
+    inputs.hasUsbRadioTxOutput = audioSetupHasDevice(prefs->usbTxSetup);
     inputs.hasTciServer = tci != nullptr;
     inputs.audioSystem = prefs->audioSystem;
     return computeAudioRoute(inputs);
@@ -3262,7 +3262,7 @@ void MainController::setupTciUsbTxBridge()
                                  rigCaps && rigCaps->hasTransmit &&
                                  route.validLocalBackend &&
                                  route.rxSource == RadioRxAudioSource::LocalUsb &&
-                                 !prefs->usbTxSetup.name.isEmpty();
+                                 audioSetupHasDevice(prefs->usbTxSetup);
     const bool haveNetworkTxOutput = connStatus == connectionStatus_t::connConnected &&
                                      rigCaps && rigCaps->hasTransmit &&
                                      (route.rxSource == RadioRxAudioSource::NativeNetwork ||
@@ -4306,8 +4306,8 @@ void MainController::handleRigConnectionLost()
 
 void MainController::checkAudioDeviceConfiguration()
 {
-    // A blank or missing local device never reaches an audio handler, because
-    // the audio route leaves it out, so check the configuration directly.
+    // A blank or missing device never reaches an audio handler, because the
+    // audio route leaves it out, so check the configuration directly.
     if (!prefs)
         return;
 
@@ -4315,13 +4315,13 @@ void MainController::checkAudioDeviceConfiguration()
     const bool canTransmit = rigCaps && rigCaps->hasTransmit;
 
     auto check = [this](const audioSetup& setup) {
-        if (!setup.name.isEmpty())
+        if (audioSetupHasDevice(setup))
             return; // Present; any open failure is reported by the handler.
-        const int problem = setup.configuredName.trimmed().isEmpty()
+        const int problem = setup.name.trimmed().isEmpty()
                                 ? audioDeviceNotifier::DeviceBlank
                                 : audioDeviceNotifier::DeviceNotFound;
         handleAudioDeviceProblem(int(setup.role), setup.isinput, problem,
-                                 setup.configuredName, QString());
+                                 setup.name, QString());
     };
 
     switch (route.rxSource) {

@@ -710,6 +710,8 @@ public:
     Q_INVOKABLE void load();
     Q_INVOKABLE void save();
     Q_INVOKABLE void markDirty();
+    // Re-enumerate audio devices, e.g. after one is plugged in.
+    Q_INVOKABLE void rescanAudioDevices();
     Q_INVOKABLE void addRadioProfile(const QString& description);
     Q_INVOKABLE void updateRadioProfile(int index, const QString& description = QString());
     Q_INVOKABLE void deleteRadioProfile(int index);
@@ -797,6 +799,7 @@ private:
     void seedOptionsFromBindings();     // push current values into the QQmlPropertyMap
     void updateOptionInMap(const QString& key, const QVariant& v);
     void refreshAudioDevices();
+    bool resolveAudioDevice(audioSetup& setup, const QString& type);
     void applyManufacturerDefaults();
     void loadRadioProfiles();
     void saveRadioProfiles();

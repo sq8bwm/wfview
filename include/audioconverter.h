@@ -100,6 +100,16 @@ struct audioSetup {
     RxAudioProcessor* rxProc = nullptr;
 };
 
+// True when the setup refers to a device that was found on this system.
+// name alone is not enough: it keeps the configured name when the device
+// is missing, so the settings UI can show what was configured.
+inline bool audioSetupHasDevice(const audioSetup& setup)
+{
+    if (setup.type == qtAudio)
+        return !setup.port.isNull();
+    return setup.portInt >= 0;
+}
+
 Q_DECLARE_METATYPE(audioPacket)
 Q_DECLARE_METATYPE(audioSetup)
 
