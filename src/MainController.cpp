@@ -5266,6 +5266,8 @@ void MainController::receiveValueFromQueue(cacheItem val)
         receivers[val.receiver]->setPreamp(val.value.value<uchar>(),false);
         break;
     case funcAGC:
+        receivers[val.receiver]->setAgc(val.value.value<uchar>(),false);
+        break;
     case funcAGCTimeConstant:
         break;
     case funcNoiseBlanker:

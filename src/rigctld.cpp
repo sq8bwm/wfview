@@ -73,7 +73,7 @@ static const subCommandStruct levels_str[] =
     {"KEYSPD",funcKeySpeed,typeUShort},
     {"NOTCHF",funcNotchFilter,typeUChar},
     {"COMP",funcCompressorLevel,typeFloat},
-    {"AGC",funcAGCTimeConstant,typeUChar},
+    {"AGC",funcAGC,typeUChar},
     {"BKINDL",funcBreakInDelay,typeFloat},
     {"BAL",funcNone,typeFloat},
     {"METER",funcNone,typeFloat},
@@ -985,6 +985,14 @@ quint32 rigCtlClient::getAntennas()
     return rigctlcompat::antennaMask(antennaNumbers);
 }
 
+QList<rigctlcompat::AgcEntry> rigCtlClient::agcEntries() const
+{
+    QList<rigctlcompat::AgcEntry> entries;
+    for (const auto &a : rigCaps->agcModes)
+        entries.append({a.num, a.name, a.setOnly, a.readOnly});
+    return entries;
+}
+
 int rigCtlClient::hamlibAntIndexFromRigNum(int rigNum)
 {
     QList<int> antennaNumbers;
@@ -1679,7 +1687,7 @@ int rigCtlClient::getSubCommand(QStringList& response, bool extended, const comm
                         if (params[0] == "FBKIN")
                             v = (v << 1) & 0x02; // BREAKIN is not bool!
                         if (params[0] == "AGC") {
-                            const int agc = rigctlcompat::rigAgcFromHamlib(params[1].toInt());
+                            const int agc = rigctlcompat::rigAgcFromHamlib(params[1].toInt(), agcEntries());
                             if (agc < 0)
                                 return -RIG_EINVAL;
                             v = static_cast<uchar>(agc);
@@ -1737,7 +1745,7 @@ int rigCtlClient::getSubCommand(QStringList& response, bool extended, const comm
                         if (params[0] == "FBKIN")
                             val = (val >> 1) & 0x01;
                         if (params[0] == "AGC") {
-                            val = rigctlcompat::hamlibAgcFromRig(val);
+                            val = rigctlcompat::hamlibAgcFromRig(val, agcEntries());
                             if (val < 0)
                                 return -RIG_EINVAL;
                         }

@@ -57,6 +57,7 @@ class ReceiverController : public QObject
     Q_PROPERTY(ushort nrLevel READ getNrLevel WRITE setNrLevel NOTIFY nrLevelChanged)
     Q_PROPERTY(ushort nbLevel READ getNbLevel WRITE setNbLevel NOTIFY nbLevelChanged)
     Q_PROPERTY(uchar preamp READ getPreamp WRITE setPreamp NOTIFY preampChanged)
+    Q_PROPERTY(uchar agc READ getAgc WRITE setAgc NOTIFY agcChanged)
     Q_PROPERTY(uchar antenna READ getAntenna WRITE setAntenna NOTIFY antennaChanged)
     Q_PROPERTY(bool rxAntenna READ getRxAntenna WRITE setRxAntenna NOTIFY rxAntennaChanged)
 
@@ -164,6 +165,7 @@ public:
     ushort getSquelch() { return squelch;}
     uchar getAttenuator() { return attenuator;}
     uchar getPreamp() { return preamp;}
+    uchar getAgc() { return agc;}
     uchar getNr() { return nr;}
     uchar getNb() { return nb;}
     ushort getNrLevel() { return nrLevel;}
@@ -267,6 +269,7 @@ public slots:
     void setSquelch(ushort v, bool u=true);
     void setAttenuator(uchar v, bool u=true);
     void setPreamp(uchar v, bool u=true);
+    void setAgc(uchar v, bool u=true);
     void setNb(uchar v, bool u=true);
     void setNr(uchar v, bool u=true);
     void setIpPlus(bool v, bool u=true);
@@ -358,6 +361,7 @@ signals:
     void squelchChanged();
     void attenuatorChanged();
     void preampChanged();
+    void agcChanged();
     void nrChanged();
     void nbChanged();
     void nrLevelChanged();
@@ -508,6 +512,7 @@ private:
     ushort squelch = 0;
     uchar attenuator = 0;
     uchar preamp = 0;
+    uchar agc = 0;
     uchar nr = 0;
     uchar nb = 0;
     ushort nrLevel = 0;

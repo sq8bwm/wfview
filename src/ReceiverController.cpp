@@ -1068,6 +1068,20 @@ void ReceiverController::setPreamp(uchar v, bool u)
     }
 }
 
+void ReceiverController::setAgc(uchar v, bool u)
+{
+    if (agc != v)
+    {
+        agc = v;
+        emit agcChanged();
+
+        if (u) {
+            vfoCommandType t = queue->getVfoCommand(vfoA,receiver,true);
+            queue->addUnique(priorityImmediate,queueItem(funcAGC,QVariant::fromValue(agc),false,t.receiver));
+        }
+    }
+}
+
 void ReceiverController::setNr(uchar v, bool u)
 {
     if (nr != v)
@@ -1774,6 +1788,29 @@ void ReceiverController::buildUiSpecs()
             {"step",step},
             {"unit",""},
             {"options",mkGenericOptions(rigCaps->preamps)},
+            {"visible",true}
+        };
+    }
+
+    if (rigCaps->commands.contains(funcAGC))
+    {
+        // Set-only entries (eg Kenwood "AGC ON") are never reported by the rig so
+        // they are not offered here. Read-only entries are listed so the current
+        // state can be shown, but the QML disables them.
+        QVariantList opts;
+        if (rigCaps->agcModes.empty()) {
+            funcType func = rigCaps->commands.find(funcAGC).value();
+            for (int i = func.minVal; i <= func.maxVal; i++)
+                opts.append(QVariantMap{{"text", QString::number(i)}, {"value", i}, {"readOnly", false}});
+        } else {
+            for (const auto &a : rigCaps->agcModes) {
+                if (a.setOnly)
+                    continue;
+                opts.append(QVariantMap{{"text", a.name}, {"value", a.num}, {"readOnly", a.readOnly}});
+            }
+        }
+        uiSpecs["agc"] = QVariantMap{
+            {"options",opts},
             {"visible",true}
         };
     }

@@ -52,20 +52,43 @@ void RigCtlCompatTest::detectsVfoNamesCaseInsensitively()
 
 void RigCtlCompatTest::mapsAgcEnums()
 {
-    QCOMPARE(rigctlcompat::rigAgcFromHamlib(0), 0);
-    QCOMPARE(rigctlcompat::rigAgcFromHamlib(1), 1);
-    QCOMPARE(rigctlcompat::rigAgcFromHamlib(2), 3);
-    QCOMPARE(rigctlcompat::rigAgcFromHamlib(5), 8);
-    QCOMPARE(rigctlcompat::rigAgcFromHamlib(3), 13);
-    QCOMPARE(rigctlcompat::rigAgcFromHamlib(6), -1);
-    QCOMPARE(rigctlcompat::hamlibAgcFromRig(0), 0);
-    QCOMPARE(rigctlcompat::hamlibAgcFromRig(1), 1);
-    QCOMPARE(rigctlcompat::hamlibAgcFromRig(2), 4);
-    QCOMPARE(rigctlcompat::hamlibAgcFromRig(3), 2);
-    QCOMPARE(rigctlcompat::hamlibAgcFromRig(8), 5);
-    QCOMPARE(rigctlcompat::hamlibAgcFromRig(12), 4);
-    QCOMPARE(rigctlcompat::hamlibAgcFromRig(13), 3);
-    QCOMPARE(rigctlcompat::hamlibAgcFromRig(14), -1);
+    // Icom: 00 OFF, 01 FAST, 02 MID, 03 SLOW
+    const QList<rigctlcompat::AgcEntry> icom = {
+        {0, QStringLiteral("OFF"), false, false},
+        {1, QStringLiteral("FAST"), false, false},
+        {2, QStringLiteral("MID"), false, false},
+        {3, QStringLiteral("SLOW"), false, false}};
+    QCOMPARE(rigctlcompat::rigAgcFromHamlib(0, icom), 0);
+    QCOMPARE(rigctlcompat::rigAgcFromHamlib(2, icom), 1);
+    QCOMPARE(rigctlcompat::rigAgcFromHamlib(5, icom), 2);
+    QCOMPARE(rigctlcompat::rigAgcFromHamlib(3, icom), 3);
+    QCOMPARE(rigctlcompat::rigAgcFromHamlib(8, icom), 2); // ON falls back to MID
+    QCOMPARE(rigctlcompat::rigAgcFromHamlib(1, icom), -1);
+    QCOMPARE(rigctlcompat::hamlibAgcFromRig(1, icom), 2);
+    QCOMPARE(rigctlcompat::hamlibAgcFromRig(3, icom), 3);
+    QCOMPARE(rigctlcompat::hamlibAgcFromRig(4, icom), -1);
+
+    // Kenwood TS-890: 4 turns AGC back on and is never reported
+    const QList<rigctlcompat::AgcEntry> kenwood = {
+        {0, QStringLiteral("OFF"), false, false},
+        {1, QStringLiteral("SLOW"), false, false},
+        {2, QStringLiteral("MID"), false, false},
+        {3, QStringLiteral("FAST"), false, false},
+        {4, QStringLiteral("ON"), true, false}};
+    QCOMPARE(rigctlcompat::rigAgcFromHamlib(8, kenwood), 4);
+    QCOMPARE(rigctlcompat::rigAgcFromHamlib(2, kenwood), 3);
+    QCOMPARE(rigctlcompat::hamlibAgcFromRig(1, kenwood), 3);
+    QCOMPARE(rigctlcompat::hamlibAgcFromRig(4, kenwood), -1);
+
+    // Yaesu: AUTO reads back as one of three values
+    const QList<rigctlcompat::AgcEntry> yaesu = {
+        {0, QStringLiteral("OFF"), false, false},
+        {4, QStringLiteral("AUTO"), false, false},
+        {5, QStringLiteral("AUTO (MID)"), false, true},
+        {6, QStringLiteral("AUTO (SLOW)"), false, true}};
+    QCOMPARE(rigctlcompat::rigAgcFromHamlib(6, yaesu), 4);
+    QCOMPARE(rigctlcompat::hamlibAgcFromRig(5, yaesu), 6);
+    QCOMPARE(rigctlcompat::hamlibAgcFromRig(6, yaesu), 6);
 }
 
 void RigCtlCompatTest::formatsSsbBandwidths()

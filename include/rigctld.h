@@ -22,6 +22,7 @@
 #include "rigcommander.h"
 #include "cachingqueue.h"
 #include "wfviewtypes.h"
+#include "rigctlcompat.h"
 
 #define CONSTANT_64BIT_FLAG(BIT) (1ull << (BIT))
 
@@ -197,6 +198,7 @@ private:
     QString getFilter(quint8 mode, quint8 filter);
     quint32 getAntennas();
     int hamlibAntIndexFromRigNum(int rigNum);
+    QList<rigctlcompat::AgcEntry> agcEntries() const;
     quint8 rigAntNumFromHamlibIndex(int hamlibIndex);
     quint64 getRadioModes(QString mode = "");
     QString getAntName(quint8 ant);

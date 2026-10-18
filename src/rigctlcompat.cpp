@@ -77,32 +77,71 @@ bool isVfoName(const QString &name)
            || upperName == QLatin1String("CURR");
 }
 
-int rigAgcFromHamlib(int hamlibAgc)
+// Hamlib agc_level_e values
+enum {
+    hamlibAgcOff = 0,
+    hamlibAgcSuperFast = 1,
+    hamlibAgcFast = 2,
+    hamlibAgcSlow = 3,
+    hamlibAgcUser = 4,
+    hamlibAgcMedium = 5,
+    hamlibAgcAuto = 6,
+    hamlibAgcLong = 7,
+    hamlibAgcOn = 8
+};
+
+int hamlibAgcFromName(const QString &name)
 {
-    switch (hamlibAgc) {
-    case 0: return 0;  // OFF
-    case 1: return 1;  // SUPERFAST, 0.1 sec in SSB modes
-    case 2: return 3;  // FAST, 0.3 sec in SSB modes
-    case 5: return 8;  // MEDIUM, 2.0 sec in SSB modes
-    case 3: return 13; // SLOW, 6.0 sec in SSB modes
-    default: return -1;
+    QString n;
+    for (const QChar c : name.toUpper()) {
+        if (c.isLetter())
+            n.append(c);
     }
+
+    if (n == QLatin1String("OFF"))
+        return hamlibAgcOff;
+    if (n == QLatin1String("SUPERFAST"))
+        return hamlibAgcSuperFast;
+    if (n == QLatin1String("FAST"))
+        return hamlibAgcFast;
+    if (n == QLatin1String("SLOW"))
+        return hamlibAgcSlow;
+    if (n == QLatin1String("USER"))
+        return hamlibAgcUser;
+    if (n == QLatin1String("MID") || n == QLatin1String("MED") || n == QLatin1String("MEDIUM"))
+        return hamlibAgcMedium;
+    if (n.startsWith(QLatin1String("AUTO")))
+        return hamlibAgcAuto;
+    if (n == QLatin1String("LONG"))
+        return hamlibAgcLong;
+    if (n == QLatin1String("ON"))
+        return hamlibAgcOn;
+    return -1;
 }
 
-int hamlibAgcFromRig(int rigAgc)
+int rigAgcFromHamlib(int hamlibAgc, const QList<AgcEntry> &entries)
 {
-    if (rigAgc == 0)
-        return 0; // OFF
-    if (rigAgc == 1)
-        return 1; // SUPERFAST
-    if (rigAgc == 3)
-        return 2; // FAST
-    if (rigAgc == 8)
-        return 5; // MEDIUM
-    if (rigAgc == 13)
-        return 3; // SLOW
-    if (rigAgc >= 2 && rigAgc <= 12)
-        return 4; // USER-selected time constant
+    for (const auto &e : entries) {
+        if (!e.readOnly && hamlibAgcFromName(e.name) == hamlibAgc)
+            return e.num;
+    }
+
+    // Rigs without a separate "AGC ON" command: turn AGC on at medium.
+    if (hamlibAgc == hamlibAgcOn) {
+        for (const auto &e : entries) {
+            if (!e.readOnly && hamlibAgcFromName(e.name) == hamlibAgcMedium)
+                return e.num;
+        }
+    }
+    return -1;
+}
+
+int hamlibAgcFromRig(int rigAgc, const QList<AgcEntry> &entries)
+{
+    for (const auto &e : entries) {
+        if (e.num == rigAgc && !e.setOnly)
+            return hamlibAgcFromName(e.name);
+    }
     return -1;
 }
 

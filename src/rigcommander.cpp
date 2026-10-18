@@ -265,6 +265,7 @@ void rigCommander::determineRigCaps()
 {
     // First clear all of the current settings
     rigCaps.preamps.clear();
+    rigCaps.agcModes.clear();
     rigCaps.attenuators.clear();
     rigCaps.inputs.clear();
     rigCaps.scopeCenterSpans.clear();
@@ -572,6 +573,25 @@ void rigCommander::determineRigCaps()
         }
         std::sort(rigCaps.preamps.begin(), rigCaps.preamps.end(),
                   [](const genericType &a, const genericType &b) {
+                      return a.num < b.num;
+                  });
+
+        settings->endArray();
+    }
+
+    int numAgc = settings->beginReadArray("AGC");
+    if (numAgc == 0) {
+        settings->endArray();
+    }
+    else {
+        for (int c = 0; c < numAgc; c++)
+        {
+            settings->setArrayIndex(c);
+            rigCaps.agcModes.push_back(agcType(settings->value("Num", 0).toString().toUInt(), settings->value("Name", "").toString(),
+                                               settings->value("SetOnly", false).toBool(), settings->value("ReadOnly", false).toBool()));
+        }
+        std::sort(rigCaps.agcModes.begin(), rigCaps.agcModes.end(),
+                  [](const agcType &a, const agcType &b) {
                       return a.num < b.num;
                   });
 

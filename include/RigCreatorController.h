@@ -636,6 +636,7 @@ private:
         {funcTuningStep,"Medium Low",0},
         {funcAttenuator,"Medium Low",0},
         {funcPreamp,"Medium Low",0},
+        {funcAGC,"Medium Low",0},
         {funcAntenna,"Medium Low",0},
         {funcToneSquelchType,"Medium Low",0},
         {funcSMeter,"Highest",0}

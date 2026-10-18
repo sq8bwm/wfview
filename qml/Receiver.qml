@@ -2163,6 +2163,36 @@ Control {
                         }
                     }
 
+                    Label {
+                        text: qsTr("AGC")
+                        Layout.preferredWidth: sideFlick.labelColW
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        visible: agcCombo.visible
+                    }
+                    ComboBox {
+                        id: agcCombo
+                        Layout.fillWidth: true
+
+                        readonly property var spec: controller ? controller.uiSpecs["agc"] : null
+                        visible: spec ? (spec.visible ?? true) : false
+                        model: spec ? (spec.options ?? []) : []
+                        textRole: "text"
+                        valueRole: "value"
+                        currentIndex: controller ? indexFromValue(agcCombo, controller.agc) : -1
+                        // A value missing from the rig file still shows as its raw number.
+                        displayText: (currentIndex < 0 && controller) ? String(controller.agc) : currentText
+
+                        // Read-only entries (eg Yaesu AUTO-MID) show the rig state but can't be picked.
+                        delegate: ItemDelegate {
+                            width: ListView.view ? ListView.view.width : implicitWidth
+                            text: modelData.text
+                            enabled: !(modelData.readOnly ?? false)
+                            highlighted: agcCombo.highlightedIndex === index
+                        }
+
+                        onActivated: controller.agc = currentValue
+                    }
+
                     Item {
                         id: antCtl
                         Layout.columnSpan: 2

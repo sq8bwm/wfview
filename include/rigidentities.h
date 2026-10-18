@@ -264,6 +264,19 @@ struct genericType {
 };
 
 
+// One AGC setting from the rig file. SetOnly entries can be sent but the rig
+// never reports them (Kenwood "AGC ON"); ReadOnly entries are reported by the
+// rig but cannot be selected (Yaesu AUTO-MID/AUTO-SLOW).
+struct agcType {
+    agcType() {}
+    agcType(quint8 num, QString name, bool setOnly, bool readOnly) :
+        num(num), name(name), setOnly(setOnly), readOnly(readOnly) {}
+    quint8 num = 0;
+    QString name;
+    bool setOnly = false;
+    bool readOnly = false;
+};
+
 struct widthsType {
     widthsType():bands(0),num(0),hz(0) {}
     widthsType(ushort bands, uchar num, ushort hz) : bands(bands),num(num),hz(hz) {}
@@ -339,6 +352,7 @@ struct rigCapabilities {
 
     std::vector <genericType> attenuators;
     std::vector <genericType> preamps;
+    std::vector <agcType> agcModes;
     std::vector <genericType> antennas;
     std::vector <filterType> filters;
     std::vector <centerSpanData> scopeCenterSpans;

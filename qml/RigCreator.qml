@@ -402,6 +402,19 @@ ApplicationWindow {
     }
 
     IniTableModel {
+        id: agcModel;
+        store: rig.store;
+        group: "Rig/AGC";
+        columns: ["Num","Name","SetOnly","ReadOnly"]
+    }
+
+    IniSortProxy {
+        id: agcProxy
+        sourceModel: agcModel
+        dynamicSortFilter: true
+    }
+
+    IniTableModel {
         id: attenModel;
         store: rig.store;
         group: "Rig/Attenuators";
@@ -1768,6 +1781,22 @@ ApplicationWindow {
                                 model: preampsProxy
                                 sourceModel: preampsModel
                                 columns: [{ title: qsTr("Num"), name: "Num", width: 40 }, { title: qsTr("Name"), name: "Name", width: 80 }]
+                            }
+                        }
+                    }
+
+                    FlowPanel { prefW: 230; prefH: 260
+                        Loader {
+                            anchors.fill: parent
+                            active: rigCreator.contentReady && !rig.loading
+                            sourceComponent: TablePanel {
+                                anchors.fill: parent
+                                title: qsTr("AGC")
+                                model: agcProxy
+                                sourceModel: agcModel
+                                columns: [{ title: qsTr("Num"), name: "Num", width: 40 }, { title: qsTr("Name"), name: "Name", width: 80 },
+                                          { title: qsTr("SetOnly"), name: "SetOnly", width: 55, editor: "bool" },
+                                          { title: qsTr("ReadOnly"), name: "ReadOnly", width: 55, editor: "bool" }]
                             }
                         }
                     }

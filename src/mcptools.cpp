@@ -63,6 +63,7 @@ const QStringList rigCapSections = {QStringLiteral("modes"),
                                     QStringLiteral("widths"),
                                     QStringLiteral("attenuators"),
                                     QStringLiteral("preamps"),
+                                    QStringLiteral("agc"),
                                     QStringLiteral("antennas"),
                                     QStringLiteral("roofing"),
                                     QStringLiteral("scope"),
@@ -671,6 +672,7 @@ QJsonObject Mcp::rigCapsToJson(const rigCapabilities &caps, const QStringList &s
                               {"filters", int(caps.filters.size())},
                               {"attenuators", int(caps.attenuators.size())},
                               {"preamps", int(caps.preamps.size())},
+                              {"agc", int(caps.agcModes.size())},
                               {"antennas", int(caps.antennas.size())},
                               {"periodic", int(caps.periodic.size())}};
 
@@ -743,6 +745,12 @@ QJsonObject Mcp::rigCapsToJson(const rigCapabilities &caps, const QStringList &s
         o["attenuators"] = genericListJson(caps.attenuators);
     if (want("preamps"))
         o["preamps"] = genericListJson(caps.preamps);
+    if (want("agc")) {
+        QJsonArray agc;
+        for (const agcType &a : caps.agcModes)
+            agc.append(QJsonObject{{"num", int(a.num)}, {"name", a.name}, {"setOnly", a.setOnly}, {"readOnly", a.readOnly}});
+        o["agc"] = agc;
+    }
     if (want("antennas"))
         o["antennas"] = genericListJson(caps.antennas);
     if (want("roofing"))
