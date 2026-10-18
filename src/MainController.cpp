@@ -4439,7 +4439,8 @@ void MainController::handleAudioDeviceProblem(int role, bool isInput, int proble
     else if (problem == audioDeviceNotifier::DeviceUnusable)
         lines << tr("The device may be in use by another program, or may not support the required audio format.");
 
-    emit audioDeviceProblem(headline, lines.join(QLatin1Char('\n')));
+    const QString detailText = lines.join(QLatin1Char('\n'));
+    emitWhenWindowReady([this, headline, detailText]() { emit audioDeviceProblem(headline, detailText); });
 }
 
 bool MainController::usingSerialConnection() const
@@ -4478,7 +4479,27 @@ void MainController::reportSerialPortProblem(const QString& port, const QString&
               << tr("For an unattended server, this warning can be turned off in "
                     "Settings \u2192 Radio Server; wfview will then keep retrying the port.");
 
-    emit serialPortProblem(headline, lines.join(QLatin1Char('\n')));
+    const QString detailText = lines.join(QLatin1Char('\n'));
+    emitWhenWindowReady([this, headline, detailText]() { emit serialPortProblem(headline, detailText); });
+}
+
+void MainController::emitWhenWindowReady(std::function<void()> alert)
+{
+    if (m_windowReady)
+        alert();
+    else
+        m_pendingWindowAlerts.append(std::move(alert));
+}
+
+void MainController::windowReady()
+{
+    if (m_windowReady)
+        return;
+    m_windowReady = true;
+    const auto pending = std::move(m_pendingWindowAlerts);
+    m_pendingWindowAlerts.clear();
+    for (const auto& alert : pending)
+        alert();
 }
 
 void MainController::receivePortError(errorType err)
@@ -6787,6 +6808,8 @@ void MainController::setManufacturer(manufacturersType_t man)
 #endif
 
     QDir systemRigDir(systemRigLocation);
+    // Rig description files found for any manufacturer.
+    int rigFilesFound = 0;
 
     if (!systemRigDir.exists()) {
         qWarning() << "********* Rig directory " << systemRigLocation << "does not exist ********";
@@ -6806,6 +6829,7 @@ void MainController::setManufacturer(manufacturersType_t man)
                 delete rigSettings;
                 continue;
             }
+            rigFilesFound++;
 
             float ver = rigSettings->value("Version","0.0").toString().toFloat();
 
@@ -6842,6 +6866,7 @@ void MainController::setManufacturer(manufacturersType_t man)
                 delete rigSettings;
                 continue;
             }
+            rigFilesFound++;
 
             float ver = rigSettings->value("Version","0.0").toString().toFloat();
 
@@ -6870,6 +6895,28 @@ void MainController::setManufacturer(manufacturersType_t man)
             rigSettings->endGroup();
             delete rigSettings;
         }
+    }
+
+    QString problem;
+    if (rigFilesFound == 0) {
+        const auto describe = [](const QDir& dir) {
+            return dir.exists()
+                ? tr("%1 (no rig files)").arg(QDir::toNativeSeparators(dir.absolutePath()))
+                : tr("%1 (folder not found)").arg(QDir::toNativeSeparators(dir.absolutePath()));
+        };
+        const auto logDescribe = [](const QDir& dir) {
+            return QDir::toNativeSeparators(dir.absolutePath())
+                   + (dir.exists() ? " (no rig files)" : " (folder not found)");
+        };
+        qCritical(logRig()).noquote() << "No rig files were found. Locations searched:"
+                                      << logDescribe(systemRigDir) << "and" << logDescribe(userRigDir);
+        problem = tr("No rig definition files were found, so wfview cannot identify or control a radio. "
+                     "Reinstalling wfview should restore them.\n\nLocations searched:\n%1\n%2")
+                      .arg(describe(systemRigDir), describe(userRigDir));
+    }
+    if (m_rigFilesProblem != problem) {
+        m_rigFilesProblem = problem;
+        emit rigFilesProblemChanged();
     }
 }
 

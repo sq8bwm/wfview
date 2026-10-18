@@ -990,6 +990,9 @@ ApplicationWindow {
         function onSerialPortProblem(headline, detail) {
             serialPortProblemDialog.showProblem(headline, detail)
         }
+        function onRigFilesProblemChanged() {
+            rigFilesProblemDialog.showIfNeeded()
+        }
     }
 
     // Connection problem dialogs (audio device, serial port) can be raised
@@ -998,6 +1001,7 @@ ApplicationWindow {
 
     function problemDialogShowing() {
         return audioDeviceProblemDialog.visible || serialPortProblemDialog.visible
+               || rigFilesProblemDialog.visible
     }
 
     function presentProblemDialog(dlg) {
@@ -1094,6 +1098,76 @@ ApplicationWindow {
                 Button {
                     text: qsTr("OK")
                     onClicked: serialPortProblemDialog.close()
+                }
+            }
+        }
+    }
+
+    // Shown when no rig definition files were found at startup (or after a
+    // manufacturer change).
+    Dialog {
+        id: rigFilesProblemDialog
+        title: qsTr("Rig files not found")
+        width: Math.min(560, win.width - 40)
+        height: Math.round(implicitHeight * 1.2)
+        x: Math.round((win.width - width) / 2)
+        y: Math.round((win.height - height) / 2)
+        visible: false
+        modal: true
+        closePolicy: Popup.NoAutoClose
+
+        background: Rectangle {
+            color: win.palette.window
+            border.color: win.palette.highlight
+            border.width: 1
+            radius: 4
+        }
+
+        function showIfNeeded() {
+            if (MainController && MainController.rigFilesProblem !== "")
+                win.presentProblemDialog(rigFilesProblemDialog)
+        }
+
+        function present() {
+            win.ensureWindowFitsPopup(rigFilesProblemDialog)
+            open()
+            forceActiveFocus()
+        }
+
+        onClosed: {
+            if (!win.presentNextProblemDialog())
+                win.shrinkAfterDialog()
+        }
+
+        ColumnLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.margins: 12
+            spacing: 12
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("wfview could not find any rig files.")
+                horizontalAlignment: Text.AlignHCenter
+                font.bold: true
+                color: win.palette.windowText
+                wrapMode: Text.WordWrap
+            }
+            Label {
+                Layout.fillWidth: true
+                text: MainController ? MainController.rigFilesProblem : ""
+                horizontalAlignment: Text.AlignHCenter
+                color: win.palette.windowText
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: qsTr("OK")
+                    onClicked: rigFilesProblemDialog.close()
                 }
             }
         }
@@ -2708,6 +2782,11 @@ ApplicationWindow {
         // the radio connection until hasRunSetup is true.
         if (MainController.settings && MainController.settings.option("Program.HasRunSetup") !== true)
             Qt.callLater(firstTimeSetup.begin)
+        // The rig file scan runs before this window exists.
+        Qt.callLater(rigFilesProblemDialog.showIfNeeded)
+        // Serial/audio alerts raised by the startup connect, before this
+        // window existed. They queue behind any dialog already showing.
+        Qt.callLater(function() { MainController.windowReady() })
     }
 
 }

@@ -1367,6 +1367,8 @@ void servermain::setManufacturer(manufacturersType_t man)
 #endif
 
     QDir systemRigDir(systemRigLocation);
+    // Rig description files found for any manufacturer.
+    int rigFilesFound = 0;
 
     if (!systemRigDir.exists()) {
         qWarning() << "********* Rig directory does not exist ********";
@@ -1385,6 +1387,7 @@ void servermain::setManufacturer(manufacturersType_t man)
                 delete rigSettings;
                 continue;
             }
+            rigFilesFound++;
 
             float ver = rigSettings->value("Version","0.0").toString().toFloat();
 
@@ -1421,6 +1424,7 @@ void servermain::setManufacturer(manufacturersType_t man)
                 delete rigSettings;
                 continue;
             }
+            rigFilesFound++;
 
             float ver = rigSettings->value("Version","0.0").toString().toFloat();
 
@@ -1451,4 +1455,12 @@ void servermain::setManufacturer(manufacturersType_t man)
         }
     }
 
+    if (rigFilesFound == 0) {
+        const auto describe = [](const QDir& dir) {
+            return QDir::toNativeSeparators(dir.absolutePath())
+                   + (dir.exists() ? " (no rig files)" : " (folder not found)");
+        };
+        qCritical(logRig()).noquote() << "No rig files were found. Locations searched:"
+                                      << describe(systemRigDir) << "and" << describe(userRigDir);
+    }
 }

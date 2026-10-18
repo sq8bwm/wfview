@@ -11,6 +11,7 @@
 #include <QTimer>
 #include <QVariantMap>
 #include <QVersionNumber>
+#include <functional>
 
 #include "ReceiverController.h"
 #include "RigCreatorController.h"
@@ -111,6 +112,8 @@ public:
     Q_PROPERTY(QVariantMap repeaterState READ repeaterState NOTIFY repeaterStateChanged)
     Q_PROPERTY(QVariantList repeaterToneModel READ repeaterToneOptions NOTIFY repeaterModelsChanged)
     Q_PROPERTY(QVariantList repeaterDtcsModel READ repeaterDtcsOptions NOTIFY repeaterModelsChanged)
+    // Non-empty when no rig definition files were found; lists the folders searched.
+    Q_PROPERTY(QString rigFilesProblem READ rigFilesProblem NOTIFY rigFilesProblemChanged)
 
     Q_DECLARE_FLAGS(prefIfItems, prefIfItem)
     Q_DECLARE_FLAGS(prefRsItems, prefRsItem)
@@ -136,6 +139,7 @@ public:
     QString getWindowTitle() const { return windowTitle; }
     QString footerMessageText() const { return m_footerMessageText; }
     QString radioStatusText() const { return m_radioStatusText; }
+    QString rigFilesProblem() const { return m_rigFilesProblem; }
     QString rigModelName() const { return m_rigModelName; }
     QString clusterOutputText() const { return m_clusterOutputText; }
 
@@ -143,6 +147,10 @@ public:
     int getCurrentReceiver() const { return currentReceiver; }
 
     Q_INVOKABLE void updateApplicationPalette();
+    // Called by MainWindow.qml once it can show dialogs. Problem alerts
+    // raised before then (the startup connect runs before QML loads) are
+    // held and emitted here.
+    Q_INVOKABLE void windowReady();
 
     Q_INVOKABLE QObject* receiver(int i) const {
         if (i < 0 || i >= receivers.size()) return nullptr;
@@ -345,6 +353,7 @@ signals:
     void audioDeviceProblem(QString headline, QString detail);
     // The radio serial port could not be used when connecting.
     void serialPortProblem(QString headline, QString detail);
+    void rigFilesProblemChanged();
     void runningMacroChanged();
     void closingActionsTextChanged();
     void receiverCountChanged();
@@ -558,6 +567,10 @@ private:
     // A serial port warning was already given (or deliberately skipped) for
     // this connection; reconnect attempts repeat the same error.
     bool m_serialPortProblemReported = false;
+    bool m_windowReady = false;
+    QList<std::function<void()>> m_pendingWindowAlerts;
+    void emitWhenWindowReady(std::function<void()> alert);
+    QString m_rigFilesProblem;
     QString m_radioStatusText;
     QString m_rigModelName;
     QString m_clusterOutputText;
