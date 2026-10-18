@@ -6,177 +6,257 @@ import WFVIEW 1.0
 
 ApplicationWindow {
     id: firstTimeSetupWindow
-    title: qsTr("First Time Setup")
-    width: 518
-    height: 443
+    title: qsTr("Welcome to wfview")
+    color: palette.window
+    width: 540
+    height: 460
+    minimumWidth: 480
+    minimumHeight: 400
 
     modality: Qt.ApplicationModal
     flags: Qt.Dialog | Qt.FramelessWindowHint
-    
-    // Signals to emit
+
+    readonly property bool _sysTheme: MainController.settings.options["Interface.UseSystemTheme"] === true
+
+    palette {
+        window: _sysTheme ? undefined : MainController.settings.options["Color.Window"]
+        windowText: _sysTheme ? undefined : MainController.settings.options["Color.WindowText"]
+        base: _sysTheme ? undefined : MainController.settings.options["Color.Base"]
+        alternateBase: _sysTheme ? undefined : MainController.settings.options["Color.AlternateBase"]
+        text: _sysTheme ? undefined : MainController.settings.options["Color.MainText"]
+        button: _sysTheme ? undefined : MainController.settings.options["Color.Button"]
+        buttonText: _sysTheme ? undefined : MainController.settings.options["Color.ButtonText"]
+        brightText: _sysTheme ? undefined : MainController.settings.options["Color.BrightText"]
+        highlight: _sysTheme ? undefined : MainController.settings.options["Color.Highlight"]
+        highlightedText: _sysTheme ? undefined : MainController.settings.options["Color.HighlightedText"]
+        mid: _sysTheme ? undefined : MainController.settings.options["Color.Mid"]
+        dark: _sysTheme ? undefined : MainController.settings.options["Color.Dark"]
+        light: _sysTheme ? undefined : MainController.settings.options["Color.Light"]
+        placeholderText: _sysTheme ? undefined : MainController.settings.options["Color.PlaceholderText"]
+    }
+
+    // Exit: quit wfview, setup is not marked complete.
+    // showSettings: finished the wizard, go to Settings -> Radio Access.
+    // skipSetup: user will configure on their own.
     signal exitProgram()
-    signal showSettings(bool isNetwork)
+    signal showSettings(bool isNetwork, int manufacturer)
     signal skipSetup()
-    
-    // Internal state
-    property int setupState: 0  // 0 = initial, 1 = step2
+
+    // Steps: 0 = manufacturer, 1 = connection, 2 = information needed
+    readonly property int stepManufacturer: 0
+    readonly property int stepConnection: 1
+    readonly property int stepInfo: 2
+    readonly property int lastStep: stepInfo
+
+    property int setupState: stepManufacturer
+    property int manufacturer: 0   // manufacturersType_t: 0 Icom, 1 Kenwood, 2 Yaesu
     property bool isNetwork: true
-    
-    // Text content
-    readonly property string serialText1: qsTr("Serial Port Name")
-    readonly property string serialText2: qsTr("Baud Rate")
-    readonly property string serialText3: ""
-    
-    readonly property string networkText1: qsTr("Radio IP address, UDP Port Numbers")
-    readonly property string networkText2: qsTr("Radio Username, Radio Password")
-    readonly property string networkText3: qsTr("Mic and Speaker on THIS PC")
-    
+
+    readonly property var manufacturerNames: [qsTr("Icom"), qsTr("Kenwood"), qsTr("Yaesu")]
+
+    readonly property var neededDetails: {
+        if (!isNetwork) {
+            var serial = [qsTr("Serial port name (for example COM3 or /dev/ttyUSB0)"),
+                          qsTr("Baud rate, as set in the radio's menu")]
+            if (manufacturer === 0)
+                serial.push(qsTr("The radio's CI-V address, only if it is an older radio without CI-V Transceive"))
+            return serial
+        }
+        switch (manufacturer) {
+        case 1:
+            return [qsTr("Radio IP address"),
+                    qsTr("KNS administrator username and password"),
+                    qsTr("Mic and speaker on THIS PC")]
+        case 2:
+            return [qsTr("Radio IP address"),
+                    qsTr("CAT, audio and scope port numbers"),
+                    qsTr("Mic and speaker on THIS PC")]
+        default:
+            return [qsTr("Radio IP address and UDP port numbers"),
+                    qsTr("Radio network username and password"),
+                    qsTr("Mic and speaker on THIS PC")]
+        }
+    }
+
+    // Reset to the first step, preselect the current settings, and show.
+    function begin() {
+        const s = MainController.settings
+        const m = s ? Number(s.option("Radio.Manufacturer")) : 0
+        manufacturer = (m >= 0 && m <= 2) ? m : 0
+        setupState = stepManufacturer
+
+        const owner = transientParent
+        const platform = String(MainController.platformName())
+        if (owner && platform.indexOf("wayland") === -1) {
+            x = owner.x + Math.round((owner.width - width) / 2)
+            y = owner.y + Math.round((owner.height - height) / 2)
+        }
+        show()
+        raise()
+        requestActivate()
+    }
+
+    // Frameless window, so draw a border
     Rectangle {
         anchors.fill: parent
-        color: palette.window
-        
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 20
-            spacing: 20
-            
-            // Title
-            Label {
-                Layout.fillWidth: true
-                text: qsTr("Welcome to wfview!")
-                font.pixelSize: 24
-                horizontalAlignment: Text.AlignHCenter
-            }
-            
-            // Step 1: Connection type
-            GroupBox {
-                id: step1GroupBox
-                Layout.fillWidth: true
-                title: qsTr("How is your radio connected?")
-                visible: setupState === 0
-                
-                ColumnLayout {
-                    anchors.fill: parent
-                    spacing: 10
-                    
+        color: "transparent"
+        border.color: palette.mid
+        border.width: 1
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: 20
+        spacing: 16
+
+        Label {
+            Layout.fillWidth: true
+            text: qsTr("Welcome to wfview!")
+            font.pixelSize: 24
+            horizontalAlignment: Text.AlignHCenter
+        }
+
+        Label {
+            Layout.fillWidth: true
+            text: qsTr("A few quick questions to get you started. You will then be taken to the Settings so you can enter your radio's connection details.")
+            wrapMode: Text.WordWrap
+            horizontalAlignment: Text.AlignHCenter
+        }
+
+        Label {
+            Layout.fillWidth: true
+            text: qsTr("Step %1 of %2").arg(setupState + 1).arg(lastStep + 1)
+            horizontalAlignment: Text.AlignHCenter
+            opacity: 0.7
+        }
+
+        // Step 1: Manufacturer
+        GroupBox {
+            Layout.fillWidth: true
+            title: qsTr("What brand is your radio?")
+            visible: setupState === stepManufacturer
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 8
+
+                Repeater {
+                    model: manufacturerNames
                     RadioButton {
-                        id: serialPortThisPC
-                        text: qsTr("Serial Port on this PC")
-                        onCheckedChanged: if (checked) isNetwork = false
-                    }
-                    
-                    RadioButton {
-                        id: usbPortThisPC
-                        text: qsTr("USB Port on This PC")
-                        onCheckedChanged: if (checked) isNetwork = false
-                    }
-                    
-                    RadioButton {
-                        id: ethernetNetwork
-                        text: qsTr("Ethernet Network")
-                        onCheckedChanged: if (checked) isNetwork = true
-                    }
-                    
-                    RadioButton {
-                        id: wifiNetwork
-                        text: qsTr("WiFi Network")
-                        checked: true
-                        onCheckedChanged: if (checked) isNetwork = true
+                        text: modelData
+                        Accessible.name: qsTr("%1 radio").arg(modelData)
+                        checked: firstTimeSetupWindow.manufacturer === index
+                        onToggled: if (checked) firstTimeSetupWindow.manufacturer = index
                     }
                 }
             }
-            
-            // Step 2: What you'll need
-            GroupBox {
-                id: step2GroupBox
-                Layout.fillWidth: true
-                title: qsTr("You will need the following information:")
-                visible: setupState === 1
-                
-                ColumnLayout {
-                    anchors.fill: parent
-                    spacing: 15
-                    
+        }
+
+        // Step 2: Connection type
+        GroupBox {
+            Layout.fillWidth: true
+            title: qsTr("How is your radio connected?")
+            visible: setupState === stepConnection
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 8
+
+                ButtonGroup { id: connectionGroup }
+
+                RadioButton {
+                    text: qsTr("Serial Port on this PC")
+                    ButtonGroup.group: connectionGroup
+                    onToggled: if (checked) isNetwork = false
+                }
+
+                RadioButton {
+                    text: qsTr("USB Port on This PC")
+                    ButtonGroup.group: connectionGroup
+                    onToggled: if (checked) isNetwork = false
+                }
+
+                RadioButton {
+                    text: qsTr("Ethernet Network")
+                    ButtonGroup.group: connectionGroup
+                    onToggled: if (checked) isNetwork = true
+                }
+
+                RadioButton {
+                    text: qsTr("WiFi Network")
+                    ButtonGroup.group: connectionGroup
+                    checked: true
+                    onToggled: if (checked) isNetwork = true
+                }
+            }
+        }
+
+        // Step 3: What you'll need
+        GroupBox {
+            Layout.fillWidth: true
+            title: qsTr("For your %1 radio, you will need the following information:")
+                   .arg(manufacturerNames[manufacturer])
+            visible: setupState === stepInfo
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 12
+
+                Repeater {
+                    model: neededDetails
                     Label {
-                        id: neededDetailsLabel1
                         Layout.fillWidth: true
-                        text: isNetwork ? networkText1 : serialText1
+                        text: "• " + modelData
                         wrapMode: Text.WordWrap
                         font.pixelSize: 14
-                    }
-                    
-                    Label {
-                        id: neededDetailsLabel2
-                        Layout.fillWidth: true
-                        text: isNetwork ? networkText2 : serialText2
-                        wrapMode: Text.WordWrap
-                        font.pixelSize: 14
-                        visible: text !== ""
-                    }
-                    
-                    Label {
-                        id: neededDetailsLabel3
-                        Layout.fillWidth: true
-                        text: isNetwork ? networkText3 : serialText3
-                        wrapMode: Text.WordWrap
-                        font.pixelSize: 14
-                        visible: text !== ""
                     }
                 }
             }
-            
-            // Spacer
-            Item {
-                Layout.fillHeight: true
+        }
+
+        Item { Layout.fillHeight: true }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
+
+            Button {
+                text: qsTr("Exit Program")
+                Accessible.name: qsTr("Exit wfview")
+                onClicked: {
+                    firstTimeSetupWindow.close()
+                    exitProgram()
+                }
             }
-            
-            // Buttons
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-                
-                Button {
-                    text: qsTr("Exit Program")
-                    onClicked: {
-                        exitProgram()
+
+            Button {
+                text: qsTr("I'll Do This On My Own")
+                Accessible.name: qsTr("Skip the welcome screen")
+                onClicked: {
+                    firstTimeSetupWindow.close()
+                    skipSetup()
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Button {
+                text: qsTr("Back")
+                visible: setupState > stepManufacturer
+                onClicked: setupState--
+            }
+
+            Button {
+                text: setupState < lastStep ? qsTr("Next") : qsTr("Finish")
+                Accessible.name: setupState < lastStep ? qsTr("Next Step")
+                                                       : qsTr("Finish Welcome Screen and proceed to Settings")
+                highlighted: true
+                onClicked: {
+                    if (setupState < lastStep) {
+                        setupState++
+                    } else {
                         firstTimeSetupWindow.close()
-                    }
-                }
-                
-                Button {
-                    text: qsTr("I'll Do This On My Own")
-                    onClicked: {
-                        skipSetup()
-                        firstTimeSetupWindow.close()
-                    }
-                }
-                
-                Item {
-                    Layout.fillWidth: true
-                }
-                
-                Button {
-                    id: backBtn
-                    text: qsTr("Back")
-                    visible: setupState === 1
-                    onClicked: {
-                        setupState = 0
-                    }
-                }
-                
-                Button {
-                    id: nextBtn
-                    text: setupState === 0 ? qsTr("Next") : qsTr("Finish")
-                    highlighted: true
-                    onClicked: {
-                        if (setupState === 0) {
-                            // Go to step 2
-                            setupState = 1
-                        } else {
-                            // Finish
-                            showSettings(isNetwork)
-                            firstTimeSetupWindow.close()
-                        }
+                        showSettings(isNetwork, manufacturer)
                     }
                 }
             }

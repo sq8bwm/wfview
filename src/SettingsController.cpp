@@ -3521,6 +3521,11 @@ void SettingsController::buildBindings()
     // -------------------------
     // LAN group
     // -------------------------
+    // -------------------------
+    // Program group
+    // -------------------------
+    WF_BOOL("Program.HasRunSetup", prefs.hasRunSetup, [](){});
+
     WF_BOOL("LAN.EnableLAN", prefs.enableLAN,
             [this](){ emit lanChanged(prefLanItems(prefLanItem::l_enableLAN)); });
 

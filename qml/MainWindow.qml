@@ -706,16 +706,29 @@ ApplicationWindow {
         visible: false
 
         onExitProgram: {
-            Qt.quit()
+            // Leave hasRunSetup false so the welcome screen returns next launch.
+            console.info("First time setup: user elected to exit the program.")
+            win.finishQuit(false)
         }
 
-        onShowSettings: function(isNetwork) {
-            showSettingsWindow()
-            win.visible = true
+        onShowSettings: function(isNetwork, manufacturer) {
+            console.info("First time setup: showing Radio Access settings.")
+            const s = MainController.settings
+            if (s) {
+                s.setOption("Radio.Manufacturer", manufacturer)
+                s.setOption("LAN.EnableLAN", isNetwork)
+                s.setOption("Program.HasRunSetup", true)
+            }
+            if (!settingsLoader.active)
+                settingsLoader.active = true
+            if (settingsLoader.item)
+                settingsLoader.item.showRadioAccess(win)
         }
 
         onSkipSetup: {
-            win.visible = true
+            console.info("First time setup: user elected to skip the setup.")
+            if (MainController.settings)
+                MainController.settings.setOption("Program.HasRunSetup", true)
         }
     }
 
@@ -2691,10 +2704,10 @@ ApplicationWindow {
         MainController.updateApplicationPalette();
         win.height = win.minimumHeight
         restoreWindowGeometry()
-        // Check if this is the first run
-        //if (MainController.isFirstRun()) {
-        //    firstTimeSetup.visible = true
-        //}
+        // First run: show the welcome screen. MainController does not open
+        // the radio connection until hasRunSetup is true.
+        if (MainController.settings && MainController.settings.option("Program.HasRunSetup") !== true)
+            Qt.callLater(firstTimeSetup.begin)
     }
 
 }

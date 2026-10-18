@@ -193,6 +193,11 @@ ApplicationWindow {
         return boolValue(controller.options[key], fallback)
     }
 
+    function showRadioAccess(ownerWindow) {
+        settingsStack.currentIndex = 0
+        showOnScreen(ownerWindow)
+    }
+
     function showAudioProcessing() {
         settingsStack.currentIndex = 11
         showOnScreen()
