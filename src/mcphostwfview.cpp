@@ -76,20 +76,6 @@ QString txInputName(TxAudioInput input)
     return QString::number(int(input));
 }
 
-// Matches MainController::setManufacturer().
-QString systemRigLocation()
-{
-#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
-    return QCoreApplication::applicationDirPath() + "/../Resources/rigs";
-#elif !defined(Q_OS_LINUX)
-    return QCoreApplication::applicationDirPath() + "/rigs";
-#else
-    return qEnvironmentVariable("APPDIR").isEmpty()
-               ? QString(PREFIX "/share/wfview/rigs")
-               : QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/wfview/rigs";
-#endif
-}
-
 QJsonObject dirJson(const QString &path)
 {
     const QDir dir(path);
@@ -281,7 +267,11 @@ QJsonObject McpHostWfview::rigFiles()
 
     QJsonObject d;
     d["manufacturer"] = Mcp::manufacturerName(m_mc->prefs->manufacturer);
-    d["systemRigFolder"] = dirJson(systemRigLocation());
+    d["systemRigFolder"] = dirJson(MainController::systemRigLocation());
+    QJsonArray searched;
+    for (const QString &candidate : MainController::systemRigLocationCandidates())
+        searched.append(dirJson(candidate));
+    d["systemRigFoldersSearched"] = searched;
     d["userRigFolder"] = dirJson(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/rigs");
     d["note"] = QStringLiteral("A user rig file overrides a system one with the same CI-V address when its version "
                                "is the same or newer.");

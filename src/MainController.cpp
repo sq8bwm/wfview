@@ -7174,31 +7174,67 @@ void MainController::loadSettings(QString settingsFile)
 }
 */
 
+QStringList MainController::systemRigLocationCandidates()
+{
+    QStringList candidates;
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+    candidates << QCoreApplication::applicationDirPath() + "/../Resources/rigs";
+#elif !defined(Q_OS_LINUX)
+    candidates << QCoreApplication::applicationDirPath() + "/rigs";
+#else
+    const QString appDir = qEnvironmentVariable("APPDIR");
+    if (appDir.isEmpty()) {
+        candidates << QString(PREFIX "/share/wfview/rigs");
+    } else {
+        // Running as an AppImage, so PREFIX is not useful. The installer puts rigs in
+        // ~/.local/share (user install) or /usr/local/share (root install); fall back
+        // to the copy bundled inside the AppImage.
+        candidates << QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/wfview/rigs";
+        for (const QString &dataDir : QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation))
+            candidates << dataDir + "/wfview/rigs";
+        candidates << QStringLiteral("/usr/local/share/wfview/rigs")
+                   << QStringLiteral("/usr/share/wfview/rigs")
+                   << appDir + "/usr/share/wfview/rigs";
+    }
+#endif
+    candidates.removeDuplicates();
+    return candidates;
+}
+
+QString MainController::systemRigLocation()
+{
+    // Prefer a folder that holds rig files, so an empty folder does not hide a populated one.
+    const QStringList candidates = systemRigLocationCandidates();
+    QString firstExisting;
+    for (const QString &candidate : candidates) {
+        const QDir dir(candidate);
+        if (!dir.exists())
+            continue;
+        if (!dir.entryList(QStringList() << "*.rig" << "*.RIG", QDir::Files).isEmpty())
+            return candidate;
+        if (firstExisting.isEmpty())
+            firstExisting = candidate;
+    }
+    if (!firstExisting.isEmpty())
+        return firstExisting;
+    return candidates.isEmpty() ? QString() : candidates.first();
+}
+
 void MainController::setManufacturer(manufacturersType_t man)
 {
 
     this->rigList.clear();
     qInfo() << "Searching for radios with Manufacturer =" << man;
 
-#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
-    QString systemRigLocation = QCoreApplication::applicationDirPath() + "/../Resources/rigs";
-#elif !defined(Q_OS_LINUX)
-    QString systemRigLocation = QCoreApplication::applicationDirPath() + "/rigs";
-#else
-    // When running as an AppImage, APPDIR is set and PREFIX is not useful.
-    QString systemRigLocation = qEnvironmentVariable("APPDIR").isEmpty()
-        ? QString(PREFIX "/share/wfview/rigs")
-        : QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/wfview/rigs";
-#endif
-
+    const QString systemRigLocation = MainController::systemRigLocation();
     QDir systemRigDir(systemRigLocation);
     // Rig description files found for any manufacturer.
     int rigFilesFound = 0;
 
     if (!systemRigDir.exists()) {
-        qWarning() << "********* Rig directory " << systemRigLocation << "does not exist ********";
+        qWarning() << "********* No rig directory found. Searched:" << systemRigLocationCandidates().join(", ") << "********";
     } else {
-        qDebug(logRig()) << "Loaded rigs from directory " << systemRigLocation;
+        qInfo(logRig()) << "Using system rig file directory" << systemRigLocation;
         QStringList rigs = systemRigDir.entryList(QStringList() << "*.rig" << "*.RIG", QDir::Files);
         for (QString &rig: rigs) {
             QSettings* rigSettings = new QSettings(systemRigDir.absoluteFilePath(rig), QSettings::Format::IniFormat);
@@ -7292,11 +7328,19 @@ void MainController::setManufacturer(manufacturersType_t man)
             return QDir::toNativeSeparators(dir.absolutePath())
                    + (dir.exists() ? " (no rig files)" : " (folder not found)");
         };
+        QStringList searchedLog;
+        QStringList searchedUi;
+        for (const QString& candidate : systemRigLocationCandidates()) {
+            searchedLog << logDescribe(QDir(candidate));
+            searchedUi << describe(QDir(candidate));
+        }
+        searchedLog << logDescribe(userRigDir);
+        searchedUi << describe(userRigDir);
         qCritical(logRig()).noquote() << "No rig files were found. Locations searched:"
-                                      << logDescribe(systemRigDir) << "and" << logDescribe(userRigDir);
+                                      << searchedLog.join(", ");
         problem = tr("No rig definition files were found, so wfview cannot identify or control a radio. "
-                     "Reinstalling wfview should restore them.\n\nLocations searched:\n%1\n%2")
-                      .arg(describe(systemRigDir), describe(userRigDir));
+                     "Reinstalling wfview should restore them.\n\nLocations searched:\n%1")
+                      .arg(searchedUi.join("\n"));
     }
     if (m_rigFilesProblem != problem) {
         m_rigFilesProblem = problem;

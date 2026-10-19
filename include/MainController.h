@@ -64,6 +64,10 @@ public:
     enum connectionType_t { connectionUSB, connectionLAN, connectionWiFi, connectionWAN };
     Q_ENUM (connectionType_t)
 
+    // System rig folders in search order; the first one that exists is used.
+    static QStringList systemRigLocationCandidates();
+    static QString systemRigLocation();
+
     Q_PROPERTY(QString windowTitle READ getWindowTitle WRITE setWindowTitle NOTIFY windowTitleChanged)
     Q_PROPERTY(QString footerMessageText READ footerMessageText NOTIFY footerMessageTextChanged)
     Q_PROPERTY(QString radioStatusText READ radioStatusText NOTIFY radioStatusTextChanged)
