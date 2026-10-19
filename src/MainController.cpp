@@ -334,7 +334,7 @@ MainController::MainController(QString settingsFile, QString logFileName, bool d
     setupRigCtlServer();
     setupTciServer();
     setupClusterClient();
-    if (prefs->hasRunSetup) {
+    if (prefs->hasRunSetup && !m_settings->upgradedFromLegacyVersion()) {
         if (prefs->wfShareEnabled) {
             QTimer::singleShot(3000, this, &MainController::openRigConnection);
         } else {

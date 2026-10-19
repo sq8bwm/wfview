@@ -957,6 +957,14 @@ void SettingsController::load()
     prefs.hasRunSetup = settings->value("hasRunSetup", defPrefs.hasRunSetup).toBool();
     settings->endGroup();
 
+    // Settings carried over from wfview 1.x/2.x are reviewed before the first
+    // connect. A missing settings file leaves hasRunSetup false, which runs
+    // first time setup instead.
+    const int priorMajorVersion = priorVersionString.section('.', 0, 0).toInt();
+    m_upgradedFromLegacy = prefs.hasRunSetup && priorMajorVersion >= 1 && priorMajorVersion < 3;
+    if (m_upgradedFromLegacy)
+        qInfo(logSystem()) << "Settings from wfview" << priorVersionString << "found, not connecting automatically.";
+
     // UI: (full screen, dark theme, draw peaks, colors, etc)
     settings->beginGroup("Interface");
     prefs.useFullScreen = settings->value("UseFullScreen", defPrefs.useFullScreen).toBool();

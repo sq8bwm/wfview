@@ -1012,7 +1012,7 @@ ApplicationWindow {
 
     function problemDialogShowing() {
         return audioDeviceProblemDialog.visible || serialPortProblemDialog.visible
-               || rigFilesProblemDialog.visible
+               || rigFilesProblemDialog.visible || legacyUpgradeDialog.visible
     }
 
     function presentProblemDialog(dlg) {
@@ -1109,6 +1109,91 @@ ApplicationWindow {
                 Button {
                     text: qsTr("OK")
                     onClicked: serialPortProblemDialog.close()
+                }
+            }
+        }
+    }
+
+    // Shown at startup when the settings were last saved by wfview 1.x or 2.x.
+    // MainController does not connect automatically in that case.
+    Dialog {
+        id: legacyUpgradeDialog
+        title: qsTr("Welcome to wfview version 3")
+        width: Math.min(560, win.width - 40)
+        height: Math.round(implicitHeight * 1.2)
+        x: Math.round((win.width - width) / 2)
+        y: Math.round((win.height - height) / 2)
+        visible: false
+        modal: true
+        closePolicy: Popup.NoAutoClose
+
+        background: Rectangle {
+            color: win.palette.window
+            border.color: win.palette.highlight
+            border.width: 1
+            radius: 4
+        }
+
+        function showIfNeeded() {
+            if (MainController.settings && MainController.settings.upgradedFromLegacyVersion())
+                win.presentProblemDialog(legacyUpgradeDialog)
+        }
+
+        function present() {
+            win.ensureWindowFitsPopup(legacyUpgradeDialog)
+            open()
+            legacyUpgradeOkButton.forceActiveFocus()
+        }
+
+        onClosed: {
+            if (!settingsLoader.active)
+                settingsLoader.active = true
+            if (settingsLoader.item)
+                settingsLoader.item.showRadioAccess(win)
+            if (!win.presentNextProblemDialog())
+                win.shrinkAfterDialog()
+        }
+
+        ColumnLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.margins: 12
+            spacing: 12
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Welcome to wfview version 3")
+                horizontalAlignment: Text.AlignHCenter
+                font.bold: true
+                color: win.palette.windowText
+                wrapMode: Text.WordWrap
+            }
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Please take a moment to review your audio, network and serial settings before connecting to your radio")
+                horizontalAlignment: Text.AlignHCenter
+                color: win.palette.windowText
+                wrapMode: Text.WordWrap
+            }
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Once you have verified your settings, press 'Save Settings' to disable this note")
+                horizontalAlignment: Text.AlignHCenter
+                color: win.palette.windowText
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Button {
+                    id: legacyUpgradeOkButton
+                    text: qsTr("Ok")
+                    onClicked: legacyUpgradeDialog.close()
+                    Keys.onReturnPressed: legacyUpgradeDialog.close()
+                    Keys.onEnterPressed: legacyUpgradeDialog.close()
+                    Keys.onEscapePressed: legacyUpgradeDialog.close()
                 }
             }
         }
@@ -2740,6 +2825,8 @@ ApplicationWindow {
         // the radio connection until hasRunSetup is true.
         if (MainController.settings && MainController.settings.option("Program.HasRunSetup") !== true)
             Qt.callLater(firstTimeSetup.begin)
+        else
+            Qt.callLater(legacyUpgradeDialog.showIfNeeded)
         // The rig file scan runs before this window exists.
         Qt.callLater(rigFilesProblemDialog.showIfNeeded)
         // Serial/audio alerts raised by the startup connect, before this

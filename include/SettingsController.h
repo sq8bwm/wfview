@@ -802,6 +802,8 @@ public:
 
     QQmlPropertyMap* options() const { return m_options; }
     bool dirty() const { return m_dirty; }
+    // True when the settings file was last saved by wfview 1.x or 2.x.
+    Q_INVOKABLE bool upgradedFromLegacyVersion() const { return m_upgradedFromLegacy; }
 
     // Generic key/value API (still useful for C++ and QML writes)
     Q_INVOKABLE QVariant option(const QString& key) const;
@@ -978,6 +980,7 @@ private:
 
     QQmlPropertyMap* m_options = nullptr;
     bool m_dirty = false;
+    bool m_upgradedFromLegacy = false;
     QVector<QVariantMap> m_receiverSettings;
     QVariantList m_radioProfiles;
     int m_currentRadioProfileIndex = -1;
