@@ -47,6 +47,7 @@ using rfft_plan = rfft_plan_i*;
 class SpeexNrProcessor;   // forward — defined in speexnrprocessor.h
 class AnrNrProcessor;     // forward — defined in anrnrprocessor.h
 class TriplePara;         // forward — defined in triple_para.h
+class CwSidetoneGenerator; // forward — defined in cwsidetonegenerator.h
 
 class RxAudioProcessor : public QObject
 {
@@ -111,6 +112,10 @@ public:
     // Runtime RX mute — silences received audio (sidetone still passes).
     // Not a persisted setting; defaults to unmuted. Thread-safe.
     void setMuted(bool muted);
+
+    // CW Sender sidetone, rendered at the RX stream rate and mixed after mute.
+    // Thread-safe.
+    void setCwSidetone(std::shared_ptr<CwSidetoneGenerator> generator);
 
     // ── Getters ───────────────────────────────────────────────────────────────
     bool  bypassed()       const;
@@ -235,6 +240,7 @@ private:
     QString             m_sidetoneFormat;          // format string (e.g. "float32")
     double              m_sidetoneResampleFrac = 0.0; // fractional sample carry-over for interpolation
     bool                m_sidetoneLoggedOnce   = false; // one-shot format diagnostic
+    std::shared_ptr<CwSidetoneGenerator> m_cwSidetone;
 
     // ── Per-block state (converter thread only, no locking needed) ────────────
     float  m_activeSR       = 0.0f;

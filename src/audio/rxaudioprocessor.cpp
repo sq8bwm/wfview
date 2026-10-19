@@ -13,6 +13,7 @@
 #include "anrnrprocessor.h"
 #include "triple_para.h"
 #include "rxaudioprocessor.h"
+#include "cwsidetonegenerator.h"
 #include "logcategories.h"
 #include <cmath>
 #include <algorithm>
@@ -377,16 +378,21 @@ void RxAudioProcessor::appendSpectrumSamples(const Eigen::VectorXf& in,
 // Mixes buffered sidetone into the RX output, with linear-interpolation
 // resampling when the sidetone sample rate differs from the RX stream rate.
 // Handles mono and stereo output (sidetone is always mono → duplicated to
-// both channels for stereo).
+// both channels for stereo). The CW Sender sidetone is rendered here too.
 
 void RxAudioProcessor::mixSidetone(Eigen::VectorXf& samples, int channels,
                                    const Params& /*p*/)
 {
     QMutexLocker lk(&m_sidetoneMutex);
-    if (m_sidetoneBuf.empty()) return;
 
     const int n      = static_cast<int>(samples.size());
     const int frames = (channels == 2) ? n / 2 : n;
+
+    // Rendered at the stream rate, so no resampling is needed.
+    if (m_cwSidetone)
+        m_cwSidetone->mixInto(samples.data(), frames, channels, m_activeSR);
+
+    if (m_sidetoneBuf.empty()) return;
     const int bufLen = static_cast<int>(m_sidetoneBuf.size());
 
     // Compute resample ratio: how many sidetone samples per output frame.
@@ -430,6 +436,12 @@ void RxAudioProcessor::mixSidetone(Eigen::VectorXf& samples, int channels,
         m_sidetoneBuf.erase(m_sidetoneBuf.begin(),
                             m_sidetoneBuf.begin() + consumed);
     m_sidetoneResampleFrac = srcPos - consumed;
+}
+
+void RxAudioProcessor::setCwSidetone(std::shared_ptr<CwSidetoneGenerator> generator)
+{
+    QMutexLocker lk(&m_sidetoneMutex);
+    m_cwSidetone = std::move(generator);
 }
 
 // ─── injectSidetone ──────────────────────────────────────────────────────────
