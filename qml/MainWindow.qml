@@ -2048,76 +2048,19 @@ ApplicationWindow {
                     spacing: win.mainControlSpacing
                     visible: win.radioConnected && win.showTuningDial
 
-                    Dial {
-                        // Wheel tunes like the spectrum does, rather than stepping the
-                        // wrapping knob value.
-                        WheelArea {
-                            customHandler: true
-                            onWheeled: function(angleDelta, modifiers) {
-                                if (dialReceiver)
-                                    dialReceiver.onWheelTune(angleDelta, modifiers)
-                            }
-                        }
+                    TuningKnob {
                         id: freqDial
-                        property real lastValue: value
-                        property bool syncing: false
-                        property double lastMoveTime: 0
-                        property int lastDirection: 0
-                        property int fastMoveCount: 0
                         Layout.preferredWidth: win.mainControlDialSize
                         Layout.preferredHeight: win.mainControlDialSize
-                        from: 3000
-                        to: 4000
-                        stepSize: 10
-                        wrap: true
                         visible: win.radioConnected
                         enabled: dialReceiver !== null
-                        onMoved: {
-                            if (syncing || !dialReceiver)
-                                return
-
-                            const fullSweep = to - from
-                            var delta = value - lastValue
-                            if (delta > fullSweep / 2)
-                                delta -= fullSweep
-                            else if (delta < -fullSweep / 2)
-                                delta += fullSweep
-
-                            var direction = 0
-                            if (Math.abs(delta) < stepSize)
-                                direction = delta > 0 ? 1 : -1
-                            else
-                                direction = Math.round(delta / stepSize) > 0 ? 1 : -1
-
-                            if (direction !== 0) {
-                                const now = Date.now()
-                                const elapsed = lastMoveTime > 0 ? Math.max(1, now - lastMoveTime) : 0
-                                var multiplier = 1
-
-                                if (direction === lastDirection && elapsed > 0 && elapsed <= 90)
-                                    fastMoveCount += 1
-                                else
-                                    fastMoveCount = 0
-
-                                if (fastMoveCount >= 5 && elapsed <= 35)
-                                    multiplier = 10
-                                else if (fastMoveCount >= 3 && elapsed <= 60)
-                                    multiplier = 5
-                                else if (fastMoveCount >= 2 && elapsed <= 90)
-                                    multiplier = 2
-
-                                dialReceiver.tuneSteps(direction * multiplier, 0, true)
-                                lastDirection = direction
-                                lastMoveTime = now
-                            }
-
-                            lastValue = value
+                        onStepped: function(steps) {
+                            if (dialReceiver)
+                                dialReceiver.tuneSteps(steps, 0, true)
                         }
-                        Component.onCompleted: {
-                            lastValue = value
-                            lastMoveTime = 0
-                            lastDirection = 0
-                            fastMoveCount = 0
+                        onWheeled: function(angleDelta, modifiers) {
+                            if (dialReceiver)
+                                dialReceiver.onWheelTune(angleDelta, modifiers)
                         }
                     }
                 }

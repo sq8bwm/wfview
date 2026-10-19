@@ -396,31 +396,30 @@ void ReceiverController::onWheelTune(int angleDeltaY, int modifiers)
     //if (freqLock)
     //    return;
 
-    if (angleDeltaY != 0)
-        holdFrequencyUpdates(false);
-
-    // Convert angle delta to "steps" like QWidget wheel notches.
-    // Typical mouse wheel: 120 per notch.
-    const int steps = angleDeltaY / 120;
-    if (steps == 0)
+    if (angleDeltaY == 0)
         return;
 
-    const qreal stepsToScroll = QGuiApplication::styleHints()->wheelScrollLines() * steps;
+    holdFrequencyUpdates(false);
+
+    // Work in fractional notches (120 units = one standard notch).
+    // High-resolution wheels and touchpads deliver many small deltas per
+    // notch, which must accumulate rather than be truncated away.
+    const qreal stepsToScroll = QGuiApplication::styleHints()->wheelScrollLines() * angleDeltaY / 120.0;
 
     // Did we change direction?
-    if ((scrollWheelOffsetAccumulated > 0 && steps > 0) ||
-        (scrollWheelOffsetAccumulated < 0 && steps < 0)) {
+    if ((scrollWheelOffsetAccumulated > 0 && stepsToScroll > 0) ||
+        (scrollWheelOffsetAccumulated < 0 && stepsToScroll < 0)) {
         scrollWheelOffsetAccumulated += stepsToScroll;
     } else {
         scrollWheelOffsetAccumulated = stepsToScroll;
     }
 
-    const int clicks = int(scrollWheelOffsetAccumulated);
+    const int clicks = int(scrollWheelOffsetAccumulated); // truncates toward zero
     if (!clicks)
         return;
 
+    scrollWheelOffsetAccumulated -= clicks;
     tuneSteps(clicks, modifiers);
-    scrollWheelOffsetAccumulated = 0.0;
 }
 
 void ReceiverController::tuneSteps(int steps, int modifiers, bool uniqueQueue)

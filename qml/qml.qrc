@@ -19,6 +19,7 @@
         <file>AudioProcessing.qml</file>
         <file>CollapsibleSection.qml</file>
         <file>WheelArea.qml</file>
+        <file>TuningKnob.qml</file>
         <file>TextEditMenu.qml</file>
         <file>MacroEditor.qml</file>
     </qresource>

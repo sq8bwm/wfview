@@ -853,8 +853,14 @@ void FreqCtrlQuick::wheelEvent(QWheelEvent *event)
     QPointF   pt = event->position();
 #endif
     int       delta = m_InvertScrolling ? -event->angleDelta().y() : event->angleDelta().y();
-    qreal     numDegrees = delta / 8;
-    qreal     offset = numDegrees / 15;
+    // Zero-delta events (horizontal scroll, touchpad phase begin/end) must not
+    // reset the accumulator below.
+    if (delta == 0)
+        return;
+
+    // Work in fractional notches (120 units = one standard notch) so the many
+    // small deltas from high-resolution wheels and touchpads accumulate.
+    qreal     offset = delta / 120.0;
 
     qreal stepsToScroll = QGuiApplication::styleHints()->wheelScrollLines() * offset;
 
@@ -867,8 +873,10 @@ void FreqCtrlQuick::wheelEvent(QWheelEvent *event)
         scrollWheelOffsetAccumulated = stepsToScroll;
     }
 
-    int numSteps = qRound(scrollWheelOffsetAccumulated);
+    int numSteps = int(scrollWheelOffsetAccumulated); // truncates toward zero
     scrollWheelOffsetAccumulated -= numSteps;
+    if (numSteps == 0)
+        return;
 
     for (int i = m_DigStart; i < m_NumDigits; i++)
     {
@@ -881,7 +889,6 @@ void FreqCtrlQuick::wheelEvent(QWheelEvent *event)
                 decFreq();
         }
     }
-    scrollWheelOffsetAccumulated = 0;
     event->setAccepted(true);
 }
 
