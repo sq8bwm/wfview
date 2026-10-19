@@ -1,6 +1,7 @@
 #ifndef MAINCONTROLLER_H
 #define MAINCONTROLLER_H
 
+#include <QDateTime>
 #include <QDeadlineTimer>
 #include <QElapsedTimer>
 #include <QHash>
@@ -114,6 +115,10 @@ public:
     Q_PROPERTY(QVariantList repeaterDtcsModel READ repeaterDtcsOptions NOTIFY repeaterModelsChanged)
     // Non-empty when no rig definition files were found; lists the folders searched.
     Q_PROPERTY(QString rigFilesProblem READ rigFilesProblem NOTIFY rigFilesProblemChanged)
+    Q_PROPERTY(bool serverRunning READ serverRunning NOTIFY serverStatusChanged)
+    Q_PROPERTY(QString serverStatusText READ serverStatusText NOTIFY serverStatusChanged)
+    Q_PROPERTY(int serverUsersLoggedIn READ serverUsersLoggedIn NOTIFY serverStatusChanged)
+    Q_PROPERTY(int serverTotalLogins READ serverTotalLogins NOTIFY serverStatusChanged)
 
     Q_DECLARE_FLAGS(prefIfItems, prefIfItem)
     Q_DECLARE_FLAGS(prefRsItems, prefRsItem)
@@ -140,6 +145,10 @@ public:
     QString footerMessageText() const { return m_footerMessageText; }
     QString radioStatusText() const { return m_radioStatusText; }
     QString rigFilesProblem() const { return m_rigFilesProblem; }
+    bool serverRunning() const { return server != nullptr && m_serverListening; }
+    QString serverStatusText() const;
+    int serverUsersLoggedIn() const;
+    int serverTotalLogins() const { return m_serverTotalLogins; }
     QString rigModelName() const { return m_rigModelName; }
     QString clusterOutputText() const { return m_clusterOutputText; }
 
@@ -354,6 +363,7 @@ signals:
     // The radio serial port could not be used when connecting.
     void serialPortProblem(QString headline, QString detail);
     void rigFilesProblemChanged();
+    void serverStatusChanged();
     void runningMacroChanged();
     void closingActionsTextChanged();
     void receiverCountChanged();
@@ -462,7 +472,7 @@ private slots:
     //void ctChanged(prefCtItems items);
     //void clusterChanged(prefClusterItems items);
     //void udpChanged(prefUDPItems items);
-    //void serverChanged(prefServerItems items);
+    void serverChanged(SettingsController::prefServerItems items);
 
 private:
 #ifdef WFVIEW_MCP
@@ -526,6 +536,18 @@ private:
     void stopRigCtlServer();
     void setupTciServer();
     void stopTciServer();
+    // The built-in radio server, for a radio on a serial port.
+    void setupRadioServer();
+    void stopRadioServer();
+    void updateServerRadio();
+    void sendUsersToServer();
+    void handleServerLogin(const QString& username, const QString& address);
+    void handleServerLogout(const QString& username, const QString& address);
+    void publishServerStatus();
+    // Yaesu servers leave opening the radio's audio to the application.
+    void ensureServerRxAudio(quint8 codec, quint32 sampleRate);
+    void ensureServerTxAudio(quint8 codec, quint32 sampleRate);
+    void stopServerHostAudio();
     void setupTciRxBridge();
     void stopTciRxBridge();
     void setupUsbAudioBridge();
@@ -582,7 +604,6 @@ private:
 
     preferences* prefs;
     udpPreferences* udpPrefs;
-    SERVERCONFIG* serverConfig;
 
     QHash<quint16,rigInfo> rigList;
     rigCapabilities* rigCaps = nullptr;
@@ -590,6 +611,19 @@ private:
     cachingQueue* queue;
     rigServer* server = nullptr;
     QThread* serverThread = nullptr;
+    struct serverSession {
+        QString username;
+        QString address;
+        QDateTime since;
+    };
+    // Signals from a stopped server are ignored by comparing generations.
+    int m_serverGeneration = 0;
+    bool m_serverListening = false;
+    QString m_serverError;
+    QDateTime m_serverStartedAt;
+    QList<serverSession> m_serverSessions;
+    QSet<QString> m_serverSeenUsers;
+    int m_serverTotalLogins = 0;
     rigCtlD* rigCtl = nullptr;
     tciServer* tci = nullptr;
     QThread* tciThread = nullptr;

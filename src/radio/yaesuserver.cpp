@@ -82,18 +82,26 @@ void yaesuServer::init()
 
     if (!controlSocket->bind(listenAddress, config->controlPort)) {
         qWarning(logRigServer()) << "Yaesu server could not bind control" << listenAddress.toString() << config->controlPort << controlSocket->errorString();
+        emit listening(false, tr("Could not use UDP port %1 (control) on %2: %3")
+                                  .arg(config->controlPort).arg(listenAddress.toString(), controlSocket->errorString()));
         return;
     }
     if (!catSocket->bind(listenAddress, config->civPort)) {
         qWarning(logRigServer()) << "Yaesu server could not bind CAT" << listenAddress.toString() << config->civPort << catSocket->errorString();
+        emit listening(false, tr("Could not use UDP port %1 (CAT) on %2: %3")
+                                  .arg(config->civPort).arg(listenAddress.toString(), catSocket->errorString()));
         return;
     }
     if (!audioSocket->bind(listenAddress, config->audioPort)) {
         qWarning(logRigServer()) << "Yaesu server could not bind audio" << listenAddress.toString() << config->audioPort << audioSocket->errorString();
+        emit listening(false, tr("Could not use UDP port %1 (audio) on %2: %3")
+                                  .arg(config->audioPort).arg(listenAddress.toString(), audioSocket->errorString()));
         return;
     }
     if (!scopeSocket->bind(listenAddress, config->scopePort)) {
         qWarning(logRigServer()) << "Yaesu server could not bind scope" << listenAddress.toString() << config->scopePort << scopeSocket->errorString();
+        emit listening(false, tr("Could not use UDP port %1 (scope) on %2: %3")
+                                  .arg(config->scopePort).arg(listenAddress.toString(), scopeSocket->errorString()));
         return;
     }
 
@@ -106,6 +114,11 @@ void yaesuServer::init()
                           << "CAT" << config->civPort
                           << "audio" << config->audioPort
                           << "scope" << config->scopePort;
+
+    wdTimer = new QTimer(this);
+    connect(wdTimer, &QTimer::timeout, this, &yaesuServer::watchdog);
+    wdTimer->start(5000);
+    emit listening(true, QString());
 }
 
 yaesuServer::~yaesuServer()
@@ -283,8 +296,9 @@ void yaesuServer::processControl(const PendingDatagram& datagram)
     switch (header->msgtype) {
     case C2R_Login:
     {
+        QString username;
         if (decoded.size() < int(sizeof(yaesuC2R_LoginFrame)) ||
-            !authenticate(reinterpret_cast<const yaesuC2R_LoginFrame*>(decoded.constData()))) {
+            !authenticate(reinterpret_cast<const yaesuC2R_LoginFrame*>(decoded.constData()), &username)) {
             qInfo(logRigServer()) << "Yaesu server rejected login from" << datagram.address.toString();
             return;
         }
@@ -292,6 +306,7 @@ void yaesuServer::processControl(const PendingDatagram& datagram)
         CLIENT* client = new CLIENT();
         client->connected = true;
         client->authenticated = true;
+        client->user = username;
         client->ipAddress = datagram.address;
         client->port = datagram.port;
         client->timeConnected = QDateTime::currentDateTime();
@@ -318,15 +333,14 @@ void yaesuServer::processControl(const PendingDatagram& datagram)
         reply.valc = 1;
         sendControlFrame(datagram.address, datagram.port, &reply, sizeof(reply));
         qInfo(logRigServer()) << "Yaesu server login accepted from" << datagram.address.toString() << "session" << session;
+        emit userLoggedIn(client->user, client->ipAddress.toString());
         break;
     }
     case C2R_Logout:
     {
         if (decoded.size() >= int(sizeof(yaesuC2R_LogoutFrame))) {
             const auto* logout = reinterpret_cast<const yaesuC2R_LogoutFrame*>(decoded.constData());
-            CLIENT* client = clients.take(logout->session);
-            releaseAudioForClient(client);
-            delete client;
+            removeClient(logout->session, "logged out");
             sendResult(controlSocket, datagram.address, datagram.port, ScuLan, R2C_LogoutReply, 1);
         }
         break;
@@ -400,6 +414,11 @@ void yaesuServer::processControl(const PendingDatagram& datagram)
         break;
     }
     case C2R_HealthCheck:
+        if (decoded.size() >= int(sizeof(yaesuC2R_HeartbeatFrame))) {
+            const auto* beat = reinterpret_cast<const yaesuC2R_HeartbeatFrame*>(decoded.constData());
+            if (CLIENT* client = clientForSession(beat->session))
+                client->lastHeard = QDateTime::currentDateTime();
+        }
         sendHealth(controlSocket, datagram.address, datagram.port, ScuLan);
         break;
     default:
@@ -664,7 +683,7 @@ bool yaesuServer::hasAudioClientForGuid(const quint8* guid) const
     return false;
 }
 
-bool yaesuServer::authenticate(const yaesuC2R_LoginFrame* login) const
+bool yaesuServer::authenticate(const yaesuC2R_LoginFrame* login, QString* matchedUser) const
 {
     const auto boundedLength = [](const char* text, size_t maxLen) -> int {
         const void* end = memchr(text, '\0', maxLen);
@@ -675,12 +694,58 @@ bool yaesuServer::authenticate(const yaesuC2R_LoginFrame* login) const
     QByteArray encodedPassword;
     passcode(password, encodedPassword);
 
-    for (const SERVERUSER& user : config->users) {
-        if (user.username == username && (user.password == password || user.password == encodedPassword)) {
+    *matchedUser = username;
+    for (const SERVERUSER& user : users) {
+        // A blank stored password never matches, so blank accounts cannot log in.
+        if (user.username == username && !user.password.isEmpty() &&
+            (user.password == password || user.password == encodedPassword)) {
+            if (user.userType == serverUserDisabled) {
+                qInfo(logRigServer()) << "Yaesu server user" << username << "is disabled";
+                return false;
+            }
             return true;
         }
     }
-    return config->users.isEmpty();
+    return users.isEmpty();
+}
+
+void yaesuServer::removeClient(quint32 session, const char* reason)
+{
+    CLIENT* client = clients.take(session);
+    if (client == nullptr)
+        return;
+
+    qInfo(logRigServer()) << "Yaesu server session" << session << "from" << client->ipAddress.toString() << reason;
+    releaseAudioForClient(client);
+    if (client->authenticated)
+        emit userLoggedOut(client->user, client->ipAddress.toString());
+    delete client;
+}
+
+void yaesuServer::dropUnauthorizedClients()
+{
+    // An open server (no users at all) has nobody to drop.
+    if (users.isEmpty())
+        return;
+
+    const QList<quint32> sessions = clients.keys();
+    for (quint32 session : sessions) {
+        CLIENT* client = clients.value(session);
+        if (client != nullptr && findLoginUser(client->user) == nullptr)
+            removeClient(session, "disconnected as the account was removed or disabled");
+    }
+}
+
+void yaesuServer::watchdog()
+{
+    // wfview clients send a health check every second.
+    const QDateTime now = QDateTime::currentDateTime();
+    const QList<quint32> sessions = clients.keys();
+    for (quint32 session : sessions) {
+        CLIENT* client = clients.value(session);
+        if (client != nullptr && client->lastHeard.secsTo(now) > 30)
+            removeClient(session, "timed out");
+    }
 }
 
 yaesuServer::CLIENT* yaesuServer::clientForSession(quint32 session)

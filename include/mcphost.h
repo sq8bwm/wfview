@@ -58,6 +58,13 @@ public:
     virtual McpHostResult setOption(const QString &key, const QJsonValue &value, bool save);
     virtual McpHostResult setTransmit(bool on);
 
+    // The built-in radio server: its state, logged-in users and accounts.
+    // The default reports that the application does not report one.
+    virtual QJsonObject radioServer();
+    // Changes the access level of an existing radio server user; access is
+    // one of admin, normal, noTx or disabled.
+    virtual McpHostResult setServerUserAccess(const QString &username, const QString &access, bool save);
+
     // Keys or unkeys the transmitter. When keying, MCP unkeys it again after
     // maxSeconds unless a client unkeys it first.
     McpHostResult transmitFor(bool on, int maxSeconds);

@@ -82,6 +82,7 @@ recording on or off.
 | `set_traffic_capture` | Start (for up to 15 minutes) or stop recording radio and network traffic. |
 | `get_traffic` | Captured traffic as hex, and as text for Kenwood/Yaesu CAT, filterable by kind, direction and content. |
 | `get_setting_options` | Settings that can be changed by name, with their current values (including unsaved changes). |
+| `get_radio_server` | The built-in radio server: enabled, running or why not, protocol, address, ports and audio devices, who is logged in from where, logins since it started, and each user's access level and status. wfview only. |
 
 ### Write tools
 
@@ -98,6 +99,7 @@ Only with `--mcp-allow-write`. Each call is logged at info level in the `mcp` lo
 | `invalidate_cache` | Removes one function's cache entries and asks the radio again, or empties the cache. |
 | `set_rigctld` | Turns wfview's rigctld server on or off and sets its port. |
 | `rigctld_command` | Sends a command line to wfview's rigctld over a local TCP connection and returns the reply. |
+| `set_radio_server` | Turns the radio server on or off and changes an existing user's access level (`admin`, `normal`, `noTx`, `disabled`). A disabled or removed user is disconnected at once. wfview only. |
 
 Frequency, mode, commands and raw bytes all go through the command queue, like rigctld and TCI
 requests. Settings are limited to an allow-list of groups (`AudioProc`, `Cluster`, `Color`,

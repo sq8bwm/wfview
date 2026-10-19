@@ -968,6 +968,16 @@ McpTools::McpTools(McpHost *host, const McpAppInfo &info, const std::atomic_bool
              {"peaks", schemaInt("How many of the strongest signals to list (default 10).", 0, maxSpectrumPeaks)}},
             [this](const QJsonObject &a) { return toolSpectrum(a); });
 
+    addTool("get_radio_server",
+            "Radio server",
+            "Returns the built-in radio server (remote access to a radio on a serial port): whether it is "
+            "enabled and running and why not, its protocol, address and ports, the server audio devices, who is "
+            "logged in from where, the number of logins since it started, and every user account with its "
+            "access level and status (logged in, logged out or never seen since the server started). Passwords "
+            "are masked.",
+            {},
+            [this](const QJsonObject &a) { return toolRadioServer(a); });
+
     addTool("get_setting_options",
             "Setting options",
             "Lists the settings that can be read and changed by name (the names set_setting takes) with their current "
@@ -1057,6 +1067,18 @@ McpTools::McpTools(McpHost *host, const McpAppInfo &info, const std::atomic_bool
                   {"port", schemaInt("TCP port (wfview's default is 4533).", 1, 65535)},
                   {"save", schemaBool("Then save all settings to the settings file (default false).")}},
                  [this](const QJsonObject &a) { return toolSetRigctld(a); });
+
+    addWriteTool("set_radio_server",
+                 "Configure radio server",
+                 "Turns the built-in radio server on or off, and changes an existing user's access level, through "
+                 "the same settings as the settings dialog. A user made disabled, or removed, is disconnected at "
+                 "once and cannot log in. The server only runs while a radio on a serial port is connected. "
+                 "Returns the server state as get_radio_server does.",
+                 {{"enabled", schemaBool("Run the radio server.")},
+                  {"user", schemaString("Username of the account to change.")},
+                  {"access", schemaEnum("New access level for user.", {"admin", "normal", "noTx", "disabled"})},
+                  {"save", schemaBool("Then save all settings to the settings file (default false).")}},
+                 [this](const QJsonObject &a) { return toolSetRadioServer(a); });
 
     addWriteTool("rigctld_command",
                  "rigctld command",
@@ -2202,6 +2224,65 @@ McpToolResult McpTools::toolSetRigctld(const QJsonObject &args)
                     return out;
             }
             out.data = host->connectionInfo().value("rigctld").toObject();
+            out.data["saved"] = save;
+            return out;
+        },
+        &result);
+
+    if (!answered)
+        r.error = hostTimeoutText(hostTimeoutMs);
+    else if (!result.ok)
+        r.error = result.error;
+    r.data = result.data;
+    return r;
+}
+
+McpToolResult McpTools::toolRadioServer(const QJsonObject &)
+{
+    McpToolResult r;
+    McpHost *host = m_host;
+    if (!onHost<QJsonObject>([host]() { return host->radioServer(); }, &r.data))
+        r.error = hostTimeoutText(hostTimeoutMs);
+    return r;
+}
+
+McpToolResult McpTools::toolSetRadioServer(const QJsonObject &args)
+{
+    McpToolResult r;
+    const QJsonValue enabled = args.value("enabled");
+    const QString user = args.value("user").toString();
+    const QString access = args.value("access").toString();
+    if (!enabled.isBool() && user.isEmpty())
+    {
+        r.error = QStringLiteral("Give enabled, or user with access, or both.");
+        return r;
+    }
+    if (user.isEmpty() != access.isEmpty())
+    {
+        r.error = QStringLiteral("Give user and access together.");
+        return r;
+    }
+    const bool save = args.value("save").toBool();
+
+    McpHostResult result;
+    McpHost *host = m_host;
+    const bool answered = onHost<McpHostResult>(
+        [host, enabled, user, access, save]() {
+            McpHostResult out;
+            // Only the last change saves, since saving writes every setting.
+            if (!user.isEmpty())
+            {
+                out = host->setServerUserAccess(user, access, save && !enabled.isBool());
+                if (!out.ok)
+                    return out;
+            }
+            if (enabled.isBool())
+            {
+                out = host->setOption(QStringLiteral("Server.Enabled"), enabled, save);
+                if (!out.ok)
+                    return out;
+            }
+            out.data = host->radioServer();
             out.data["saved"] = save;
             return out;
         },

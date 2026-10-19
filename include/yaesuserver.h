@@ -47,6 +47,7 @@ private:
 	struct CLIENT {
 		bool connected = false;
         bool authenticated = false;
+        QString user;
 		QString type;
 		QHostAddress ipAddress;
 		quint16 port;
@@ -86,7 +87,10 @@ private:
     void requestAudioForClient(CLIENT* client);
     void releaseAudioForClient(CLIENT* client);
     bool hasAudioClientForGuid(const quint8* guid) const;
-    bool authenticate(const yaesuC2R_LoginFrame* login) const;
+    bool authenticate(const yaesuC2R_LoginFrame* login, QString* username) const;
+    void removeClient(quint32 session, const char* reason);
+    void dropUnauthorizedClients() override;
+    void watchdog();
     CLIENT* clientForSession(quint32 session);
     CLIENT* clientForEndpoint(const QHostAddress& address, quint16 port, quint16 CLIENT::*memberPort);
     void sendControlFrame(const QHostAddress& address, quint16 port, const void* data, qsizetype len);
@@ -104,6 +108,7 @@ private:
     QUdpSocket* audioSocket = nullptr;
     QUdpSocket* scopeSocket = nullptr;
     QMap<quint32, CLIENT*> clients;
+    QTimer* wdTimer = nullptr;
     quint32 nextSession = 1;
     quint16 txCatPacketId = 0;
 };

@@ -2695,6 +2695,7 @@ ApplicationWindow {
                                         readonly property int wUser: 180
                                         readonly property int wPass: 180
                                         readonly property int wType: 180
+                                        readonly property int wStatus: 120
                                         readonly property int rowH: 34
                                         readonly property int pad: 6
 
@@ -2735,6 +2736,7 @@ ApplicationWindow {
                                                     Label { width: serverUsersRoot.wUser; height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Username"); font.bold: true }
                                                     Label { width: serverUsersRoot.wPass; height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Password"); font.bold: true }
                                                     Label { width: serverUsersRoot.wType; height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Access"); font.bold: true }
+                                                    Label { width: serverUsersRoot.wStatus; height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Status"); font.bold: true }
                                                 }
                                             }
 
@@ -2775,7 +2777,8 @@ ApplicationWindow {
                                                                 selectByMouse: true
                                                                 onPressed: serverUsersRoot.currentRow = index
                                                                 onActiveFocusChanged: if (activeFocus) serverUsersRoot.currentRow = index
-                                                                onEditingFinished: serverUsersRoot.usersModel.setRoleValue(index, serverUsersRoot.usersModel.UsernameRole, text)
+                                                                onTextEdited: serverUsersRoot.usersModel.setUsername(index, text)
+                                                                onEditingFinished: serverUsersRoot.usersModel.setUsername(index, text)
                                                             }
 
                                                             TextField {
@@ -2784,10 +2787,13 @@ ApplicationWindow {
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 echoMode: TextInput.PasswordEchoOnEdit
                                                                 text: model.password
+                                                                // Stored passwords are encoded, so they are not shown.
+                                                                // Typing here replaces the stored password.
+                                                                placeholderText: model.hasSavedPassword ? qsTr("(saved)") : ""
                                                                 selectByMouse: true
                                                                 onPressed: serverUsersRoot.currentRow = index
                                                                 onActiveFocusChanged: if (activeFocus) serverUsersRoot.currentRow = index
-                                                                onEditingFinished: serverUsersRoot.usersModel.setRoleValue(index, serverUsersRoot.usersModel.PasswordRole, text)
+                                                                onTextEdited: serverUsersRoot.usersModel.setPassword(index, text)
                                                             }
 
                                                             ComboBox {
@@ -2800,14 +2806,25 @@ ApplicationWindow {
                                                                 model: [
                                                                     { text: qsTr("Admin User"), value: 0 },
                                                                     { text: qsTr("Normal User"), value: 1 },
-                                                                    { text: qsTr("Normal with no TX"), value: 2 }
+                                                                    { text: qsTr("Normal with no TX"), value: 2 },
+                                                                    { text: qsTr("Disabled"), value: 3 }
                                                                 ]
                                                                 currentIndex: indexFromValue(serverUserTypeCombo, userType)
                                                                 onActiveFocusChanged: if (activeFocus) serverUsersRoot.currentRow = index
                                                                 onActivated: {
                                                                     serverUsersRoot.currentRow = index
-                                                                    serverUsersRoot.usersModel.setRoleValue(index, serverUsersRoot.usersModel.UserTypeRole, currentValue)
+                                                                    serverUsersRoot.usersModel.setUserType(index, currentValue)
                                                                 }
+                                                            }
+
+                                                            Label {
+                                                                width: serverUsersRoot.wStatus
+                                                                height: parent.height
+                                                                verticalAlignment: Text.AlignVCenter
+                                                                elide: Text.ElideRight
+                                                                text: model.userStatusName
+                                                                font.bold: model.userStatus === 1
+                                                                Accessible.name: qsTr("Status: %1").arg(text)
                                                             }
                                                         }
                                                     }
@@ -2820,11 +2837,41 @@ ApplicationWindow {
 
                                 Label {
                                     id: serverDisconnectLabel
-                                    text: qsTr("Please disconnect from radio to make changes to the server settings")
+                                    text: window.connStatus === 0
+                                          ? qsTr("Press \"Connect to Radio\" before starting the server")
+                                          : qsTr("To make changes to the server settings, first press \"Disconnect from Radio\"")
                                     wrapMode: Text.WordWrap
                                 }
 
                                 Item { Layout.fillHeight: true }
+                            }
+                        }
+
+                        GroupBox {
+                            id: serverStatusGroup
+                            title: qsTr("Server Status")
+                            Layout.fillWidth: true
+
+                            GridLayout {
+                                columns: 2
+                                columnSpacing: 12
+                                rowSpacing: 4
+                                width: parent.width
+
+                                Label { text: qsTr("Status:") }
+                                Label {
+                                    id: serverStatusLabel
+                                    Layout.fillWidth: true
+                                    text: MainController.serverStatusText
+                                    font.bold: MainController.serverRunning
+                                    wrapMode: Text.WordWrap
+                                }
+
+                                Label { text: qsTr("Users logged in:") }
+                                Label { text: String(MainController.serverUsersLoggedIn) }
+
+                                Label { text: qsTr("Logins since start:") }
+                                Label { text: String(MainController.serverTotalLogins) }
                             }
                         }
                     }
@@ -3174,7 +3221,8 @@ ApplicationWindow {
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
                                                             onActiveFocusChanged: if (activeFocus) root.currentRow = index
-                                                            onEditingFinished: root.clusterModel.setRoleValue(index, root.clusterModel.ServerRole, text)
+                                                            onTextEdited: root.clusterModel.setServer(index, text)
+                                                            onEditingFinished: root.clusterModel.setServer(index, text)
                                                         }
 
                                                         TextField {
@@ -3187,7 +3235,8 @@ ApplicationWindow {
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
                                                             onActiveFocusChanged: if (activeFocus) root.currentRow = index
-                                                            onEditingFinished: root.clusterModel.setRoleValue(index, root.clusterModel.PortRole, parseInt(text))
+                                                            onTextEdited: if (acceptableInput) root.clusterModel.setPort(index, parseInt(text))
+                                                            onEditingFinished: root.clusterModel.setPort(index, parseInt(text))
                                                         }
 
                                                         TextField {
@@ -3198,7 +3247,8 @@ ApplicationWindow {
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
                                                             onActiveFocusChanged: if (activeFocus) root.currentRow = index
-                                                            onEditingFinished: root.clusterModel.setRoleValue(index, root.clusterModel.UserNameRole, text)
+                                                            onTextEdited: root.clusterModel.setUserName(index, text)
+                                                            onEditingFinished: root.clusterModel.setUserName(index, text)
                                                         }
 
                                                         TextField {
@@ -3210,7 +3260,8 @@ ApplicationWindow {
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
                                                             onActiveFocusChanged: if (activeFocus) root.currentRow = index
-                                                            onEditingFinished: root.clusterModel.setRoleValue(index, root.clusterModel.PasswordRole, text)
+                                                            onTextEdited: root.clusterModel.setPassword(index, text)
+                                                            onEditingFinished: root.clusterModel.setPassword(index, text)
                                                         }
 
                                                         TextField {
@@ -3223,7 +3274,8 @@ ApplicationWindow {
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
                                                             onActiveFocusChanged: if (activeFocus) root.currentRow = index
-                                                            onEditingFinished: root.clusterModel.setRoleValue(index, root.clusterModel.TimeoutRole, parseInt(text))
+                                                            onTextEdited: if (acceptableInput) root.clusterModel.setTimeout(index, parseInt(text))
+                                                            onEditingFinished: root.clusterModel.setTimeout(index, parseInt(text))
                                                         }
 
                                                         Item {

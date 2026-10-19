@@ -79,6 +79,7 @@ private:
     bool handleServerCommand(QTcpSocket* socket, CLIENT* client, const QByteArray& command);
     bool authenticateClient(QTcpSocket* socket, CLIENT* client, const QByteArray& command);
     void stopAudioForClient(CLIENT* client);
+    void dropUnauthorizedClients() override;
     RIGCONFIG* radioForClient(const CLIENT* client) const;
     bool translateNetworkCommandForRig(const CLIENT* client, QByteArray& command) const;
     QList<QByteArray> translateRigDataForClient(const QByteArray& data, const QByteArray& guid);

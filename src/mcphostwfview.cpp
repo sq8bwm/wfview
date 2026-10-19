@@ -324,6 +324,8 @@ QJsonObject McpHostWfview::appState()
                        {"ritHz", m_mc->m_ritFrequency},
                        {"tuner", m_mc->m_tunerEnabled},
                        {"stepHz", double(m_mc->stepSize)},
+                       {"radioServer", QJsonObject{{"status", m_mc->serverStatusText()},
+                                                   {"usersLoggedIn", m_mc->serverUsersLoggedIn()}}},
                        {"receivers", receivers}};
 }
 
@@ -553,4 +555,144 @@ QJsonObject McpHostWfview::windows()
                                "window positions, so x and y are not real: shown windows usually report their "
                                "screen's top-left corner and hidden ones report 0,0. Sizes are still accurate.");
     return d;
+}
+
+namespace
+{
+
+const QStringList serverAccessNames{QStringLiteral("admin"), QStringLiteral("normal"), QStringLiteral("noTx"),
+                                    QStringLiteral("disabled")};
+
+QString serverAccessName(int userType)
+{
+    return userType >= 0 && userType < serverAccessNames.size() ? serverAccessNames.at(userType)
+                                                                : QString::number(userType);
+}
+
+QString serverUserStatusName(ServerUsersModel::UserStatus status)
+{
+    switch (status)
+    {
+    case ServerUsersModel::LoggedIn:
+        return QStringLiteral("loggedIn");
+    case ServerUsersModel::LoggedOut:
+        return QStringLiteral("loggedOut");
+    case ServerUsersModel::NeverSeen:
+        break;
+    }
+    return QStringLiteral("neverSeen");
+}
+
+} // namespace
+
+QJsonObject McpHostWfview::radioServer()
+{
+    if (!m_mc || !m_mc->prefs || m_mc->shuttingDown)
+        return QJsonObject{{"error", "wfview is shutting down"}};
+
+    const SERVERCONFIG *cfg = m_mc->m_settings->getServerConfig();
+    const ServerUsersModel *model = m_mc->m_settings->serverUsersModel();
+    QJsonObject d;
+    d["available"] = true;
+    d["enabled"] = cfg->enabled;
+    d["status"] = m_mc->serverStatusText();
+    d["running"] = m_mc->serverRunning();
+    d["started"] = m_mc->server != nullptr;
+    if (!m_mc->m_serverError.isEmpty())
+        d["error"] = m_mc->m_serverError;
+    d["protocol"] = Mcp::manufacturerName(int(m_mc->prefs->manufacturer));
+    d["serialConnection"] = m_mc->usingSerialConnection();
+    if (m_mc->server != nullptr)
+    {
+        d["startedAt"] = m_mc->m_serverStartedAt.toString(Qt::ISODate);
+        d["uptimeSeconds"] = double(m_mc->m_serverStartedAt.secsTo(QDateTime::currentDateTime()));
+    }
+    d["listenAddress"] = cfg->listenAddress.isEmpty() ? QStringLiteral("automatic") : cfg->listenAddress;
+    d["ports"] = QJsonObject{{"control", int(cfg->controlPort)},
+                             {"civ", int(cfg->civPort)},
+                             {"audio", int(cfg->audioPort)},
+                             {"scope", int(cfg->scopePort)}};
+    d["disableLocalControlsWhenInUse"] = cfg->disableUI;
+    d["suppressSerialWarnings"] = cfg->suppressSerialWarnings;
+    if (!cfg->rigs.isEmpty())
+    {
+        const RIGCONFIG *radio = cfg->rigs.first();
+        d["radio"] = QJsonObject{{"modelName", radio->modelName},
+                                 {"civAddress", int(radio->civAddr)},
+                                 {"baudRate", double(radio->baudRate)},
+                                 {"available", radio->rigAvailable}};
+        d["audioInput"] = Mcp::audioSetupToJson(radio->rxAudioSetup);
+        d["audioOutput"] = Mcp::audioSetupToJson(radio->txAudioSetup);
+        d["audioOpen"] = QJsonObject{{"input", radio->rxaudio != nullptr},
+                                     {"output", radio->txaudio != nullptr},
+                                     {"rtp", radio->rtp != nullptr}};
+    }
+    d["usersLoggedIn"] = m_mc->serverUsersLoggedIn();
+    d["totalLogins"] = m_mc->m_serverTotalLogins;
+
+    QJsonArray sessions;
+    for (const MainController::serverSession &session : m_mc->m_serverSessions)
+        sessions.append(QJsonObject{{"username", session.username},
+                                    {"address", session.address},
+                                    {"since", session.since.toString(Qt::ISODate)}});
+    d["sessions"] = sessions;
+
+    QJsonArray users;
+    for (const SERVERUSER &user : model->toList())
+        users.append(QJsonObject{{"username", user.username},
+                                 {"password", Mcp::maskSecret(user.password)},
+                                 {"access", serverAccessName(user.userType)},
+                                 {"status", serverUserStatusName(model->userStatus(user.username))}});
+    d["users"] = users;
+    d["note"] = QStringLiteral("The server only runs while wfview is connected to a radio on a serial port. "
+                               "User status and login counts cover the time since the server last started.");
+    return d;
+}
+
+McpHostResult McpHostWfview::setServerUserAccess(const QString &username, const QString &access, bool save)
+{
+    McpHostResult r;
+    SettingsController *settings = m_mc && !m_mc->shuttingDown ? m_mc->getSettings() : nullptr;
+    if (!settings)
+    {
+        r.error = QStringLiteral("wfview is shutting down.");
+        return r;
+    }
+
+    const int userType = int(serverAccessNames.indexOf(access));
+    if (userType < 0)
+    {
+        r.error = QStringLiteral("Unknown access level %1; use one of %2.").arg(access, serverAccessNames.join(", "));
+        return r;
+    }
+
+    ServerUsersModel *model = settings->serverUsersModel();
+    const QList<SERVERUSER> &list = model->toList();
+    int row = -1;
+    for (int i = 0; i < list.size(); ++i)
+    {
+        if (list.at(i).username == username)
+        {
+            row = i;
+            break;
+        }
+    }
+    if (row < 0)
+    {
+        r.error = QStringLiteral("There is no radio server user named %1; get_radio_server lists them.").arg(username);
+        return r;
+    }
+
+    const QString before = serverAccessName(list.at(row).userType);
+    // The same path the settings dialog uses, so a running server is updated at once.
+    model->setRoleValue(row, ServerUsersModel::UserTypeRole, userType);
+    if (save)
+        settings->save();
+
+    r.ok = true;
+    r.data["user"] = username;
+    r.data["before"] = before;
+    r.data["after"] = serverAccessName(model->toList().at(row).userType);
+    r.data["saved"] = save;
+    return r;
 }

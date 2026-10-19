@@ -11,6 +11,15 @@
 #include "rigcommander.h"
 #include "rtpaudio.h"
 
+// Stored as UserType in the settings file, so the values must not change.
+enum serverUserType : quint8 {
+    serverUserAdmin = 0,
+    serverUserNormal = 1,
+    serverUserNoTx = 2,
+    // The account is kept but cannot log in.
+    serverUserDisabled = 3
+};
+
 struct SERVERUSER {
 	QString username;
 	QString password;
@@ -118,7 +127,18 @@ public slots:
 
     void receiveRigCaps(rigCapabilities* caps);
 
+public:
+    // Replaces the server's copy of the user list. Call on the server's
+    // thread. Clients whose user was removed or disabled are disconnected.
+    void setUsers(const QList<SERVERUSER>& users);
+
 signals:
+    // Emitted at the end of init(): ok is false when a port could not be bound.
+    void listening(bool ok, QString error);
+    // A client logged in, or a logged-in client went away for any reason.
+    void userLoggedIn(QString username, QString address);
+    void userLoggedOut(QString username, QString address);
+
 	void haveDataFromServer(QByteArray);
     void haveAudioData(audioPacket data);
 	void haveNetworkStatus(networkStatus);
@@ -130,6 +150,13 @@ signals:
 
 protected:
 	SERVERCONFIG *config;
+    // The server thread's copy of config->users, so logins never read the
+    // list while the settings dialog changes it.
+    QList<SERVERUSER> users;
+    // The user with this name, unless there is none or it is disabled.
+    const SERVERUSER* findLoginUser(const QString& username) const;
+    // Disconnects clients whose user may no longer log in.
+    virtual void dropUnauthorizedClients();
     cachingQueue *queue;
     networkStatus status;
     QHostAddress serverListenAddress() const;

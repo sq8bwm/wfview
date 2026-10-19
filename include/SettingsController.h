@@ -17,6 +17,7 @@
 #include <QString>
 #include <QVector>
 #include <QMutex>
+#include <QHash>
 #include <vector>
 
 #include "audioconverter.h"
@@ -299,6 +300,33 @@ public:
         return setData(index(row, col), value, role);
     }
 
+    // QML cannot read this model's role enums through an instance, so the
+    // table edits through these named setters instead of setRoleValue().
+    Q_INVOKABLE bool setServer(int row, const QString &value)
+    {
+        return setData(index(row, Server), value, ServerRole);
+    }
+
+    Q_INVOKABLE bool setPort(int row, int value)
+    {
+        return setData(index(row, Port), value, PortRole);
+    }
+
+    Q_INVOKABLE bool setUserName(int row, const QString &value)
+    {
+        return setData(index(row, UserName), value, UserNameRole);
+    }
+
+    Q_INVOKABLE bool setPassword(int row, const QString &value)
+    {
+        return setData(index(row, Password), value, PasswordRole);
+    }
+
+    Q_INVOKABLE bool setTimeout(int row, int value)
+    {
+        return setData(index(row, Timeout), value, TimeoutRole);
+    }
+
     Q_INVOKABLE QVariant roleValue(int row, int role) const
     {
         if (row < 0 || row >= m_items.count())
@@ -457,6 +485,7 @@ public:
         Username = 0,
         Password,
         UserType,
+        Status,
         ColumnCount
     };
     Q_ENUM(Column)
@@ -465,9 +494,20 @@ public:
         UsernameRole = Qt::UserRole + 1,
         PasswordRole,
         UserTypeRole,
-        UserTypeNameRole
+        UserTypeNameRole,
+        UserStatusRole,
+        UserStatusNameRole,
+        HasSavedPasswordRole
     };
     Q_ENUM(Roles)
+
+    // Since the radio server last started.
+    enum UserStatus {
+        NeverSeen = 0,
+        LoggedIn,
+        LoggedOut
+    };
+    Q_ENUM(UserStatus)
 
     explicit ServerUsersModel(QObject *parent = nullptr)
         : QAbstractTableModel(parent) {}
@@ -489,7 +529,10 @@ public:
             { UsernameRole, "username" },
             { PasswordRole, "password" },
             { UserTypeRole, "userType" },
-            { UserTypeNameRole, "userTypeName" }
+            { UserTypeNameRole, "userTypeName" },
+            { UserStatusRole, "userStatus" },
+            { UserStatusNameRole, "userStatusName" },
+            { HasSavedPasswordRole, "hasSavedPassword" }
         };
     }
 
@@ -501,17 +544,21 @@ public:
         const SERVERUSER &user = items.at(index.row());
         switch (role) {
         case UsernameRole: return user.username;
-        case PasswordRole: return user.password;
+        case PasswordRole: return displayedPassword(index.row());
         case UserTypeRole: return user.userType;
         case UserTypeNameRole: return userTypeName(user.userType);
+        case UserStatusRole: return userStatus(user.username);
+        case UserStatusNameRole: return userStatusName(userStatus(user.username));
+        case HasSavedPasswordRole: return !plainPassword.at(index.row()) && !user.password.isEmpty();
         default: break;
         }
 
         if (role == Qt::DisplayRole || role == Qt::EditRole) {
             switch (index.column()) {
             case Username: return user.username;
-            case Password: return user.password;
+            case Password: return displayedPassword(index.row());
             case UserType: return user.userType;
+            case Status: return userStatusName(userStatus(user.username));
             default: return {};
             }
         }
@@ -536,9 +583,11 @@ public:
             break;
         }
         case PasswordRole: {
+            // Any new password replaces the stored (encoded) one.
             const QString v = value.toString();
-            if (user.password != v) {
+            if (!plainPassword.at(index.row()) || user.password != v) {
                 user.password = v;
+                plainPassword[index.row()] = true;
                 changed = true;
             }
             break;
@@ -558,7 +607,8 @@ public:
         if (changed) {
             emit dataChanged(this->index(index.row(), 0),
                              this->index(index.row(), ColumnCount - 1),
-                             { role, Qt::DisplayRole, Qt::EditRole, UserTypeNameRole });
+                             { role, Qt::DisplayRole, Qt::EditRole, UserTypeNameRole,
+                               UserStatusRole, UserStatusNameRole, HasSavedPasswordRole });
             emit modified();
         }
         return changed;
@@ -586,6 +636,23 @@ public:
         return setData(index(row, col), value, role);
     }
 
+    // QML cannot read this model's role enums through an instance, so the
+    // table edits through these named setters instead of setRoleValue().
+    Q_INVOKABLE bool setUsername(int row, const QString &value)
+    {
+        return setData(index(row, Username), value, UsernameRole);
+    }
+
+    Q_INVOKABLE bool setPassword(int row, const QString &value)
+    {
+        return setData(index(row, Password), value, PasswordRole);
+    }
+
+    Q_INVOKABLE bool setUserType(int row, int value)
+    {
+        return setData(index(row, UserType), value, UserTypeRole);
+    }
+
     Q_INVOKABLE void addEntry(const QString &username = {}, const QString &password = {}, int userType = 1)
     {
         const int row = items.count();
@@ -595,6 +662,7 @@ public:
         user.password = password;
         user.userType = static_cast<quint8>(userType);
         items.append(user);
+        plainPassword.append(true);
         endInsertRows();
         emit modified();
     }
@@ -606,6 +674,7 @@ public:
 
         beginRemoveRows(QModelIndex(), row, row);
         items.removeAt(row);
+        plainPassword.removeAt(row);
         endRemoveRows();
         emit modified();
     }
@@ -613,27 +682,77 @@ public:
     Q_INVOKABLE QString userTypeName(int userType) const
     {
         switch (userType) {
-        case 0: return tr("Admin User");
-        case 1: return tr("Normal User");
-        case 2: return tr("Normal with no TX");
+        case serverUserAdmin: return tr("Admin User");
+        case serverUserNormal: return tr("Normal User");
+        case serverUserNoTx: return tr("Normal with no TX");
+        case serverUserDisabled: return tr("Disabled");
         default: return tr("Unknown");
         }
     }
 
+    Q_INVOKABLE QString userStatusName(int status) const
+    {
+        switch (status) {
+        case LoggedIn: return tr("Logged in");
+        case LoggedOut: return tr("Logged out");
+        case NeverSeen:
+        default: return tr("Never seen");
+        }
+    }
+
+    UserStatus userStatus(const QString &username) const
+    {
+        return statuses.value(username, NeverSeen);
+    }
+
+    // Users missing from the map have not been seen since the server started.
+    void setUserStatuses(const QHash<QString, UserStatus> &map)
+    {
+        if (statuses == map)
+            return;
+        statuses = map;
+        if (!items.isEmpty())
+            emit dataChanged(index(0, 0), index(items.count() - 1, ColumnCount - 1),
+                             { Qt::DisplayRole, UserStatusRole, UserStatusNameRole });
+    }
+
+    // Passwords in the list are expected to be encoded already, as stored.
     void setFromList(const QList<SERVERUSER> &list)
     {
         beginResetModel();
         items = list;
+        plainPassword = QVector<bool>(items.count(), false);
         endResetModel();
     }
 
-    const QList<SERVERUSER>& toList() const { return items; }
+    // Users with every password encoded, as the servers and settings file want.
+    QList<SERVERUSER> toList() const
+    {
+        QList<SERVERUSER> out = items;
+        for (int i = 0; i < out.count(); ++i) {
+            if (plainPassword.at(i) && !out[i].password.isEmpty()) {
+                QByteArray encoded;
+                passcode(out[i].password, encoded);
+                out[i].password = QString::fromLatin1(encoded);
+            }
+        }
+        return out;
+    }
 
 signals:
     void modified();
 
 private:
+    // A stored password is never shown, since it is only the encoded form.
+    QString displayedPassword(int row) const
+    {
+        return plainPassword.at(row) ? items.at(row).password : QString();
+    }
+
     QList<SERVERUSER> items;
+    // True where the password was typed this session and is not yet encoded.
+    QVector<bool> plainPassword;
+    QHash<QString, UserStatus> statuses;
 };
 
 
