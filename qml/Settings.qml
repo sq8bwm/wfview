@@ -1949,7 +1949,7 @@ ApplicationWindow {
                                     CheckBox {
                                         id: alwaysSaveOnExitChk
                                         text: qsTr("Always save settings on exit")
-                                        checked: optBool("Interface.AlwaysSaveOnExit", true)
+                                        checked: optBool("Interface.AlwaysSaveOnExit", false)
                                         onClicked: if (controller) controller.setOption("Interface.AlwaysSaveOnExit", checked)
                                         ToolTip.visible: hovered
                                         ToolTip.text: qsTr("Save changed settings automatically when wfview exits, without asking.")

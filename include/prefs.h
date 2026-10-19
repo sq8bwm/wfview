@@ -348,7 +348,7 @@ struct preferences {
     bool miniRxButtons = true;
     bool showTuningDial = true;
     bool wideRitSlider = false;  // horizontal RIT slider + spinbox in place of the RIT knob
-    bool alwaysSaveOnExit = true;  // save settings on exit without asking
+    bool alwaysSaveOnExit = false; // save settings on exit without asking
     bool warnAudioDeviceProblems = true;  // modal warning when an audio device cannot be used
     bool reverseWheel = false;   // invert mouse-wheel direction on sliders and dials
     bool sMeterOnTop = false;

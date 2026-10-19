@@ -2365,6 +2365,7 @@ void SettingsController::save()
         m_dirty = false;
         emit dirtyChanged();
     }
+    emit saved();
 }
 
 void SettingsController::resetToDefaults()
@@ -2445,7 +2446,7 @@ void SettingsController::setDefPrefs()
     defPrefs.miniRxButtons = true;
     defPrefs.showTuningDial = true;
     defPrefs.wideRitSlider = false;
-    defPrefs.alwaysSaveOnExit = true;
+    defPrefs.alwaysSaveOnExit = false;
     defPrefs.warnAudioDeviceProblems = true;
     defPrefs.reverseWheel = false;
     defPrefs.sMeterOnTop = false;

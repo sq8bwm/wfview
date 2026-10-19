@@ -23,6 +23,9 @@ ApplicationWindow {
     property bool connectedGeometryRestored: false
     property int startupGeometryRestoreAttempts: 0
     property bool wasRadioConnected: false
+    // Once a radio has been connected, the window keeps its size on disconnect
+    // rather than shrinking to the logo, so the shrunken size is never saved.
+    property bool hasConnectedOnce: false
     readonly property int contentHorizontalPadding: 8
     readonly property int contentTopPadding: 4
     readonly property int mainControlSpacing: 6
@@ -136,11 +139,11 @@ ApplicationWindow {
                    + scopeVFOGroup.padding * 2
                    + mainLayout.spacing * 2
     onMinimumWidthChanged: {
-        if (!win.radioConnected && !win.waylandPlatform)
+        if (!win.radioConnected && !win.hasConnectedOnce && !win.waylandPlatform)
             win.width = win.minimumWidth
     }
     onMinimumHeightChanged: {
-        if (!win.radioConnected && !win.waylandPlatform)
+        if (!win.radioConnected && !win.hasConnectedOnce && !win.waylandPlatform)
             win.height = win.minimumHeight
     }
 
@@ -399,6 +402,13 @@ ApplicationWindow {
     }
 
     Connections {
+        target: MainController.settings
+        function onSaved() {
+            win.saveWindowGeometry()
+        }
+    }
+
+    Connections {
         target: MainController
         function onReceiverCountChanged() {
             if (win.startupGeometryPending)
@@ -407,6 +417,8 @@ ApplicationWindow {
     }
 
     onRadioConnectedChanged: {
+        if (win.radioConnected)
+            win.hasConnectedOnce = true
         if (win.waylandPlatform) {
             win.wasRadioConnected = win.radioConnected
             return
@@ -419,7 +431,6 @@ ApplicationWindow {
             win.connectedGeometryRestored = false
             win.startupGeometryPending = Boolean(win.savedStartupGeometry && win.savedStartupGeometry.valid)
             win.startupGeometryRestoreAttempts = 0
-            Qt.callLater(win.shrinkDisconnectedWindow)
         }
         win.wasRadioConnected = win.radioConnected
     }
@@ -1420,7 +1431,7 @@ ApplicationWindow {
             return false
 
         return win.settingAsBool(MainController.settings.dirty, false)
-                && win.settingAsBool(MainController.settings.options["Interface.AlwaysSaveOnExit"], true)
+                && win.settingAsBool(MainController.settings.options["Interface.AlwaysSaveOnExit"], false)
     }
 
     function shouldConfirmUnsavedSettings() {
@@ -1480,7 +1491,7 @@ ApplicationWindow {
     }
 
     function shrinkDisconnectedWindow() {
-        if (win.radioConnected || win.waylandPlatform)
+        if (win.radioConnected || win.hasConnectedOnce || win.waylandPlatform)
             return
         if (win.visibility === Window.Maximized || win.visibility === Window.FullScreen)
             win.visibility = Window.Windowed
@@ -1529,7 +1540,9 @@ ApplicationWindow {
     }
 
     function saveWindowGeometry() {
-        if (!win.radioConnected || win.waylandPlatform)
+        // Before the first connection the window is shrunk to the logo, so
+        // there is no real geometry to save yet.
+        if ((!win.radioConnected && !win.hasConnectedOnce) || win.waylandPlatform)
             return
         MainController.saveMainWindowGeometry(win.x, win.y, win.width, win.height,
                                               win.visibility === Window.Maximized)
@@ -1932,6 +1945,7 @@ ApplicationWindow {
             id: disconnectedLogo
             visible: !win.radioConnected
             Layout.fillWidth: true
+            Layout.fillHeight: true
             Layout.topMargin: 12
             Layout.bottomMargin: 12
             implicitWidth: disconnectedLogoColumn.implicitWidth
@@ -1939,7 +1953,7 @@ ApplicationWindow {
 
             Column {
                 id: disconnectedLogoColumn
-                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.centerIn: parent
                 spacing: 8
 
                 Image {
@@ -2662,8 +2676,9 @@ ApplicationWindow {
             }
 
             Label {
-                visible: win.radioConnected
-                Layout.preferredWidth: win.radioConnected ? 360 : 0
+                // Stays visible after disconnect so the last connection statistics remain readable
+                visible: text.length > 0
+                Layout.preferredWidth: visible ? 360 : 0
                 text: MainController ? MainController.radioStatusText : ""
                 color: win.palette.windowText
                 elide: Text.ElideRight

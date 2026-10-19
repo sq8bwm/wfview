@@ -917,6 +917,7 @@ signals:
 
     void optionChanged(const QString& key, const QVariant& value);
     void dirtyChanged();
+    void saved();
     void uiSpecsChanged();
     void radioProfilesChanged();
     void currentRadioProfileIndexChanged();

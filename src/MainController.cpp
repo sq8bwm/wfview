@@ -4485,7 +4485,7 @@ void MainController::disconnectRig()
 
     queue->interval(-1); // Disable queue
     setFooterMessageText(QString());
-    setRadioStatusText(QString());
+    // radioStatusText is kept so the last connection statistics stay visible
     setRigModelName(QString());
     connStatus = connectionStatus_t::connDisconnected;
     updateAudioRouteState();
@@ -4499,6 +4499,7 @@ void MainController::openRigConnection()
     resetTxAudioOwnership();
     m_reportedAudioProblems.clear();
     m_serialPortProblemReported = false;
+    setRadioStatusText(QString());
     connStatus = connectionStatus_t::connConnecting;
     emit connStatusChanged();
     updateAudioRouteState();
@@ -4941,7 +4942,6 @@ void MainController::receivePortError(errorType err)
     }
 
     queue->interval(-1);
-    setRadioStatusText(QString());
     setRigModelName(QString());
     connStatus = connectionStatus_t::connDisconnected;
     emit connStatusChanged();
@@ -5352,7 +5352,6 @@ void MainController::receiveRigCaps(rigCapabilities* caps)
         stopRadioServer();
         resetTxAudioOwnership();
         setFooterMessageText(QString());
-        setRadioStatusText(QString());
         setRigModelName(QString());
         connStatus = connectionStatus_t::connDisconnected;
         updateAudioRouteState();
@@ -6358,7 +6357,7 @@ void MainController::setDefPrefs()
     defprefs->miniRxButtons = true;
     defprefs->showTuningDial = true;
     defprefs->wideRitSlider = false;
-    defprefs->alwaysSaveOnExit = true;
+    defprefs->alwaysSaveOnExit = false;
     defprefs->warnAudioDeviceProblems = true;
     defprefs->reverseWheel = false;
     defprefs->sMeterOnTop = false;
