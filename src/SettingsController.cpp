@@ -851,8 +851,8 @@ void SettingsController::buildUiSpecs()
 
 #if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
     values.append(QVariantMap{
-        {"text",  "Manual ..."},
-        {"value", 256}
+        {"text",  tr("Manual ...")},
+        {"value", QStringLiteral("manual")}
     });
 #endif
 

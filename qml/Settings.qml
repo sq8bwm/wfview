@@ -1049,7 +1049,12 @@ ApplicationWindow {
                                         currentIndex: (controller && controller.options)
                                                       ? indexFromValue(serialDeviceListCombo,controller.options["Radio.SerialPortRadio"])
                                                       : -1
-                                        onActivated: selectDeviceOption(serialDeviceListCombo, "Radio.SerialPortRadio")
+                                        onActivated: {
+                                            if (String(currentValue) === "manual")
+                                                manualSerialPortDialog.open()
+                                            else
+                                                selectDeviceOption(serialDeviceListCombo, "Radio.SerialPortRadio")
+                                        }
                                     }
 
                                     Button {
@@ -4237,6 +4242,63 @@ ApplicationWindow {
         }
 
         onAccepted: MainController.resetUsbControllers()
+    }
+
+    // Entry for a serial port that is not enumerated, such as a udev symlink.
+    Dialog {
+        id: manualSerialPortDialog
+        title: qsTr("Manual serial port")
+        width: 420
+        x: Math.round((window.width - width) / 2)
+        y: Math.round((window.height - height) / 2)
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        background: Rectangle {
+            color: window.palette.window
+            border.color: window.palette.highlight
+            border.width: 1
+            radius: 4
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 8
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Enter the full path of the serial port, for example /dev/ttyUSB0:")
+                color: window.palette.text
+                wrapMode: Text.WordWrap
+            }
+            TextField {
+                id: manualSerialPortField
+                Layout.fillWidth: true
+                placeholderText: "/dev/ttyUSB0"
+                Accessible.name: "Manual serial port path"
+                onAccepted: manualSerialPortDialog.accept()
+            }
+        }
+
+        onAboutToShow: {
+            var current = controller ? String(controller.options["Radio.SerialPortRadio"] ?? "") : ""
+            manualSerialPortField.text = (current === "auto") ? "" : current
+            manualSerialPortField.forceActiveFocus()
+            manualSerialPortField.selectAll()
+        }
+
+        onAccepted: {
+            var port = manualSerialPortField.text.trim()
+            if (controller && port !== "")
+                controller.setOption("Radio.SerialPortRadio", port)
+            restoreSerialSelection()
+        }
+        onRejected: restoreSerialSelection()
+
+        // Point the box back at the stored port instead of "Manual ...".
+        function restoreSerialSelection() {
+            serialDeviceListCombo.currentIndex = Qt.binding(function() {
+                return controller ? indexFromValue(serialDeviceListCombo, controller.options["Radio.SerialPortRadio"]) : -1
+            })
+        }
     }
 
     MacroEditor {
