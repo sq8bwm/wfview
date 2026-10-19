@@ -5,6 +5,13 @@
 #include <QDateTime>
 #include <QThread>
 
+#ifndef WFVIEW_VERSION
+#define WFVIEW_VERSION "unknown"
+#endif
+#ifndef GITSHORT
+#define GITSHORT ""
+#endif
+
 
 static struct
 {
@@ -288,6 +295,7 @@ static const commandStruct commands_list[] =
     { 0xa3, "get_lock_mode",     funcNone,              typeUChar,    ARG_NOVFO, "Locked" },
     { 0xa4, "send_raw",          funcNone,              typeUChar,    ARG_NOVFO | ARG_IN1 | ARG_IN2 | ARG_OUT3, "Terminator", "Command", "Send raw answer" },
     { 0xa5, "client_version",    funcNone,              typeUChar,    ARG_NOVFO | ARG_IN1, "Version", "Client version" },
+    { 0xa6, "get_host_info",     funcNone,              typeUChar,    ARG_NOVFO | ARG_OUT, "HostInfo" }, /* wfview only--report wfview version and build */
     { 0x00, "", funcNone, typeNone},
 };
 
@@ -572,6 +580,16 @@ void rigCtlClient::socketReadyRead()
                 else if (commands_list[i].sstr == '_')
                 {
                     response.append(QString("Model: %1, rigctl model: %2").arg(rigCaps->modelName).arg(rigCaps->rigctlModel));
+                    ret = RIG_OK;
+                    break;
+                }
+                else if (commands_list[i].sstr == 0xa6)
+                {
+                    QString info = QString("wfview version %1").arg(WFVIEW_VERSION);
+                    const QString build = QString(GITSHORT).trimmed();
+                    if (!build.isEmpty())
+                        info += QString(" build %1").arg(build);
+                    response.append(info);
                     ret = RIG_OK;
                     break;
                 }
@@ -1548,7 +1566,8 @@ int rigCtlClient::getCommand(QStringList& response, bool extended, const command
         case typeFreq:
         { // Frequency
             freqt f = item.value.value<freqt>();
-            response.append(QString("%0%1.000000").arg(prefixes[prefixes.length()-1],QString::number(f.Hz)));
+            const QString hz = (parent && parent->getIntegerFreqs()) ? QString::number(f.Hz) : QString("%1.000000").arg(f.Hz);
+            response.append(QString("%0%1").arg(prefixes[prefixes.length()-1],hz));
             break;
         }
         case typeVFO:

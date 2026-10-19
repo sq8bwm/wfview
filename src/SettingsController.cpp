@@ -1317,6 +1317,7 @@ void SettingsController::load()
 
     prefs.enableRigCtlD = settings->value("EnableRigCtlD", defPrefs.enableRigCtlD).toBool();
     prefs.rigCtlPort = settings->value("RigCtlPort", defPrefs.rigCtlPort).toInt();
+    prefs.rigCtlIntegerFreqs = settings->value("RigCtlIntegerFreqs", defPrefs.rigCtlIntegerFreqs).toBool();
 
     prefs.tcpPort = settings->value("TCPServerPort", defPrefs.tcpPort).toInt();
     prefs.tciPort = settings->value("TCIServerPort", defPrefs.tciPort).toInt();
@@ -1987,6 +1988,7 @@ void SettingsController::save()
     settings->setValue("EnableRigCtlD", prefs.enableRigCtlD);
     settings->setValue("TcpServerPort", prefs.tcpPort);
     settings->setValue("RigCtlPort", prefs.rigCtlPort);
+    settings->setValue("RigCtlIntegerFreqs", prefs.rigCtlIntegerFreqs);
     settings->setValue("TCPServerPort", prefs.tcpPort);
     settings->setValue("TCIServerPort", prefs.tciPort);
     settings->setValue("IPAddress", udpPrefs.ipAddress);
@@ -2428,6 +2430,7 @@ void SettingsController::setDefPrefs()
     defPrefs.niceTS = true;
     defPrefs.enableRigCtlD = false;
     defPrefs.rigCtlPort = 4533;
+    defPrefs.rigCtlIntegerFreqs = false;
     defPrefs.virtualSerialPort = QString("none");
     defPrefs.virtualSerialPortUseQueue = false;
     defPrefs.localAFgain = 255;
@@ -3559,6 +3562,9 @@ void SettingsController::buildBindings()
 
     WF_U16("LAN.RigCtlPort", prefs.rigCtlPort,
            [this](){ emit lanChanged(prefLanItems(prefLanItem::l_rigCtlPort)); });
+
+    WF_BOOL("LAN.RigCtlIntegerFreqs", prefs.rigCtlIntegerFreqs,
+            [this](){ emit lanChanged(prefLanItems(prefLanItem::l_rigCtlIntegerFreqs)); });
 
     WF_U16("LAN.TCPPort", prefs.tcpPort,
            [this](){ emit lanChanged(prefLanItems(prefLanItem::l_tcpPort)); });

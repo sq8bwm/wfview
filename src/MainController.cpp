@@ -3468,6 +3468,10 @@ void MainController::lanChanged(SettingsController::prefLanItems items)
         stopRigCtlServer();
         setupRigCtlServer();
     }
+
+    if (items.testFlag(prefLanItem::l_rigCtlIntegerFreqs) && rigCtl) {
+        rigCtl->setIntegerFreqs(prefs->rigCtlIntegerFreqs);
+    }
 }
 
 void MainController::raChanged(prefRaItems items)
@@ -3967,6 +3971,7 @@ void MainController::setupRigCtlServer()
         return;
 
     rigCtl = new rigCtlD(this);
+    rigCtl->setIntegerFreqs(prefs->rigCtlIntegerFreqs);
     connect(rigCtl, &rigCtlD::setPTT, this, &MainController::handleRigCtlTransmitRequested);
     if (rigCtl->startServer(prefs->rigCtlPort) < 0) {
         rigCtl->deleteLater();
@@ -6331,6 +6336,7 @@ void MainController::setDefPrefs()
     defprefs->niceTS = true;
     defprefs->enableRigCtlD = false;
     defprefs->rigCtlPort = 4533;
+    defprefs->rigCtlIntegerFreqs = false;
     defprefs->virtualSerialPort = QString("none");
     defprefs->virtualSerialPortUseQueue = false;
     defprefs->localAFgain = 255;

@@ -194,6 +194,7 @@ enum prefLanItem {
     l_tcpPort = 1 << 3,
     l_tciPort = 1 << 4,
     l_waterfallFormat = 1 << 5,
+    l_rigCtlIntegerFreqs = 1 << 6,
     l_all = ~0
 };
 
@@ -403,6 +404,7 @@ struct preferences {
     bool enableLAN;
     bool enableRigCtlD;
     quint16 rigCtlPort;
+    bool rigCtlIntegerFreqs = false;
     quint16 tcpPort;
     quint16 tciPort=50001;
     quint8 waterfallFormat;

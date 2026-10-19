@@ -2901,10 +2901,17 @@ ApplicationWindow {
                                 text: qsTr("Enable RigCtld")
                                 checked: optBool("LAN.EnableRigCtlD", false)
                                 onClicked: if (controller) controller.setOption("LAN.EnableRigCtlD", checked)
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("wfview can run a rigctld-compatible server, which provides basic information to third-party tools such as loggers and digital mode applications.\nwfview's rigctld-compatible server can accept multiple connections at the same time.")
                                 Accessible.name: "Enable RIGCTLD checkbox"
                             }
                             Item { width: 20 }
-                            Label { text: qsTr("Port") }
+                            Label {
+                                text: qsTr("Port")
+                                HoverHandler { id: rigctldPortLabelHover }
+                                ToolTip.visible: rigctldPortLabelHover.hovered
+                                ToolTip.text: rigctldPortTxt.ToolTip.text
+                            }
                             TextField {
                                 id: rigctldPortTxt
                                 text: controller ? String(controller.options["LAN.RigCtlPort"]) : ""
@@ -2913,7 +2920,19 @@ ApplicationWindow {
                                 inputMethodHints: Qt.ImhDigitsOnly
                                 validator: IntValidator { bottom: 1; top: 65535 }
                                 onEditingFinished: commitIntegerOption("LAN.RigCtlPort", rigctldPortTxt, 1, 65535)
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("The default rigctld port for most applications is 4532.\nwfview recommends using 4533 so as not to conflict with any other rigctld you may already be using.")
                                 Accessible.name: "RIGCTLD server port"
+                            }
+                            Item { width: 20 }
+                            CheckBox {
+                                id: rigctldIntegerFreqsChk
+                                text: qsTr("Report frequencies as integers")
+                                checked: optBool("LAN.RigCtlIntegerFreqs", false)
+                                onClicked: if (controller) controller.setOption("LAN.RigCtlIntegerFreqs", checked)
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Alters the response of wfview's rigctld server to the 'f', 'i' and 'k' commands, reporting frequencies as integers rather than as numbers with decimals")
+                                Accessible.name: "Report rigctld frequencies as integers checkbox"
                             }
                             Item { Layout.fillWidth: true }
                         }

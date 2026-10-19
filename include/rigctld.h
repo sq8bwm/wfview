@@ -117,6 +117,8 @@ public:
 
     int startServer(qint16 port);
     void stopServer();
+    void setIntegerFreqs(bool enabled) { integerFreqs = enabled; }
+    bool getIntegerFreqs() const { return integerFreqs; }
 
 signals:
     void onStarted();
@@ -152,6 +154,8 @@ public slots:
     virtual void incomingConnection(qintptr socketDescriptor);
 //    void receiveFrequency(freqt freq);
 
+private:
+    bool integerFreqs = false;
 };
 
 
