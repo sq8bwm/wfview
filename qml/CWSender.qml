@@ -250,6 +250,8 @@ ApplicationWindow {
             SpinBox {
                 from: 1
                 to: 999
+                editable: true
+                inputMethodHints: Qt.ImhDigitsOnly
                 value: cwSenderController ? cwSenderController.sequenceNumber : 1
                 onValueChanged: {
                     if (cwSenderController) {
@@ -270,6 +272,8 @@ ApplicationWindow {
             SpinBox {
                 from: 6
                 to: 48
+                editable: true
+                inputMethodHints: Qt.ImhDigitsOnly
                 value: cwSenderController ? cwSenderController.wpm : 20
                 onValueModified: {
                     if (cwSenderController) {
@@ -283,6 +287,16 @@ ApplicationWindow {
                 from: 25
                 to: 45
                 stepSize: 1
+                editable: true
+                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                // The default validator only accepts integers, which would
+                // reject the "3.0" style text shown here.
+                validator: DoubleValidator {
+                    bottom: 2.5
+                    top: 4.5
+                    decimals: 1
+                    notation: DoubleValidator.StandardNotation
+                }
                 value: cwSenderController ? (cwSenderController.dashRatio * 10) : 30
                 textFromValue: function(value, locale) {
                     return Number(value / 10).toLocaleString(locale, "f", 1)
@@ -302,6 +316,8 @@ ApplicationWindow {
                 from: 300
                 to: 900
                 stepSize: 50
+                editable: true
+                inputMethodHints: Qt.ImhDigitsOnly
                 value: cwSenderController ? cwSenderController.pitch : 600
                 onValueModified: {
                     if (cwSenderController) {
