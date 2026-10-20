@@ -14,6 +14,10 @@ constexpr double ditSecondsAtOneWpm = 1.2;
 // Rise and fall time of each element, to avoid key clicks.
 constexpr double rampSeconds = 0.005;
 constexpr double twoPi = 6.283185307179586;
+// The sidetone maximum is lowered by 3 dB (10^(-3/20)) from full scale, because
+// a full-scale tone distorts once it is mixed with RX audio. RX audio is not
+// scaled.
+constexpr double maxLevel = 0.7079457843841379;
 
 // Characters match the Icom table; unknown characters are sent as '?'.
 const QHash<QChar, const char*>& cwTable()
@@ -78,7 +82,7 @@ void CwSidetoneGenerator::setFrequency(int hz)
 void CwSidetoneGenerator::setLevel(int percent)
 {
     QMutexLocker locker(&m_mutex);
-    m_level = std::clamp(percent, 0, 100) / 100.0;
+    m_level = std::clamp(percent, 0, 100) / 100.0 * maxLevel;
 }
 
 void CwSidetoneGenerator::mixInto(float* samples, int frames, int channels, float sampleRate)

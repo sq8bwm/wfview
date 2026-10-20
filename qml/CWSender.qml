@@ -215,6 +215,8 @@ ApplicationWindow {
             
             CheckBox {
                 text: qsTr("Cut Numbers")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Send 0 as T and 9 as N. Applies to macro buttons only, not typed text.")
                 checked: cwSenderController ? cwSenderController.cutNumbers : false
                 onCheckedChanged: {
                     if (cwSenderController) {
