@@ -20,6 +20,8 @@ class CWSenderController : public QObject
     Q_PROPERTY(int wpm READ wpm WRITE setWpm NOTIFY wpmChanged)
     Q_PROPERTY(double dashRatio READ dashRatio WRITE setDashRatio NOTIFY dashRatioChanged)
     Q_PROPERTY(int pitch READ pitch WRITE setPitch NOTIFY pitchChanged)
+    Q_PROPERTY(int pitchMin READ pitchMin NOTIFY pitchRangeChanged)
+    Q_PROPERTY(int pitchMax READ pitchMax NOTIFY pitchRangeChanged)
     Q_PROPERTY(int breakInMode READ breakInMode WRITE setBreakInMode NOTIFY breakInModeChanged)
     Q_PROPERTY(bool cutNumbers READ cutNumbers WRITE setCutNumbers NOTIFY cutNumbersChanged)
     Q_PROPERTY(bool sendImmediate READ sendImmediate WRITE setSendImmediate NOTIFY sendImmediateChanged)
@@ -42,6 +44,8 @@ public:
     int wpm() const { return m_wpm; }
     double dashRatio() const { return m_dashRatio; }
     int pitch() const { return m_pitch; }
+    int pitchMin() const { return m_pitchMin; }
+    int pitchMax() const { return m_pitchMax; }
     int breakInMode() const { return m_breakInMode; }
     bool cutNumbers() const { return m_cutNumbers; }
     bool sendImmediate() const { return m_sendImmediate; }
@@ -108,6 +112,7 @@ signals:
     void wpmChanged();
     void dashRatioChanged();
     void pitchChanged();
+    void pitchRangeChanged();
     void breakInModeChanged();
     void cutNumbersChanged();
     void sendImmediateChanged();
@@ -147,6 +152,8 @@ private:
     int m_wpm;
     double m_dashRatio;
     int m_pitch;
+    int m_pitchMin;
+    int m_pitchMax;
     int m_breakInMode;
     bool m_cutNumbers;
     bool m_sendImmediate;

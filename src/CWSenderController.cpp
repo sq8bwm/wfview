@@ -1,12 +1,21 @@
 #include "CWSenderController.h"
 #include "logcategories.h"
 
+namespace
+{
+// Used when the rig file has no CW Pitch command.
+constexpr int defaultPitchMin = 300;
+constexpr int defaultPitchMax = 900;
+}
+
 CWSenderController::CWSenderController(QObject* parent)
     : QObject(parent)
     , m_visible(false)
     , m_wpm(20)
     , m_dashRatio(3.0)
     , m_pitch(600)
+    , m_pitchMin(defaultPitchMin)
+    , m_pitchMax(defaultPitchMax)
     , m_breakInMode(0)
     , m_cutNumbers(false)
     , m_sendImmediate(false)
@@ -72,6 +81,22 @@ void CWSenderController::receiveRigCaps(rigCapabilities* caps)
     if (m_canSendCW != supported) {
         m_canSendCW = supported;
         emit canSendCWChanged();
+    }
+
+    // The pitch range comes from the rig file, in Hz.
+    int pitchMin = defaultPitchMin;
+    int pitchMax = defaultPitchMax;
+    if (m_rigCaps && m_rigCaps->commands.contains(funcCwPitch)) {
+        const funcType pitchCmd = m_rigCaps->commands.value(funcCwPitch);
+        if (pitchCmd.maxVal > pitchCmd.minVal) {
+            pitchMin = pitchCmd.minVal;
+            pitchMax = pitchCmd.maxVal;
+        }
+    }
+    if (m_pitchMin != pitchMin || m_pitchMax != pitchMax) {
+        m_pitchMin = pitchMin;
+        m_pitchMax = pitchMax;
+        emit pitchRangeChanged();
     }
 
     const int chars = supported ? m_rigCaps->commands.find(funcSendCW).value().bytes : 0;
@@ -412,7 +437,7 @@ void CWSenderController::handleDashRatio(quint8 ratio)
 
 void CWSenderController::handlePitch(quint16 cwPitch)
 {
-    if (cwPitch != m_pitch && cwPitch >= 300 && cwPitch <= 900) {
+    if (cwPitch != m_pitch && cwPitch >= m_pitchMin && cwPitch <= m_pitchMax) {
         m_pitch = cwPitch;
         m_tone->setFrequency(cwPitch);
         emit pitchChanged();

@@ -334,6 +334,21 @@ QByteArray tunerDigitsFromValue(uchar value, int width)
     return digits;
 }
 
+// The CW pitch command counts 5 Hz steps up from 300 Hz (000 is 300 Hz, 160 is
+// 1100 Hz). wfview carries the pitch in Hz.
+constexpr int cwPitchBaseHz = 300;
+constexpr int cwPitchStepHz = 5;
+
+ushort cwPitchHzFromSteps(int steps)
+{
+    return ushort(cwPitchBaseHz + qMax(0, steps) * cwPitchStepHz);
+}
+
+int cwPitchStepsFromHz(int hz)
+{
+    return qMax(0, qRound(double(hz - cwPitchBaseHz) / cwPitchStepHz));
+}
+
 QByteArray joinTerminatedCommands(const QList<QByteArray> &commands)
 {
     QByteArray data;
@@ -545,6 +560,13 @@ bool kenwoodCommander::queueParsedExternalCommand(funcs func, const funcType &ty
         ok = tunerValueFromDigits(d.mid(0, type.bytes), &tuner);
         if (ok)
             value = QVariant::fromValue<uchar>(tuner);
+        break;
+    }
+    case funcCwPitch:
+    {
+        const int steps = d.mid(0, type.bytes).toInt(&ok);
+        if (ok)
+            value.setValue<ushort>(cwPitchHzFromSteps(steps));
         break;
     }
     default:
@@ -973,6 +995,9 @@ void kenwoodCommander::parseData(QByteArray data)
             break;
         case funcBreakIn:
             value.setValue<uchar>(d.toUShort());
+            break;
+        case funcCwPitch:
+            value.setValue<ushort>(cwPitchHzFromSteps(d.mid(0, type.bytes).toInt()));
             break;
         // These are numbers, as they might contain other info, only extract type.bytes len of data.
         case funcTunerStatus:
@@ -1668,6 +1693,11 @@ void kenwoodCommander::receiveCommand(funcs func, QVariant value, uchar receiver
                     }
                     //qInfo() << "Got filter width" << width << "original" << d.toUShort();
                     payload.append(QString::number(val).rightJustified(cmd.bytes, QChar('0')).toLatin1());
+                }
+                else if (func == funcCwPitch)
+                {
+                    const int hz = qBound(int(cmd.minVal), int(value.value<ushort>()), int(cmd.maxVal));
+                    payload.append(QString::number(cwPitchStepsFromHz(hz)).rightJustified(cmd.bytes, QChar('0')).toLatin1());
                 }
                 else
                 {

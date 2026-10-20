@@ -315,8 +315,9 @@ ApplicationWindow {
             
             Label { text: qsTr("Pitch:") }
             SpinBox {
-                from: 300
-                to: 900
+                // The range comes from the rig file's CW Pitch command.
+                from: cwSenderController ? cwSenderController.pitchMin : 300
+                to: cwSenderController ? cwSenderController.pitchMax : 900
                 stepSize: 50
                 editable: true
                 inputMethodHints: Qt.ImhDigitsOnly
