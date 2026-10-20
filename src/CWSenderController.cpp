@@ -12,6 +12,7 @@ CWSenderController::CWSenderController(QObject* parent)
     , m_sendImmediate(false)
     , m_sidetoneEnable(false)
     , m_sidetoneLevel(50)
+    , m_sidetoneAvailable(false)
     , m_sequenceNumber(1)
     , m_maxChars(0)
     , m_macroEditMode(false)
@@ -22,9 +23,13 @@ CWSenderController::CWSenderController(QObject* parent)
     , m_rigCaps(nullptr)
     , m_rig(nullptr)
     , m_queueSignalsConnected(false)
-    , m_tone(nullptr)
-    , m_toneThread(nullptr)
+    , m_tone(std::make_shared<CwSidetoneGenerator>())
 {
+    m_tone->setSpeed(m_wpm);
+    m_tone->setRatio(m_dashRatio);
+    m_tone->setFrequency(m_pitch);
+    m_tone->setLevel(m_sidetoneLevel);
+
     m_queue = cachingQueue::getInstance();
     if (m_queue) {
         connect(this, &CWSenderController::sendCW, m_queue, [=](const QString &cwMessage) {
@@ -84,7 +89,7 @@ void CWSenderController::receiveRigCaps(rigCapabilities* caps)
 CWSenderController::~CWSenderController()
 {
     qDebug(logCW()) << "Running CW Sender Controller destructor.";
-    teardownTone();
+    m_tone->stop();
 }
 
 // Property setters
@@ -103,13 +108,7 @@ void CWSenderController::setWpm(int wpm)
     if (m_wpm != wpm) {
         m_wpm = wpm;
         m_queue->addUnique(priorityImmediate, queueItem(funcKeySpeed, QVariant::fromValue<ushort>(wpm)));
-        
-        if (m_tone) {
-            QMetaObject::invokeMethod(m_tone, [=]() {
-                m_tone->setSpeed(wpm);
-            }, Qt::QueuedConnection);
-        }
-        
+        m_tone->setSpeed(wpm);
         emit wpmChanged();
     }
 }
@@ -118,15 +117,10 @@ void CWSenderController::setDashRatio(double ratio)
 {
     if (m_dashRatio != ratio) {
         m_dashRatio = ratio;
-        quint8 ratioInt = static_cast<quint8>(ratio * 10);
+        // Round rather than truncate: 2.9 * 10 is 28.999... in floating point.
+        const quint8 ratioInt = static_cast<quint8>(qRound(ratio * 10));
         emit setDashRatioSignal(ratioInt);
-        
-        if (m_tone) {
-            QMetaObject::invokeMethod(m_tone, [=]() {
-                m_tone->setRatio(ratioInt);
-            }, Qt::QueuedConnection);
-        }
-        
+        m_tone->setRatio(ratioInt / 10.0);
         emit dashRatioChanged();
     }
 }
@@ -136,13 +130,7 @@ void CWSenderController::setPitch(int pitch)
     if (m_pitch != pitch) {
         m_pitch = pitch;
         emit setPitchSignal(static_cast<quint16>(pitch));
-        
-        if (m_tone) {
-            QMetaObject::invokeMethod(m_tone, [=]() {
-                m_tone->setFrequency(pitch);
-            }, Qt::QueuedConnection);
-        }
-        
+        m_tone->setFrequency(pitch);
         emit pitchChanged();
     }
 }
@@ -178,13 +166,8 @@ void CWSenderController::setSidetoneEnable(bool val)
 {
     if (m_sidetoneEnable != val) {
         m_sidetoneEnable = val;
-        
-        if (val) {
-            setupTone();
-        } else {
-            teardownTone();
-        }
-        
+        if (!val)
+            m_tone->stop();
         emit sidetoneEnableChanged();
         emit keyerSettingsChanged();
     }
@@ -194,9 +177,19 @@ void CWSenderController::setSidetoneLevel(int val)
 {
     if (m_sidetoneLevel != val) {
         m_sidetoneLevel = val;
-        emit setLevel(val);
+        m_tone->setLevel(val);
         emit sidetoneLevelChanged();
         emit keyerSettingsChanged();
+    }
+}
+
+void CWSenderController::setSidetoneAvailable(bool available)
+{
+    if (m_sidetoneAvailable != available) {
+        m_sidetoneAvailable = available;
+        if (!available)
+            m_tone->stop();
+        emit sidetoneAvailableChanged();
     }
 }
 
@@ -226,7 +219,6 @@ void CWSenderController::setReceiveVisible(bool val)
 
 void CWSenderController::loadSettings(bool cutNumbers, bool sendImmediate, bool sidetoneEnabled, int sidetoneLevel, const QStringList& macros)
 {
-    const bool oldSidetone = m_sidetoneEnable;
     m_cutNumbers = cutNumbers;
     m_sendImmediate = sendImmediate;
     m_sidetoneEnable = sidetoneEnabled;
@@ -237,10 +229,9 @@ void CWSenderController::loadSettings(bool cutNumbers, bool sendImmediate, bool 
             m_macroText[i + 1] = macros.at(i);
     }
 
-    if (m_sidetoneEnable && !oldSidetone)
-        setupTone();
-    else if (!m_sidetoneEnable && oldSidetone)
-        teardownTone();
+    m_tone->setLevel(m_sidetoneLevel);
+    if (!m_sidetoneEnable)
+        m_tone->stop();
 
     emit cutNumbersChanged();
     emit sendImmediateChanged();
@@ -404,13 +395,8 @@ void CWSenderController::handleKeySpeed(quint8 wpm)
 {
     if (wpm != m_wpm && wpm >= 6 && wpm <= 48) {
         m_wpm = wpm;
+        m_tone->setSpeed(wpm);
         emit wpmChanged();
-        
-        if (m_tone) {
-            QMetaObject::invokeMethod(m_tone, [=]() {
-                m_tone->setSpeed(wpm);
-            }, Qt::QueuedConnection);
-        }
     }
 }
 
@@ -419,13 +405,8 @@ void CWSenderController::handleDashRatio(quint8 ratio)
     double calc = double(ratio) / 10.0;
     if (calc != m_dashRatio && calc >= 2.5 && calc <= 4.5) {
         m_dashRatio = calc;
+        m_tone->setRatio(calc);
         emit dashRatioChanged();
-        
-        if (m_tone) {
-            QMetaObject::invokeMethod(m_tone, [=]() {
-                m_tone->setRatio(ratio);
-            }, Qt::QueuedConnection);
-        }
     }
 }
 
@@ -433,13 +414,8 @@ void CWSenderController::handlePitch(quint16 cwPitch)
 {
     if (cwPitch != m_pitch && cwPitch >= 300 && cwPitch <= 900) {
         m_pitch = cwPitch;
+        m_tone->setFrequency(cwPitch);
         emit pitchChanged();
-        
-        if (m_tone) {
-            QMetaObject::invokeMethod(m_tone, [=]() {
-                m_tone->setFrequency(cwPitch);
-            }, Qt::QueuedConnection);
-        }
     }
 }
 
@@ -465,22 +441,15 @@ void CWSenderController::handleCurrentModeUpdate(rigMode_t mode)
 
 void CWSenderController::handleSidetoneText(QString text)
 {
-    if (!m_sidetoneEnable || !m_tone || text.isEmpty())
+    if (!m_sidetoneEnable || !m_sidetoneAvailable || text.isEmpty())
         return;
 
-    QMetaObject::invokeMethod(m_tone, [tone = m_tone, text]() {
-        tone->send(text);
-    }, Qt::QueuedConnection);
+    m_tone->send(text);
 }
 
 void CWSenderController::handleStopSidetone()
 {
-    if (!m_tone)
-        return;
-
-    QMetaObject::invokeMethod(m_tone, [tone = m_tone]() {
-        tone->stopSending();
-    }, Qt::QueuedConnection);
+    m_tone->stop();
 }
 
 void CWSenderController::receive(QString text)
@@ -511,47 +480,6 @@ void CWSenderController::updateTextColor(const QString& text)
         color = "";
     }
     emit textColorChanged(color);
-}
-
-void CWSenderController::setupTone()
-{
-    if (m_toneThread != nullptr) {
-        return; // Already set up
-    }
-    
-    m_toneThread = new QThread(this);
-    m_toneThread->setObjectName("sidetone()");
-    m_tone = new cwSidetone(m_sidetoneLevel, m_wpm, m_pitch, m_dashRatio, this);
-    m_tone->moveToThread(m_toneThread);
-    m_toneThread->start();
-    
-    connect(this, SIGNAL(initTone()), m_tone, SLOT(init()));
-    connect(m_toneThread, &QThread::finished, m_tone,
-        [=]() { m_tone->deleteLater(); });
-    
-    connect(this, &CWSenderController::setKeySpeed, m_tone,
-            [=](const quint8& wpm) { m_tone->setSpeed(wpm); });
-    
-    connect(this, &CWSenderController::setDashRatioSignal, m_tone,
-            [=](const quint8& ratio) { m_tone->setRatio(ratio); });
-    
-    connect(this, &CWSenderController::setPitchSignal, m_tone,
-            [=](const quint16& pitch) { m_tone->setFrequency(pitch); });
-    
-    connect(this, &CWSenderController::setLevel, m_tone,
-            [=](const quint8& level) { m_tone->setLevel(level); });
-    
-    emit initTone();
-}
-
-void CWSenderController::teardownTone()
-{
-    if (m_toneThread != nullptr) {
-        m_toneThread->quit();
-        m_toneThread->wait();
-        m_toneThread = nullptr;
-        m_tone = nullptr;
-    }
 }
 
 QString CWSenderController::processMacroText(const QString& macroText)

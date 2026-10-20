@@ -452,6 +452,8 @@ void MainController::ensureAudioProcessors()
     if (!rxProc) {
         rxProc = new RxAudioProcessor(this);
         rxProc->setMuted(m_rxMuted);
+        if (m_cwSender)
+            rxProc->setCwSidetone(m_cwSender->sidetoneGenerator());
 
         // Per-radio ANR noise profile store, derived from the settings file.
         // For an explicit --settings file: same directory and base name
@@ -2823,6 +2825,8 @@ void MainController::updateAudioRouteState()
 
     m_audioRoute = route;
     qDebug(logAudio()) << "Audio route changed:" << audioRouteDebugString(m_audioRoute);
+    if (m_cwSender)
+        m_cwSender->setSidetoneAvailable(m_audioRoute.localOutputEnabled);
     emit localAudioAvailableChanged();
 }
 

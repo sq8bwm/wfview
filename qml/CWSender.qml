@@ -215,6 +215,8 @@ ApplicationWindow {
             
             CheckBox {
                 text: qsTr("Cut Numbers")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Send 0 as T and 9 as N. Applies to macro buttons only, not typed text.")
                 checked: cwSenderController ? cwSenderController.cutNumbers : false
                 onCheckedChanged: {
                     if (cwSenderController) {
@@ -338,7 +340,10 @@ ApplicationWindow {
             }
             
             CheckBox {
-                text: qsTr("Sidetone")
+                readonly property bool available: cwSenderController ? cwSenderController.sidetoneAvailable : false
+                // The sidetone is mixed into RX audio, so it needs a local RX audio path.
+                text: available ? qsTr("Sidetone") : qsTr("Sidetone (no RX audio)")
+                enabled: available
                 checked: cwSenderController ? cwSenderController.sidetoneEnable : false
                 onCheckedChanged: {
                     if (cwSenderController) {
@@ -353,7 +358,7 @@ ApplicationWindow {
                 from: 0
                 to: 100
                 value: cwSenderController ? cwSenderController.sidetoneLevel : 50
-                enabled: cwSenderController ? cwSenderController.sidetoneEnable : false
+                enabled: cwSenderController ? cwSenderController.sidetoneEnable && cwSenderController.sidetoneAvailable : false
                 onValueChanged: {
                     if (cwSenderController) {
                         cwSenderController.sidetoneLevel = value

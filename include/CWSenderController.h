@@ -7,7 +7,9 @@
 #include "wfviewtypes.h"
 #include "cachingqueue.h"
 #include "rigcommander.h"
-#include "cwsidetone.h"
+#include "cwsidetonegenerator.h"
+
+#include <memory>
 
 class CWSenderController : public QObject
 {
@@ -23,6 +25,7 @@ class CWSenderController : public QObject
     Q_PROPERTY(bool sendImmediate READ sendImmediate WRITE setSendImmediate NOTIFY sendImmediateChanged)
     Q_PROPERTY(bool sidetoneEnable READ sidetoneEnable WRITE setSidetoneEnable NOTIFY sidetoneEnableChanged)
     Q_PROPERTY(int sidetoneLevel READ sidetoneLevel WRITE setSidetoneLevel NOTIFY sidetoneLevelChanged)
+    Q_PROPERTY(bool sidetoneAvailable READ sidetoneAvailable NOTIFY sidetoneAvailableChanged)
     Q_PROPERTY(int sequenceNumber READ sequenceNumber WRITE setSequenceNumber NOTIFY sequenceNumberChanged)
     Q_PROPERTY(int maxChars READ maxChars NOTIFY maxCharsChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
@@ -44,6 +47,7 @@ public:
     bool sendImmediate() const { return m_sendImmediate; }
     bool sidetoneEnable() const { return m_sidetoneEnable; }
     int sidetoneLevel() const { return m_sidetoneLevel; }
+    bool sidetoneAvailable() const { return m_sidetoneAvailable; }
     int sequenceNumber() const { return m_sequenceNumber; }
     int maxChars() const { return m_maxChars; }
     QString statusMessage() const { return m_statusMessage; }
@@ -61,6 +65,9 @@ public:
     void setSendImmediate(bool val);
     void setSidetoneEnable(bool val);
     void setSidetoneLevel(int val);
+    // The sidetone is mixed into RX audio, so it needs a local RX audio path.
+    void setSidetoneAvailable(bool available);
+    std::shared_ptr<CwSidetoneGenerator> sidetoneGenerator() const { return m_tone; }
     void setSequenceNumber(int val);
     void setMacroEditMode(bool val);
     void setReceiveVisible(bool val);
@@ -106,6 +113,7 @@ signals:
     void sendImmediateChanged();
     void sidetoneEnableChanged();
     void sidetoneLevelChanged();
+    void sidetoneAvailableChanged();
     void sequenceNumberChanged();
     void statusMessageChanged();
     void macroEditModeChanged();
@@ -124,19 +132,14 @@ signals:
     // Radio command signals
     void sendCW(QString cwMessage);
     void stopCW();
-    void setKeySpeed(quint8 wpm);
     void setDashRatioSignal(quint8 ratio);
     void setPitchSignal(quint16 pitch);
     void setBreakInModeSignal(quint8 b);
-    void setLevel(int level);
     void getCWSettings();
-    void initTone();
     
 private:
     void setStatusMessage(const QString& msg);
     void updateTextColor(const QString& text);
-    void setupTone();
-    void teardownTone();
     QString processMacroText(const QString& macroText);
     
     // UI state
@@ -149,6 +152,7 @@ private:
     bool m_sendImmediate;
     bool m_sidetoneEnable;
     int m_sidetoneLevel;
+    bool m_sidetoneAvailable;
     int m_sequenceNumber;
     int m_maxChars;
     QString m_statusMessage;
@@ -169,8 +173,7 @@ private:
     bool m_queueSignalsConnected;
     
     // Sidetone
-    cwSidetone* m_tone;
-    QThread* m_toneThread;
+    std::shared_ptr<CwSidetoneGenerator> m_tone;
 };
 
 #endif // CWSENDERCONTROLLER_H
