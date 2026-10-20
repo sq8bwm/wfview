@@ -133,6 +133,7 @@ enum prefColItem : qint64 {
     col_freqUnits = 1LL << 51,
     col_freqInactive = 1LL << 52,
     col_freqHighlight = 1LL << 53,
+    col_clusterSpotLine = 1LL << 54,
     col_all = ~0LL
 };
 using prefColItems = qint64;
@@ -210,6 +211,8 @@ enum prefClusterItem {
     cl_clusterSkimmerSpotsEnable = 1 << 8,
     cl_clusterTcpConnect = 1 << 9,
     cl_clusterTcpDisconnect = 1 << 10,
+    cl_clusterUdpLifetimeEnable = 1 << 11,
+    cl_clusterUdpLifetime = 1 << 12,
     cl_all = ~0
 };
 
@@ -424,7 +427,10 @@ struct preferences {
     bool clusterTcpEnable;
     int clusterUdpPort;
     int clusterTcpPort = 7300;
-    int clusterTimeout; // used?
+    int clusterTimeout; // spot lifetime in seconds for the active TCP server
+    bool clusterUdpLifetimeEnable = false;
+    int clusterUdpLifetime = 300; // seconds
+    int clusterSpotFadePercent = 50; // percent of spot lifetime before fading starts
     bool clusterSkimmerSpotsEnable; // where is this used?
     QString clusterTcpServerName;
     QString clusterTcpUserName;

@@ -81,6 +81,7 @@ class SpectrumItem : public QQuickItem
     Q_PROPERTY(int underlayBufferSize READ getUnderlayBufferSize WRITE setUnderlayBufferSize NOTIFY underlayBufferSizeChanged)
 
     Q_PROPERTY(int maxSpotRows READ getMaxSpotRows WRITE setMaxSpotRows NOTIFY spotsChanged)
+    Q_PROPERTY(int spotFadePercent READ getSpotFadePercent WRITE setSpotFadePercent NOTIFY spotsChanged)
     Q_PROPERTY(colorPrefsType colors READ getColors WRITE setColors NOTIFY colorsChanged)
     Q_PROPERTY(const QVector<bandType> bands READ getBands WRITE setBands NOTIFY bandsChanged)
 
@@ -115,6 +116,7 @@ public:
     int getUnderlayMode() const { return static_cast<int>(m_underlayMode); }
     int getUnderlayBufferSize() const { return m_underlayBufferSize; }
     int getMaxSpotRows() const { return maxSpotRows; }
+    int getSpotFadePercent() const { return spotFadePercent; }
 
     struct SpotLayout {
         QRectF   rect;   // label rect in item coordinates
@@ -140,6 +142,7 @@ public slots:
     void setUnderlayMode(int mode);
     void setUnderlayBufferSize(int size);
     void setMaxSpotRows(int rows);
+    void setSpotFadePercent(int percent);
     void updateScope(const scopeData &data);
     void setSpots(const QVector<spotData> &newSpots);
     void clearSpots();
@@ -196,6 +199,7 @@ private:
     QVector<bandType> bands;
 
     int maxSpotRows = 6;
+    int spotFadePercent = 50; // percent of spot lifetime before fading starts
 
     bool hoverActive = false;
     int hoverIndex = -1;

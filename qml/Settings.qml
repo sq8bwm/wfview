@@ -303,6 +303,18 @@ ApplicationWindow {
     }
 
 
+    // Fusion's tooltip wraps its text, which can size the box far wider than
+    // short lines split with \n need. Lay the text out unwrapped instead.
+    component FitToolTip: ToolTip {
+        id: fitToolTip
+        contentItem: Text {
+            text: fitToolTip.text
+            font: fitToolTip.font
+            color: fitToolTip.palette.toolTipText
+            wrapMode: Text.NoWrap
+        }
+    }
+
     component ColorRow : RowLayout {
         spacing: 8
         Layout.fillWidth: true
@@ -2200,8 +2212,11 @@ ApplicationWindow {
                                     ColorRow { key: "Color.UnderlayFillBot"; label: qsTr("Underlay Fill Bot") }
 
                                     ColorRow { key: "Color.ClusterSpots"; label: qsTr("Cluster Spots") }
+                                    ColorRow { key: "Color.ClusterSpotLine"; label: qsTr("Cluster Spot Line"); tooltip: qsTr("Line from a cluster spot label down to its frequency") }
                                     ColorRow { key: "Color.ButtonOff"; label: qsTr("Button Off") }
                                     ColorRow { key: "Color.ButtonOn"; label: qsTr("Button On") }
+                                    Item {}
+                                    Item {}
 
                                     // Frequency display colors, grouped in a single column
                                     Item { height: 20; Layout.columnSpan: 3 }
@@ -3091,7 +3106,7 @@ ApplicationWindow {
 
                         GroupBox {
                             id: clusterTcpGroup
-                            title: qsTr("TCP Cluster Connection")
+                            title: qsTr("Enable Cluster Connections (TCP)")
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             // Don't let the UDP section below squash the server table.
@@ -3099,7 +3114,7 @@ ApplicationWindow {
 
                             label: CheckBox {
                                 id: clusterTcpEnable
-                                text: qsTr("TCP Cluster Connection")
+                                text: qsTr("Enable Cluster Connections (TCP)")
                                 checked: optBool("Cluster.TcpEnabled", false)
                                 onClicked: {
                                     if (!controller)
@@ -3129,12 +3144,13 @@ ApplicationWindow {
                                     function selectRow(r) { root.currentRow = r }
 
                                     // Column widths (easy to tweak)
-                                    readonly property int wServer: 260
+                                    readonly property int wServer: 220
                                     readonly property int wPort: 90
-                                    readonly property int wUser: 160
-                                    readonly property int wPass: 160
-                                    readonly property int wTimeout: 100
-                                    readonly property int wDef: 90
+                                    readonly property int wUser: 130
+                                    readonly property int wPass: 130
+                                    readonly property int wTimeout: 140
+                                    readonly property int wDef: 70
+                                    readonly property int wStatus: 190
                                     readonly property int rowH: 34
                                     readonly property int pad: 6
 
@@ -3150,7 +3166,7 @@ ApplicationWindow {
                                                 text: qsTr("Add")
                                                 enabled: root.clusterModel !== null
                                                 onClicked: {
-                                                    root.clusterModel.addEntry("localhost", 7300, "", "", 30, false)
+                                                    root.clusterModel.addEntry("localhost", 7300, "", "", 60, false)
                                                     root.currentRow = root.clusterModel.count() - 1
                                                 }
                                             }
@@ -3199,8 +3215,25 @@ ApplicationWindow {
                                                 Label { width: root.wPort;    height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Port");    font.bold: true; color: "white" }
                                                 Label { width: root.wUser;    height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("User");    font.bold: true; color: "white" }
                                                 Label { width: root.wPass;    height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Password");font.bold: true; color: "white" }
-                                                Label { width: root.wTimeout; height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Timeout"); font.bold: true; color: "white" }
-                                                Label { width: root.wDef;     height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Default"); font.bold: true; color: "white" }
+                                                Label {
+                                                    width: root.wTimeout; height: parent.height; verticalAlignment: Text.AlignVCenter
+                                                    text: qsTr("Spot Lifetime (sec)"); font.bold: true; color: "white"
+                                                    HoverHandler { id: clusterLifetimeHeaderHover }
+                                                    FitToolTip {
+                                                        visible: clusterLifetimeHeaderHover.hovered
+                                                        text: qsTr("How many seconds a spot is displayed")
+                                                    }
+                                                }
+                                                Label {
+                                                    width: root.wDef; height: parent.height; verticalAlignment: Text.AlignVCenter
+                                                    text: qsTr("Activate"); font.bold: true; color: "white"
+                                                    HoverHandler { id: clusterActivateHeaderHover }
+                                                    FitToolTip {
+                                                        visible: clusterActivateHeaderHover.hovered
+                                                        text: qsTr("Check the one server you wish to connect to\nAll other servers listed are not connected to,\nbut are recorded here for your convenience")
+                                                    }
+                                                }
+                                                Label { width: root.wStatus;  height: parent.height; verticalAlignment: Text.AlignVCenter; text: qsTr("Status");  font.bold: true; color: "white" }
                                             }
                                         }
 
@@ -3293,7 +3326,7 @@ ApplicationWindow {
                                                             height: parent.height - 6
                                                             anchors.verticalCenter: parent.verticalCenter
                                                             inputMethodHints: Qt.ImhDigitsOnly
-                                                            validator: IntValidator { bottom: 1; top: 600 }
+                                                            validator: IntValidator { bottom: 10; top: 999 }
                                                             text: String(model.timeout)
                                                             selectByMouse: true
                                                             onPressed: root.currentRow = index
@@ -3313,6 +3346,19 @@ ApplicationWindow {
                                                                 onActiveFocusChanged: if (activeFocus) root.currentRow = index
                                                             }
                                                         }
+
+                                                        // Only the activated server is ever connected.
+                                                        Label {
+                                                            id: clusterStatusLabel
+                                                            width: root.wStatus
+                                                            height: parent.height
+                                                            verticalAlignment: Text.AlignVCenter
+                                                            elide: Text.ElideRight
+                                                            text: model.isdefault ? MainController.clusterStatusText : qsTr("Not connected")
+                                                            HoverHandler { id: clusterStatusHover }
+                                                            ToolTip.visible: clusterStatusHover.hovered && clusterStatusLabel.truncated
+                                                            ToolTip.text: text
+                                                        }
                                                     }
                                                 }
                                             }
@@ -3326,14 +3372,18 @@ ApplicationWindow {
 
                         GroupBox {
                             id: clusterUdpGroup
-                            title: qsTr("UDP Broadcast Connection")
+                            title: qsTr("Receive spots over UDP Broadcast")
                             Layout.fillWidth: true
 
                             label: CheckBox {
                                     id: clusterUdpEnable
-                                    text: qsTr("UDP Broadcast Connection")
+                                    text: qsTr("Receive spots over UDP Broadcast")
                                     checked: optBool("Cluster.UdpEnabled", false)
                                     onClicked: if (controller) controller.setOption("Cluster.UdpEnabled", checked)
+                                    FitToolTip {
+                                        visible: clusterUdpEnable.hovered
+                                        text: qsTr("Receives spots over broadcasted UDP data\nFormat is XML using <spot>")
+                                    }
                                 }
 
 
@@ -3348,6 +3398,31 @@ ApplicationWindow {
                                     Layout.preferredWidth: 120
                                     onEditingFinished: commitIntegerOption("Cluster.UdpPort", clusterUdpPortLineEdit, 1, 65535)
                                 }
+                                CheckBox {
+                                    id: clusterUdpLifetimeEnable
+                                    Layout.leftMargin: 16
+                                    text: qsTr("UDP Spot Lifetime (sec)")
+                                    checked: optBool("Cluster.UdpLifetimeEnabled", false)
+                                    onClicked: if (controller) controller.setOption("Cluster.UdpLifetimeEnabled", checked)
+                                    FitToolTip {
+                                        id: clusterUdpLifetimeTip
+                                        visible: clusterUdpLifetimeEnable.hovered
+                                        text: qsTr("Expire spots received over UDP in this many seconds\nWhen unchecked, only the UDP packets may indicate a spot expiration")
+                                    }
+                                }
+                                SpinBox {
+                                    id: clusterUdpLifetimeSpin
+                                    from: 10
+                                    to: 999
+                                    value: controller ? (Number(controller.options["Cluster.UdpLifetime"]) || 300) : 300
+                                    editable: true
+                                    enabled: clusterUdpLifetimeEnable.checked
+                                    FitToolTip {
+                                        visible: clusterUdpLifetimeSpin.hovered
+                                        text: clusterUdpLifetimeTip.text
+                                    }
+                                    onValueModified: if (controller) controller.setOption("Cluster.UdpLifetime", value)
+                                }
                                 Item { Layout.fillWidth: true }
                             }
                         }
@@ -3355,22 +3430,27 @@ ApplicationWindow {
                         ScrollView {
                             id: clusterOutputScroll
                             Layout.fillWidth: true
+                            // Don't size the layout from the wrapped text, or from
+                            // it to the text: either way loops on implicitWidth.
+                            Layout.preferredWidth: 200
+                            contentWidth: availableWidth
                             Layout.preferredHeight: 160
                             Layout.minimumHeight: 120
                             Layout.maximumHeight: 180
                             clip: true
-                            ScrollBar.horizontal.policy: ScrollBar.AsNeeded
+                            // Text wraps, so never scroll sideways. ScrollView sizes a
+                            // TextArea child itself.
+                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
                             TextArea {
                                 id: clusterOutputTextEdit
-                                width: clusterOutputScroll.availableWidth
-                                height: clusterOutputScroll.availableHeight
                                 text: MainController.clusterOutputText
                                 readOnly: true
                                 selectByMouse: true
                                 wrapMode: TextArea.Wrap
                                 persistentSelection: true
+                                font.family: "monospace"
                                 background: Rectangle {
                                     color: palette.base
                                     border.color: palette.mid
@@ -3392,10 +3472,39 @@ ApplicationWindow {
                                 text: qsTr("Show Skimmer Spots")
                                 checked: optBool("Cluster.SkimmerSpotsEnable", false)
                                 onClicked: if (controller) controller.setOption("Cluster.SkimmerSpotsEnable", checked)
+                                FitToolTip {
+                                    visible: clusterSkimmerSpotsEnable.hovered
+                                    text: qsTr("Ask the cluster server to also send CW Skimmer and Reverse Beacon Network spots\n(sends set/skimmer). Not every cluster server supports this.")
+                                }
                             }
                             Button {
                                 text: qsTr("Clear Output")
                                 onClicked: MainController.clearClusterOutput()
+                            }
+                            Label {
+                                Layout.leftMargin: 16
+                                text: qsTr("Spots begin to fade at this percent lifetime")
+                                HoverHandler { id: clusterFadeLabelHover }
+                                FitToolTip {
+                                    visible: clusterFadeLabelHover.hovered
+                                    text: clusterSpotFadeTip.text
+                                }
+                            }
+                            SpinBox {
+                                id: clusterSpotFadeSpin
+                                from: 0
+                                to: 100
+                                value: controller && controller.options["Cluster.SpotFadePercent"] !== undefined ? Number(controller.options["Cluster.SpotFadePercent"]) : 50
+                                editable: true
+                                textFromValue: function(value, locale) { return value + "%" }
+                                valueFromText: function(text, locale) { var v = parseInt(text); return isNaN(v) ? clusterSpotFadeSpin.value : v }
+                                validator: RegularExpressionValidator { regularExpression: /\s*\d{1,3}\s*%?\s*/ }
+                                FitToolTip {
+                                    id: clusterSpotFadeTip
+                                    visible: clusterSpotFadeSpin.hovered
+                                    text: qsTr("Spots begin to linearly fade out at this percent of total spot lifetime\nZero percent = begin to fade over entire lifetime\nFifty percent = begin to fade when half way to expiration\nNinety percent = begin to fade when just ten percent life left")
+                                }
+                                onValueModified: if (controller) controller.setOption("Cluster.SpotFadePercent", value)
                             }
                             Item { Layout.fillWidth: true }
                         }

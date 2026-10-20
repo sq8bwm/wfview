@@ -1211,6 +1211,7 @@ void SettingsController::load()
             p->meterLowerLine = colorFromString(settings->value("meterLowerLine", p->meterLowerLine.name(QColor::HexArgb)).toString());
             p->meterLowText = colorFromString(settings->value("meterLowText", p->meterLowText.name(QColor::HexArgb)).toString());
             p->clusterSpots = colorFromString(settings->value("clusterSpots", p->clusterSpots.name(QColor::HexArgb)).toString());
+            p->clusterSpotLine = colorFromString(settings->value("clusterSpotLine", p->clusterSpotLine.name(QColor::HexArgb)).toString());
             p->buttonOff = colorFromString(settings->value("buttonOff", p->buttonOff.name(QColor::HexArgb)).toString());
             p->buttonOn = colorFromString(settings->value("buttonOn", p->buttonOn.name(QColor::HexArgb)).toString());
             p->freqBackground = colorFromString(settings->value("freqBackground", p->freqBackground.name(QColor::HexArgb)).toString());
@@ -1606,6 +1607,11 @@ void SettingsController::load()
     prefs.clusterUdpEnable = settings->value("UdpEnabled", defPrefs.clusterUdpEnable).toBool();
     prefs.clusterTcpEnable = settings->value("TcpEnabled", defPrefs.clusterTcpEnable).toBool();
     prefs.clusterUdpPort = settings->value("UdpPort", defPrefs.clusterUdpPort).toInt();
+    prefs.clusterUdpLifetimeEnable = settings->value("UdpLifetimeEnabled", defPrefs.clusterUdpLifetimeEnable).toBool();
+    prefs.clusterUdpLifetime = qBound(dxClusterClient::spotLifetimeMin,
+                                      settings->value("UdpLifetime", defPrefs.clusterUdpLifetime).toInt(),
+                                      dxClusterClient::spotLifetimeMax);
+    prefs.clusterSpotFadePercent = qBound(0, settings->value("SpotFadePercent", defPrefs.clusterSpotFadePercent).toInt(), 100);
 
     int numClusters = settings->beginReadArray("Servers");
     prefs.clusters.clear();
@@ -1619,7 +1625,10 @@ void SettingsController::load()
                 c.port = settings->value("Port", 7300).toInt();
                 c.userName = settings->value("UserName", "").toString();
                 c.password = settings->value("Password", "").toString();
-                c.timeout = settings->value("Timeout", 0).toInt();
+                // Stored under a new key: the old "Timeout" value was in minutes.
+                c.timeout = qBound(dxClusterClient::spotLifetimeMin,
+                                   settings->value("SpotLifetime", defPrefs.clusterTimeout).toInt(),
+                                   dxClusterClient::spotLifetimeMax);
                 c.isdefault = settings->value("Default", false).toBool();
                 if (!c.server.isEmpty()) {
                     prefs.clusters.append(c);
@@ -2164,6 +2173,7 @@ void SettingsController::save()
         settings->setValue("meterLowerLine", p->meterLowerLine.name(QColor::HexArgb));
         settings->setValue("meterLowText", p->meterLowText.name(QColor::HexArgb));
         settings->setValue("clusterSpots", p->clusterSpots.name(QColor::HexArgb));
+        settings->setValue("clusterSpotLine", p->clusterSpotLine.name(QColor::HexArgb));
         settings->setValue("buttonOff", p->buttonOff.name(QColor::HexArgb));
         settings->setValue("buttonOn", p->buttonOn.name(QColor::HexArgb));
         settings->setValue("freqBackground", p->freqBackground.name(QColor::HexArgb));
@@ -2219,6 +2229,9 @@ void SettingsController::save()
     settings->setValue("UdpEnabled", prefs.clusterUdpEnable);
     settings->setValue("TcpEnabled", prefs.clusterTcpEnable);
     settings->setValue("UdpPort", prefs.clusterUdpPort);
+    settings->setValue("UdpLifetimeEnabled", prefs.clusterUdpLifetimeEnable);
+    settings->setValue("UdpLifetime", prefs.clusterUdpLifetime);
+    settings->setValue("SpotFadePercent", prefs.clusterSpotFadePercent);
 
     settings->beginWriteArray("Servers");
 
@@ -2229,7 +2242,7 @@ void SettingsController::save()
         settings->setValue("UserName", prefs.clusters[f].userName);
         settings->setValue("Port", prefs.clusters[f].port);
         settings->setValue("Password", prefs.clusters[f].password);
-        settings->setValue("Timeout", prefs.clusters[f].timeout);
+        settings->setValue("SpotLifetime", prefs.clusters[f].timeout);
         settings->setValue("Default", prefs.clusters[f].isdefault);
         /*
         if (prefs.clusters[f].isdefault  == true) {
@@ -2592,6 +2605,10 @@ void SettingsController::setDefPrefs()
     defPrefs.clusterUdpEnable = false;
     defPrefs.clusterTcpEnable = false;
     defPrefs.clusterUdpPort = 12060;
+    defPrefs.clusterTimeout = 60;
+    defPrefs.clusterUdpLifetimeEnable = false;
+    defPrefs.clusterUdpLifetime = 300;
+    defPrefs.clusterSpotFadePercent = 50;
 
     // CW
     defPrefs.cwCutNumbers=false;
@@ -2681,6 +2698,7 @@ void SettingsController::setDefPrefs()
             p->wfGrid = QColor("transparent");
             p->wfText = QColor(Qt::white);
             p->clusterSpots = QColor(Qt::red);
+            p->clusterSpotLine = QColor(Qt::yellow);
             p->buttonOff = QColor("transparent");
             p->buttonOn = QColor(0x50,0x50,0x50);
 
@@ -2738,6 +2756,7 @@ void SettingsController::setDefPrefs()
             p->wfGrid = QColor("transparent");
             p->wfText = QColor(Qt::black);
             p->clusterSpots = QColor(Qt::red);
+            p->clusterSpotLine = QColor(Qt::darkBlue);
             p->buttonOff = QColor("transparent");
             p->buttonOn = QColor(0x50,0x50,0x50);
 
@@ -2795,6 +2814,7 @@ void SettingsController::setDefPrefs()
             p->wfText = QColor(Qt::white);
 
             p->clusterSpots = QColor(Qt::red);
+            p->clusterSpotLine = QColor(Qt::yellow);
 
             p->buttonOff = QColor("transparent");
             p->buttonOn = QColor(0x50,0x50,0x50);
@@ -3846,6 +3866,15 @@ void SettingsController::buildBindings()
     WF_I32("Cluster.Timeout", prefs.clusterTimeout,
            [this](){ emit clusterChanged(prefClusterItems(prefClusterItem::cl_clusterTimeout)); });
 
+    WF_BOOL("Cluster.UdpLifetimeEnabled", prefs.clusterUdpLifetimeEnable,
+            [this](){ emit clusterChanged(prefClusterItems(prefClusterItem::cl_clusterUdpLifetimeEnable)); });
+
+    WF_I32("Cluster.UdpLifetime", prefs.clusterUdpLifetime,
+           [this](){ emit clusterChanged(prefClusterItems(prefClusterItem::cl_clusterUdpLifetime)); });
+
+    // Read by the spectrum through the options map, the cluster client doesn't need it.
+    WF_I32("Cluster.SpotFadePercent", prefs.clusterSpotFadePercent, [](){});
+
     WF_BOOL("Cluster.SkimmerSpotsEnable", prefs.clusterSkimmerSpotsEnable,
             [this](){ emit clusterChanged(prefClusterItems(prefClusterItem::cl_clusterSkimmerSpotsEnable)); });
 
@@ -4238,6 +4267,8 @@ void SettingsController::buildBindings()
     // Assorted
     WF_COLOR("Color.ClusterSpots",      curColor().clusterSpots,
              [this](){ emit colChanged(prefColItems(prefColItem::col_clusterSpots)); });
+    WF_COLOR("Color.ClusterSpotLine",   curColor().clusterSpotLine,
+             [this](){ emit colChanged(prefColItems(prefColItem::col_clusterSpotLine)); });
     WF_COLOR("Color.ButtonOff",         curColor().buttonOff,
              [this](){ emit colChanged(prefColItems(prefColItem::col_buttonOff)); });
     WF_COLOR("Color.ButtonOn",          curColor().buttonOn,
@@ -4327,6 +4358,7 @@ void SettingsController::refreshCurrentColorPresetOptions(bool loading)
     push("Color.MeterLowText");
 
     push("Color.ClusterSpots");
+    push("Color.ClusterSpotLine");
     push("Color.ButtonOff");
     push("Color.ButtonOn");
 

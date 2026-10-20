@@ -73,6 +73,8 @@ public:
     Q_PROPERTY(QString radioStatusText READ radioStatusText NOTIFY radioStatusTextChanged)
     Q_PROPERTY(QString rigModelName READ rigModelName NOTIFY rigModelNameChanged)
     Q_PROPERTY(QString clusterOutputText READ clusterOutputText NOTIFY clusterOutputTextChanged)
+    Q_PROPERTY(int clusterStatus READ clusterStatus NOTIFY clusterStatusChanged)
+    Q_PROPERTY(QString clusterStatusText READ clusterStatusText NOTIFY clusterStatusChanged)
     Q_PROPERTY(int receiverCount READ receiverCount NOTIFY receiverCountChanged)
     Q_PROPERTY(int currentReceiver READ getCurrentReceiver NOTIFY currentReceiverChanged)
     Q_PROPERTY(SettingsController* settings READ getSettings CONSTANT)
@@ -155,6 +157,8 @@ public:
     int serverTotalLogins() const { return m_serverTotalLogins; }
     QString rigModelName() const { return m_rigModelName; }
     QString clusterOutputText() const { return m_clusterOutputText; }
+    int clusterStatus() const { return m_clusterStatus; }
+    QString clusterStatusText() const;
 
     int receiverCount() const { return receivers.size(); }
     int getCurrentReceiver() const { return currentReceiver; }
@@ -431,6 +435,7 @@ signals:
     void optionalMetersChanged();
     void meterLevelsChanged();
     void clusterOutputTextChanged();
+    void clusterStatusChanged();
     void repeaterStateChanged();
     void repeaterModelsChanged();
 
@@ -536,6 +541,7 @@ private:
     void applyClusterSettingsToClient(bool includeTcpEnable);
     void appendClusterOutput(const QString& text);
     void receiveClusterSpots(quint8 receiver, const QList<spotData> &spots);
+    void receiveClusterStatus(int status);
     void setupRigCtlServer();
     void stopRigCtlServer();
     void setupTciServer();
@@ -600,6 +606,8 @@ private:
     QString m_radioStatusText;
     QString m_rigModelName;
     QString m_clusterOutputText;
+    qsizetype m_clusterOutputLines = 0;
+    int m_clusterStatus = dxClusterClient::tcpNotConnected;
     QVector<ReceiverController*> receivers;
     QVector<bool> detached;
 
@@ -633,6 +641,8 @@ private:
     QThread* tciThread = nullptr;
     dxClusterClient* cluster = nullptr;
     QThread* clusterThread = nullptr;
+    // Server fields are edited a keystroke at a time; wait for typing to settle before reconnecting.
+    QTimer* clusterReconnectTimer = nullptr;
 
     rigCommander * rig = nullptr;
     QThread* rigThread = nullptr;

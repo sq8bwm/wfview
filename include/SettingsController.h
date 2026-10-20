@@ -257,7 +257,7 @@ public:
             break;
         }
         case TimeoutRole: {
-            const int v = value.toInt();
+            const int v = qBound(dxClusterClient::spotLifetimeMin, value.toInt(), dxClusterClient::spotLifetimeMax);
             if (it.timeout != v) { it.timeout = v; changed = true; }
             break;
         }
@@ -366,8 +366,8 @@ public:
         case Port:      return "Port";
         case UserName:  return "User";
         case Password:  return "Password";
-        case Timeout:   return "Timeout";
-        case IsDefault: return "Default";
+        case Timeout:   return "Spot Lifetime (sec)";
+        case IsDefault: return "Activate";
         default:        return {};
         }
     }
@@ -378,7 +378,7 @@ public:
                               int port = 7300,
                               const QString &userName = {},
                               const QString &password = {},
-                              int timeout = 30,
+                              int timeout = 60,
                               bool isdefault = false)
     {
         const int r = m_items.count();

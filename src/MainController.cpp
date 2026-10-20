@@ -4005,7 +4005,18 @@ void MainController::setupClusterClient()
     connect(clusterThread, &QThread::finished, cluster, &QObject::deleteLater);
     connect(cluster, &dxClusterClient::sendOutput, this, &MainController::appendClusterOutput);
     connect(cluster, &dxClusterClient::sendSpots, this, &MainController::receiveClusterSpots);
+    connect(cluster, &dxClusterClient::tcpStatusChanged, this, &MainController::receiveClusterStatus);
     clusterThread->start();
+
+    if (clusterReconnectTimer == nullptr) {
+        clusterReconnectTimer = new QTimer(this);
+        clusterReconnectTimer->setSingleShot(true);
+        clusterReconnectTimer->setInterval(1500);
+        connect(clusterReconnectTimer, &QTimer::timeout, this, [this]() {
+            if (cluster)
+                QMetaObject::invokeMethod(cluster, "reconnectTcpIfChanged", Qt::QueuedConnection);
+        });
+    }
 
     applyClusterSettingsToClient(true);
 }
@@ -4014,6 +4025,9 @@ void MainController::stopClusterClient()
 {
     if (!clusterThread)
         return;
+
+    if (clusterReconnectTimer)
+        clusterReconnectTimer->stop();
 
     if (cluster) {
         QMetaObject::invokeMethod(cluster, "shutdown", Qt::BlockingQueuedConnection);
@@ -4038,6 +4052,8 @@ void MainController::applyClusterSettingsToClient(bool includeTcpEnable)
     QMetaObject::invokeMethod(cluster, "setTcpPort", Qt::QueuedConnection, Q_ARG(int, prefs->clusterTcpPort));
     QMetaObject::invokeMethod(cluster, "setTcpTimeout", Qt::QueuedConnection, Q_ARG(int, prefs->clusterTimeout));
     QMetaObject::invokeMethod(cluster, "enableSkimmerSpots", Qt::QueuedConnection, Q_ARG(bool, prefs->clusterSkimmerSpotsEnable));
+    QMetaObject::invokeMethod(cluster, "setUdpLifetime", Qt::QueuedConnection,
+                              Q_ARG(int, prefs->clusterUdpLifetimeEnable ? prefs->clusterUdpLifetime : 0));
     if (includeTcpEnable)
         QMetaObject::invokeMethod(cluster, "enableTcp", Qt::QueuedConnection, Q_ARG(bool, prefs->clusterTcpEnable));
 }
@@ -4063,6 +4079,13 @@ void MainController::clusterChanged(SettingsController::prefClusterItems items)
         QMetaObject::invokeMethod(cluster, "setTcpTimeout", Qt::QueuedConnection, Q_ARG(int, prefs->clusterTimeout));
     if (items.testFlag(prefClusterItem::cl_clusterSkimmerSpotsEnable))
         QMetaObject::invokeMethod(cluster, "enableSkimmerSpots", Qt::QueuedConnection, Q_ARG(bool, prefs->clusterSkimmerSpotsEnable));
+    if (items.testFlag(prefClusterItem::cl_clusterUdpLifetimeEnable) || items.testFlag(prefClusterItem::cl_clusterUdpLifetime))
+        QMetaObject::invokeMethod(cluster, "setUdpLifetime", Qt::QueuedConnection,
+                                  Q_ARG(int, prefs->clusterUdpLifetimeEnable ? prefs->clusterUdpLifetime : 0));
+    if (prefs->clusterTcpEnable && clusterReconnectTimer &&
+        (items.testFlag(prefClusterItem::cl_clusterTcpServerName) || items.testFlag(prefClusterItem::cl_clusterTcpPort) ||
+         items.testFlag(prefClusterItem::cl_clusterTcpUserName) || items.testFlag(prefClusterItem::cl_clusterTcpPassword)))
+        clusterReconnectTimer->start();
     if (items.testFlag(prefClusterItem::cl_clusterTcpEnable)) {
         if (prefs->clusterTcpEnable)
             applyClusterSettingsToClient(false);
@@ -4097,6 +4120,7 @@ void MainController::clearClusterOutput()
         return;
 
     m_clusterOutputText.clear();
+    m_clusterOutputLines = 0;
     emit clusterOutputTextChanged();
 }
 
@@ -4213,14 +4237,37 @@ void MainController::appendClusterOutput(const QString& text)
         return;
 
     m_clusterOutputText.append(text);
-    constexpr qsizetype maxChars = 12000;
-    if (m_clusterOutputText.size() > maxChars) {
-        m_clusterOutputText = m_clusterOutputText.right(maxChars);
-        const qsizetype firstNewline = m_clusterOutputText.indexOf(QLatin1Char('\n'));
-        if (firstNewline > 0 && firstNewline + 1 < m_clusterOutputText.size())
-            m_clusterOutputText.remove(0, firstNewline + 1);
+    m_clusterOutputLines += text.count(QLatin1Char('\n'));
+
+    constexpr qsizetype maxLines = 300;
+    if (m_clusterOutputLines > maxLines) {
+        // Drop the oldest lines so maxLines remain.
+        qsizetype cut = -1;
+        for (qsizetype excess = m_clusterOutputLines - maxLines; excess > 0; --excess)
+            cut = m_clusterOutputText.indexOf(QLatin1Char('\n'), cut + 1);
+        m_clusterOutputText.remove(0, cut + 1);
+        m_clusterOutputLines = maxLines;
     }
     emit clusterOutputTextChanged();
+}
+
+void MainController::receiveClusterStatus(int status)
+{
+    if (m_clusterStatus == status)
+        return;
+    m_clusterStatus = status;
+    emit clusterStatusChanged();
+}
+
+QString MainController::clusterStatusText() const
+{
+    switch (m_clusterStatus) {
+    case dxClusterClient::tcpConnecting:         return tr("Connecting...");
+    case dxClusterClient::tcpConnectedNoTraffic: return tr("Connected, no traffic");
+    case dxClusterClient::tcpConnectedTraffic:   return tr("Connected, traffic received");
+    case dxClusterClient::tcpError:              return tr("NC, Error");
+    default:                                     return tr("Not connected");
+    }
 }
 
 void MainController::receiveClusterSpots(quint8 receiver, const QList<spotData> &spots)
@@ -7011,7 +7058,7 @@ void MainController::loadSettings(QString settingsFile)
                 c.port = settings->value("Port", 7300).toInt();
                 c.userName = settings->value("UserName", "").toString();
                 c.password = settings->value("Password", "").toString();
-                c.timeout = settings->value("Timeout", 0).toInt();
+                c.timeout = qBound(dxClusterClient::spotLifetimeMin, settings->value("SpotLifetime", 60).toInt(), dxClusterClient::spotLifetimeMax);
                 c.isdefault = settings->value("Default", false).toBool();
                 if (!c.server.isEmpty()) {
                     prefs->clusters.append(c);

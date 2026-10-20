@@ -100,6 +100,7 @@ struct colorPrefsType{
 
     // Assorted
     QColor clusterSpots;
+    QColor clusterSpotLine;
     QColor buttonOff;
     QColor buttonOn;
 

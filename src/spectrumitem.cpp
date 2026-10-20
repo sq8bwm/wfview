@@ -517,6 +517,17 @@ void SpectrumItem::setMaxSpotRows(int rows)
     update();
 }
 
+void SpectrumItem::setSpotFadePercent(int percent)
+{
+    percent = qBound(0, percent, 100);
+    if (spotFadePercent == percent)
+        return;
+
+    spotFadePercent = percent;
+    emit spotsChanged();
+    update();
+}
+
 void SpectrumItem::setSpots(const QVector<spotData> &newSpots)
 {
     spots = newSpots;
@@ -1757,6 +1768,7 @@ QSGNode *SpectrumItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
             QColor baseTextColor = colors.clusterSpots.isValid() ? colors.clusterSpots : QColor(Qt::red);
             QColor baseOutlineColor = colors.plotBackground.isValid() ? colors.plotBackground : QColor(Qt::black);
             QColor baseBackColor = baseOutlineColor;
+            QColor baseLineColor = colors.clusterSpotLine.isValid() ? colors.clusterSpotLine : QColor(Qt::yellow);
             if (baseTextColor.alpha() <= 0)
                 baseTextColor = QColor(Qt::red);
             baseOutlineColor.setAlpha(220);
@@ -1769,20 +1781,21 @@ QSGNode *SpectrumItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 
             auto placeSpot = [&](const spotData &s) {
                 double alphaFactor = 1.0;
-                if (!s.current) {
+                // A timeout of 0 means the spot never expires, so it never fades.
+                if (!s.current && s.timeout > 0) {
                     QDateTime ts = s.timestamp;
                     if (ts.timeSpec() != Qt::UTC)
                         ts = ts.toUTC();
 
                     qint64 ageSec = ts.secsTo(now); // positive if now >= ts
 
-                    if (ageSec) {
-                        if (ageSec >= (s.timeout * 60)) {
-                            alphaFactor = 0.0;
-                        } else {
-                            const double span = double(s.timeout * 60);
-                            alphaFactor = double((s.timeout * 60) - ageSec) / span;
-                        }
+                    // Full strength until spotFadePercent of the lifetime has passed,
+                    // then fade linearly to nothing at expiry.
+                    const double fadeStart = double(s.timeout) * spotFadePercent / 100.0;
+                    if (ageSec >= s.timeout) {
+                        alphaFactor = 0.0;
+                    } else if (ageSec > fadeStart) {
+                        alphaFactor = double(s.timeout - ageSec) / (double(s.timeout) - fadeStart);
                     }
                 }
 
@@ -1867,6 +1880,8 @@ QSGNode *SpectrumItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
                 outlineColor.setAlpha(outlineAlpha);
                 QColor backColor = baseBackColor;
                 backColor.setAlpha(int(baseBackColor.alpha() * alphaFactor + 0.5));
+                QColor lineColor = baseLineColor;
+                lineColor.setAlpha(int(baseLineColor.alpha() * alphaFactor + 0.5));
 
                 if (textAlpha <= 0 && outlineAlpha <= 0)
                     return;
@@ -1875,7 +1890,7 @@ QSGNode *SpectrumItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
                 painter.setBrush(backColor);
                 painter.drawRoundedRect(labelRect, 3.0, 3.0);
 
-                painter.setPen(QPen(outlineColor, 1.0));
+                painter.setPen(QPen(lineColor, 1.0));
                 painter.drawLine(QPointF(x, labelRect.bottom()),
                                  QPointF(x, float(overlayHeight)));
 
