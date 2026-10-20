@@ -59,6 +59,7 @@ void kenwoodCommander::serialCommSetup(QHash<quint16,rigInfo> rigList, quint16 r
     this->vspQueueEnabled = vspUseQueue;
     this->tcpPort = tcpPort;
     this->wf = wf;
+    this->connType = connectionUSB;
 
     usingNativeLAN = false;
 
