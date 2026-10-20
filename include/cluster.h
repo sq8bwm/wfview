@@ -90,10 +90,10 @@ public slots:
     void enableTcp(bool enable);
     void reconnectTcpIfChanged();
     void setUdpPort(int p) { udpPort = p; }
-    void setTcpServerName(QString s) { tcpServerName = s; }
-    void setTcpPort(int p) { tcpPort = p; }
-    void setTcpUserName(QString s) { tcpUserName = s; }
-    void setTcpPassword(QString s) { tcpPassword = s; }
+    void setTcpServerName(QString s) { tcpServerName = s; clearStaleStatus(); }
+    void setTcpPort(int p) { tcpPort = p; clearStaleStatus(); }
+    void setTcpUserName(QString s) { tcpUserName = s; clearStaleStatus(); }
+    void setTcpPassword(QString s) { tcpPassword = s; clearStaleStatus(); }
     void setTcpTimeout(int p) { tcpTimeout = p; }
     void setUdpLifetime(int seconds) { udpLifetime = seconds; }
     void tcpCleanup();
@@ -110,6 +110,8 @@ private:
     void closeTcp(bool sayBye);
     void failTcp(const QString &reason);
     void setTcpStatus(tcpStatus s);
+    bool targetChanged() const;
+    void clearStaleStatus();
     void ensureCleanupTimer();
 
     bool udpEnable;

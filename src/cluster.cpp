@@ -97,8 +97,7 @@ void dxClusterClient::reconnectTcpIfChanged()
     if (shuttingDown || !tcpEnable)
         return;
 
-    if (tcpServerName == connectedServerName && tcpPort == connectedPort &&
-        tcpUserName == connectedUserName && tcpPassword == connectedPassword)
+    if (!targetChanged())
         return;
 
     qInfo(logCluster()) << "Cluster server settings changed, reconnecting to" << tcpServerName << tcpPort;
@@ -177,6 +176,20 @@ void dxClusterClient::setTcpStatus(tcpStatus s)
         return;
     status = s;
     emit tcpStatusChanged(int(s));
+}
+
+bool dxClusterClient::targetChanged() const
+{
+    return tcpServerName != connectedServerName || tcpPort != connectedPort ||
+           tcpUserName != connectedUserName || tcpPassword != connectedPassword;
+}
+
+void dxClusterClient::clearStaleStatus()
+{
+    // The status describes the last connection attempt. Once a different server
+    // is selected it no longer applies, even before the reconnect starts.
+    if (targetChanged())
+        setTcpStatus(tcpNotConnected);
 }
 
 void dxClusterClient::ensureCleanupTimer()
